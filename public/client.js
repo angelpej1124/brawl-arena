@@ -465,6 +465,8 @@ function onMessage(m) {
       isHost = m.host === myId;
       $('botAdd').hidden = !isHost;
       $('botDel').hidden = !isHost;
+      $('dumAdd').hidden = !isHost;
+      $('dumDel').hidden = !isHost;
     }
     for (const e of m.ev || []) if (e.i > lastEvSeen) { lastEvSeen = e.i; onEvent(e); }
   }
@@ -472,6 +474,8 @@ function onMessage(m) {
 
 $('botAdd').addEventListener('click', (e) => { e.currentTarget.blur(); send({ t: 'bot', add: true }); });
 $('botDel').addEventListener('click', (e) => { e.currentTarget.blur(); send({ t: 'bot', add: false }); });
+$('dumAdd').addEventListener('click', (e) => { e.currentTarget.blur(); send({ t: 'bot', add: true, dummy: true }); });
+$('dumDel').addEventListener('click', (e) => { e.currentTarget.blur(); send({ t: 'bot', add: false, dummy: true }); });
 
 // ---------------- 입력 ----------------
 const input = EMPTY_INPUT();
@@ -943,7 +947,10 @@ function drawPlayer(p, time) {
   if (light) { ctx.fillStyle = 'rgba(255,255,255,0.5)'; roundRect(-PW / 2, -PH, PW, PH, 12); ctx.fill(); }
   if (p.sl) { ctx.fillStyle = 'rgba(127,184,255,0.45)'; roundRect(-PW / 2, -PH, PW, PH, 12); ctx.fill(); }
   ctx.fillStyle = 'rgba(0,0,0,0.18)'; roundRect(-PW / 2, -PH * 0.35, PW, PH * 0.35, 10); ctx.fill();
-  if (p.b) { ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(-2, -PH - 10, 4, 10); ctx.beginPath(); ctx.arc(0, -PH - 12, 4, 0, Math.PI * 2); ctx.fill(); }
+  if (p.dm) {
+    // 더미: 몸에 과녁
+    for (const [r, c] of [[13, '#ffffff'], [9, '#ff4d4d'], [5, '#ffffff'], [2, '#ff4d4d']]) { ctx.fillStyle = c; ctx.beginPath(); ctx.arc(0, -PH * 0.42, r, 0, Math.PI * 2); ctx.fill(); }
+  } else if (p.b) { ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(-2, -PH - 10, 4, 10); ctx.beginPath(); ctx.arc(0, -PH - 12, 4, 0, Math.PI * 2); ctx.fill(); }
   ctx.fillStyle = '#fff';
   ctx.fillRect(f * 4 - 2, -PH + 14, 8, 11); ctx.fillRect(f * 4 + 10 * f - 2, -PH + 14, 8, 11);
   ctx.fillStyle = '#1a1030';
@@ -1154,7 +1161,7 @@ function drawHUD(state, players) {
       const host = p.id === state.host, bot = p.b;
       ctx.font = '700 11px "Noto Sans KR", sans-serif'; ctx.textAlign = 'right';
       ctx.fillStyle = host ? '#ffcf3f' : (p.rd || bot) ? '#6fe39a' : '#a39fc4';
-      ctx.fillText(host ? '방장' : bot ? '봇' : p.rd ? '준비 ✓' : '대기', x0 + cw - 12, y0 + 22);
+      ctx.fillText(host ? '방장' : p.dm ? '더미' : bot ? '봇' : p.rd ? '준비 ✓' : '대기', x0 + cw - 12, y0 + 22);
       ctx.textAlign = 'left';
     }
     if (state.ph === 'playing' || state.ph === 'ended') {
@@ -1171,7 +1178,8 @@ function drawHUD(state, players) {
     const ready = st.ready;
     ctx.font = '700 11px "Noto Sans KR", sans-serif'; ctx.textAlign = 'left';
     ctx.fillStyle = ready ? skColor : '#6d6893';
-    if (p.sk2) {
+    if (p.dm) { ctx.fillStyle = '#a39fc4'; ctx.fillText('가만히 있음', x0 + 18, y0 + 76, cw - 60); }
+    else if (p.sk2) {
       // 더블: 두 스킬을 짧게
       const st2 = skillStatus({ ...p, sk: p.sk2, cd: p.cdB });
       const short = (t) => t.replace('준비', '✓');
@@ -1403,7 +1411,7 @@ function updateRoomPanel(m) {
   if (md[0]) {
     for (const p of m.p) {
       const pill = document.createElement('div'); pill.className = 'tp';
-      const nm = document.createElement('span'); nm.textContent = (p.b ? '🤖 ' : '') + p.n; nm.style.color = p.id === myId ? '#ffcf3f' : '';
+      const nm = document.createElement('span'); nm.textContent = (p.dm ? '🎯 ' : p.b ? '🤖 ' : '') + p.n; nm.style.color = p.id === myId ? '#ffcf3f' : '';
       pill.append(nm);
       for (let t = 1; t <= 4; t++) {
         const d = document.createElement('button'); d.type = 'button';

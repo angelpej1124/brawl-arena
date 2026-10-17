@@ -225,15 +225,19 @@ class GameRoom {
       this.sim.ev({ k: 'host', n: this.clients.get(this.hostId).name });
     }
   }
-  bot(byId, add) {
-    if (byId !== this.hostId) return; // 봇은 방장만
+  bot(byId, add, dummy) {
+    if (byId !== this.hostId) return; // 봇·더미는 방장만
     if (add) {
       if (this.sim.players.size >= CONFIG.MAX_PLAYERS) return;
       const used = new Set(this.sim.list().map((p) => p.name));
-      const name = BOT_NAMES.find((n) => !used.has(n)) || '봇';
-      this.sim.addPlayer('bot' + nextId++, name, true, SKILL_IDS[Math.floor(Math.random() * SKILL_IDS.length)]);
+      let name;
+      if (dummy) { let i = 1; while (used.has('더미 ' + i)) i++; name = '더미 ' + i; }
+      else name = BOT_NAMES.find((n) => !used.has(n)) || '봇';
+      const p = this.sim.addPlayer((dummy ? 'dum' : 'bot') + nextId++, name, true, dummy ? 'slow' : SKILL_IDS[Math.floor(Math.random() * SKILL_IDS.length)]);
+      if (p && dummy) p.dummy = true;
     } else {
-      const bot = this.sim.list().reverse().find((p) => p.bot);
+      // 봇 빼기는 봇만, 더미 빼기는 더미만
+      const bot = this.sim.list().reverse().find((p) => p.bot && !!p.dummy === !!dummy);
       if (bot) this.sim.removePlayer(bot.id);
     }
   }
@@ -323,7 +327,7 @@ server.on('upgrade', (req, sock) => {
         const p = room.sim.players.get(id);
         if (p) p.input = cleanInput(m);
       } else if (m.t === 'bot' && room) {
-        room.bot(id, !!m.add);
+        room.bot(id, !!m.add, !!m.dummy);
       } else if (m.t === 'ready' && room) {
         room.sim.setReady(id, !!m.on);
       } else if (m.t === 'start' && room) {

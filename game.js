@@ -361,7 +361,8 @@ class Sim {
         p.reset(s.x, s.y);
         if (this.phase !== 'ended') p.inMatch = false;
       }
-      if (p.bot) p.input = botThink(this, p);
+      if (p.dummy) p.input = EMPTY_INPUT();           // 더미: 가만히 있음
+      else if (p.bot) p.input = botThink(this, p);
     });
     // 기생당한 몸은 기생자의 입력으로 움직임 (숙주 스킬은 못 씀)
     for (const p of list) {
@@ -1140,7 +1141,7 @@ class Sim {
     if (p.controller) { const c = this.players.get(p.controller); if (c) this.endParasite(c); }
     if (p.lastHitBy && this.tickCount - p.lastHitAt < CONFIG.TICK_RATE * 5 && this.phase === 'playing') {
       const killer = this.players.get(p.lastHitBy);
-      if (killer && killer !== p) { if (p.bot) killer.botKos = (killer.botKos || 0) + 1; else killer.kos++; }
+      if (killer && killer !== p) { if (p.dummy) { /* 더미는 보석 없음 */ } else if (p.bot) killer.botKos = (killer.botKos || 0) + 1; else killer.kos++; }
     }
     const keep = { wins: p.wins, skill: p.skill };
     if (this.phase !== 'playing' || !p.inMatch) {
@@ -1185,7 +1186,7 @@ class Sim {
         id: p.id, n: p.name, c: p.color, x: r0(p.x), y: r0(p.y), f: p.facing,
         g: p.grounded ? 1 : 0, vx: r0(p.vx), vy: r0(p.vy), dmg: p.damage, st: p.stocks,
         al: p.alive ? 1 : 0, im: p.inMatch ? 1 : 0, at: p.attack ? (p.attack.type === 'heavy' ? 2 : 1) : 0,
-        ap: ap(p), inv: p.invincible > 0 ? 1 : 0, hs: p.hitstun > 0 || p.stunT > 0 ? 1 : 0, ms: has(p, 'undying') ? SKILLS.undying.lives : CONFIG.STOCKS, ko: p.kos, wn: p.wins, b: p.bot ? 1 : 0,
+        ap: ap(p), inv: p.invincible > 0 ? 1 : 0, hs: p.hitstun > 0 || p.stunT > 0 ? 1 : 0, ms: has(p, 'undying') ? SKILLS.undying.lives : CONFIG.STOCKS, ko: p.kos, wn: p.wins, b: p.bot ? 1 : 0, dm: p.dummy ? 1 : 0,
         sk: p.skill, cd: ten(p.skillCd), cd2: ten(p.skillCd2), sk2: p.skill2, cdB: ten(p.skillCdB), tm: p.team,
         ...status(p),
         ft: ten(p.flyT), rt: ten(p.rockT), bt: ten(p.buffT),
