@@ -28,6 +28,10 @@ const SKILLS = {
   magnet:   { name: '자석', cd: 9, cd2: 9, radius: 330, power: 720 },     // Q 끌어당김, E 밀어냄
   empower:  { name: '강화', charge: 8, duration: 6, kbMul: 0.35, reachMul: 1.3, speedMul: 1.35, jumpMul: 1.2 },
   parasite: { name: '기생', hitsNeeded: 3, duration: 7 },
+  quake:    { name: '지진', cd: 12, duration: 3 },                        // 시전자 빼고 모두의 화면이 흔들림
+  giant:    { name: '거인', cd: 14, duration: 9, size: 2, kbMul: 0.8, speedMul: 0.85, reachMul: 1.6 },
+  rubber:   { name: '고무', cd: 13, duration: 7, reachMul: 2, jumpMul: 1.25 },
+  engine:   { name: '엔진', cd: 12, duration: 6, speedMul: 1.6, kbPerSpeed: 0.8, kbMax: 2.2 },
 };
 const SKILL_IDS = Object.keys(SKILLS);
 
@@ -43,6 +47,10 @@ const cleanInput = (i) => ({
 });
 const validSkill = (s) => (Object.prototype.hasOwnProperty.call(SKILLS, s) ? s : 'slow');
 const r0 = Math.round;
+// 몸 크기 (거인이면 2배)
+const sizeOf = (p) => (p && p.giantT > 0 ? SKILLS.giant.size : 1);
+const bw = (p) => CONFIG.PLAYER_W * sizeOf(p);
+const bh = (p) => CONFIG.PLAYER_H * sizeOf(p);
 
 class Player {
   constructor(id, name, color, bot, skill) {
@@ -62,6 +70,7 @@ class Player {
     this.skillCd = 0; this.skillCd2 = 0;
     this.slow = 0; this.stealth = 0; this.frozen = 0;
     this.flyT = 0; this.flyDownT = 0; this.rockT = 0; this.buffT = 0;
+    this.giantT = 0; this.rubberT = 0; this.engineT = 0;
     this.stillT = 0; this.charged = false;
     this.parHits = {};            // 기생: 내가 때린 횟수 (상대 id -> 횟수)
     this.parHost = null;          // 기생 중인 숙주 id
@@ -123,7 +132,7 @@ class Sim {
     if (p.parHost) this.endParasite(p, true);
     p.skill = validSkill(skill);
     p.skillCd = 0; p.skillCd2 = 0; p.charged = false; p.stillT = 0; p.parHits = {};
-    p.flyT = 0; p.rockT = 0; p.buffT = 0; p.stealth = 0;
+    p.flyT = 0; p.rockT = 0; p.buffT = 0; p.stealth = 0; p.giantT = 0; p.rubberT = 0; p.engineT = 0;
     this.clones.delete(id);
     return null;
   }
@@ -282,6 +291,9 @@ class Sim {
     if (p.flyDownT > 0) p.flyDownT = Math.max(0, p.flyDownT - dt);
     if (p.rockT > 0) p.rockT = Math.max(0, p.rockT - dt);
     if (p.buffT > 0) p.buffT = Math.max(0, p.buffT - dt);
+    if (p.giantT > 0) p.giantT = Math.max(0, p.giantT - dt);
+    if (p.rubberT > 0) p.rubberT = Math.max(0, p.rubberT - dt);
+    if (p.engineT > 0) p.engineT = Math.max(0, p.engineT - dt);
 
     // 강화 충전: 아무것도 안 하고 가만히 서 있는 시간
     if (p.skill === 'empower' && !p.clone && !p.charged && p.buffT <= 0) {
@@ -295,6 +307,9 @@ class Sim {
     let jumpMul = 1;
     if (p.rockT > 0) { moveMul = Math.min(moveMul, SKILLS.rock.moveMul); jumpMul = SKILLS.rock.jumpMul; }
     if (p.buffT > 0) { moveMul *= SKILLS.empower.speedMul; jumpMul *= SKILLS.empower.jumpMul; }
+    if (p.giantT > 0) moveMul *= SKILLS.giant.speedMul;
+    if (p.rubberT > 0) jumpMul *= SKILLS.rubber.jumpMul;
+    if (p.engineT > 0) moveMul *= SKILLS.engine.speedMul;
     const canFight = this.phase === 'playing' || this.phase === 'waiting';
     const flying = p.flyT > 0;
 
@@ -344,7 +359,7 @@ class Sim {
     if (k === 'empower') return this.useEmpower(p);
     if (k === 'parasite') return this.startParasite(p);
     if (p.skillCd > 0) return;
-    const cx = p.x, cy = p.y - CONFIG.PLAYER_H / 2;
+    const cx = p.x, cy = p.y - bh(p) / 2;
     const others = () => [...this.players.values(), ...this.clones.values()].filter(
       (o) => o !== p && o.ownerId !== p.id && o.alive && !o.inside && !(o.frozen > 0));
 
@@ -353,7 +368,7 @@ class Sim {
       let hits = 0;
       for (const o of others()) {
         if (o.invincible > 0) continue;
-        if (Math.hypot(o.x - cx, o.y - CONFIG.PLAYER_H / 2 - cy) <= s.radius) { o.slow = s.duration; if (!o.clone) hits++; }
+        if (Math.hypot(o.x - cx, o.y - bh(o) / 2 - cy) <= s.radius) { o.slow = s.duration; if (!o.clone) hits++; }
       }
       p.skillCd = s.cd;
       this.ev({ k: 'slow', x: r0(cx), y: r0(cy), r: s.radius, h: hits, pid: p.id });
@@ -387,7 +402,7 @@ class Sim {
     } else if (k === 'clone') {
       const s = SKILLS.clone;
       const old = this.clones.get(p.id);
-      if (old) this.ev({ k: 'poof', x: r0(old.x), y: r0(old.y - CONFIG.PLAYER_H / 2) });
+      if (old) this.ev({ k: 'poof', x: r0(old.x), y: r0(old.y - bh(old) / 2) });
       const c = new Player('c-' + p.id + '-' + this.tickCount, p.name, p.color, p.bot, p.skill);
       c.clone = true; c.ownerId = p.id; c.hitsTaken = 0;
       let x = p.x - p.facing * 60;
@@ -421,7 +436,7 @@ class Sim {
       let hits = 0;
       for (const o of others()) {
         if (o.invincible > 0) continue;
-        const ox = o.x, oy = o.y - CONFIG.PLAYER_H / 2;
+        const ox = o.x, oy = o.y - bh(o) / 2;
         const d = Math.hypot(ox - cx, oy - cy);
         if (d > s.radius) continue;
         const nx = d < 1 ? (Math.random() < 0.5 ? -1 : 1) : (ox - cx) / d;
@@ -457,6 +472,23 @@ class Sim {
       p.rockT = s.duration;
       p.skillCd = s.cd;
       this.ev({ k: 'rock', x: r0(p.x), y: r0(cy), pid: p.id });
+    } else if (k === 'quake') {
+      const s = SKILLS.quake;
+      p.skillCd = s.cd;
+      this.ev({ k: 'quake', by: p.id, d: s.duration, x: r0(p.x), y: r0(p.y) });
+    } else if (k === 'giant') {
+      const s = SKILLS.giant;
+      // 커질 자리가 천장에 막히지 않게 살짝 확인
+      p.giantT = s.duration; p.skillCd = s.cd;
+      this.ev({ k: 'giant', x: r0(p.x), y: r0(cy), pid: p.id });
+    } else if (k === 'rubber') {
+      const s = SKILLS.rubber;
+      p.rubberT = s.duration; p.skillCd = s.cd;
+      this.ev({ k: 'rubber', x: r0(p.x), y: r0(cy), pid: p.id });
+    } else if (k === 'engine') {
+      const s = SKILLS.engine;
+      p.engineT = s.duration; p.skillCd = s.cd;
+      this.ev({ k: 'engine', x: r0(p.x), y: r0(p.y), f: p.facing, pid: p.id });
     } else if (k === 'magnet') {
       this.magnet(p, 1);
       p.skillCd = SKILLS.magnet.cd;
@@ -470,11 +502,11 @@ class Sim {
   }
   magnet(p, sign) {
     const s = SKILLS.magnet;
-    const cx = p.x, cy = p.y - CONFIG.PLAYER_H / 2;
+    const cx = p.x, cy = p.y - bh(p) / 2;
     let hits = 0;
     for (const o of [...this.players.values(), ...this.clones.values()]) {
       if (o === p || o.ownerId === p.id || !o.alive || o.inside || o.frozen > 0 || o.invincible > 0) continue;
-      const ox = o.x, oy = o.y - CONFIG.PLAYER_H / 2;
+      const ox = o.x, oy = o.y - bh(o) / 2;
       const d = Math.hypot(ox - cx, oy - cy);
       if (d > s.radius || d < 1) continue;
       if (o.rockT > 0) continue; // 바위는 안 움직임
@@ -500,7 +532,7 @@ class Sim {
     if (!p.charged) return this.deny(p, `가만히 ${SKILLS.empower.charge}초 서 있으면 강화가 충전돼요`);
     p.charged = false; p.stillT = 0;
     p.buffT = SKILLS.empower.duration;
-    this.ev({ k: 'empower', x: r0(p.x), y: r0(p.y - CONFIG.PLAYER_H / 2), pid: p.id });
+    this.ev({ k: 'empower', x: r0(p.x), y: r0(p.y - bh(p) / 2), pid: p.id });
   }
 
   // ---------------- 기생 ----------------
@@ -515,7 +547,7 @@ class Sim {
     p.attack = null; p.vx = 0; p.vy = 0;
     h.controller = p.id; h.attack = null;
     if (this.clones.has(p.id)) this.clones.delete(p.id);
-    this.ev({ k: 'infest', x: r0(h.x), y: r0(h.y - CONFIG.PLAYER_H / 2), n: p.name, n2: h.name });
+    this.ev({ k: 'infest', x: r0(h.x), y: r0(h.y - bh(h) / 2), n: p.name, n2: h.name });
   }
   updateParasite(p, dt) {
     this.tickTimers(p, dt);
@@ -533,7 +565,7 @@ class Sim {
     p.invincible = Math.max(p.invincible, 0.8);
     p.parHits = {};   // 다시 3번 때려야 함
     p.parOrigin = null;
-    if (!silent) this.ev({ k: 'unfest', x: r0(p.x), y: r0(p.y - CONFIG.PLAYER_H / 2) });
+    if (!silent) this.ev({ k: 'unfest', x: r0(p.x), y: r0(p.y - bh(p) / 2) });
   }
 
   insideSolid(x, y) {
@@ -544,7 +576,7 @@ class Sim {
     return this.stage.platforms.some((pl) => Math.abs(p.y - pl.y) < 1 && p.x > pl.x && p.x < pl.x + pl.w);
   }
   moveAndCollide(p, dt) {
-    const hw = CONFIG.PLAYER_W / 2, h = CONFIG.PLAYER_H;
+    const hw = bw(p) / 2, h = bh(p);
     p.x += p.vx * dt;
     for (const s of this.stage.solids) {
       if (p.y > s.y && p.y - h < s.y + s.h && p.x + hw > s.x && p.x - hw < s.x + s.w) {
@@ -577,8 +609,9 @@ class Sim {
     if (atk.t >= def.startup && atk.t < def.startup + def.active && this.phase !== 'countdown' && this.phase !== 'ended') {
       const hb = this.hitbox(p, def);
       const overlaps = (o) => {
-        const ox = o.x - CONFIG.PLAYER_W / 2, oy = o.y - CONFIG.PLAYER_H;
-        return hb.x < ox + CONFIG.PLAYER_W && hb.x + hb.w > ox && hb.y < oy + CONFIG.PLAYER_H && hb.y + hb.h > oy;
+        const ow = bw(o), oh = bh(o);
+        const ox = o.x - ow / 2, oy = o.y - oh;
+        return hb.x < ox + ow && hb.x + hb.w > ox && hb.y < oy + oh && hb.y + hb.h > oy;
       };
       const hittable = (o) => o !== p && o.ownerId !== p.id && o.alive && !o.inside && !(o.frozen > 0) && !(o.invincible > 0);
       // 분신과 주인이 한 공격에 같이 걸리면 분신만 맞음 (분신이 지켜줌)
@@ -599,14 +632,18 @@ class Sim {
   hitClone(o) {
     if (++o.hitsTaken >= SKILLS.clone.hits && this.clones.get(o.ownerId) === o) {
       this.clones.delete(o.ownerId);
-      this.ev({ k: 'poof', x: r0(o.x), y: r0(o.y - CONFIG.PLAYER_H / 2) });
+      this.ev({ k: 'poof', x: r0(o.x), y: r0(o.y - bh(o) / 2) });
     }
   }
   hitbox(p, def) {
-    const hw = CONFIG.PLAYER_W / 2;
-    const reach = def.reach * (p.buffT > 0 ? SKILLS.empower.reachMul : 1);
+    const hw = bw(p) / 2, size = sizeOf(p);
+    let reach = def.reach;
+    if (p.buffT > 0) reach *= SKILLS.empower.reachMul;
+    if (p.giantT > 0) reach *= SKILLS.giant.reachMul;
+    if (p.rubberT > 0) reach *= SKILLS.rubber.reachMul;
+    const h = def.height * size;
     const x = p.facing > 0 ? p.x + hw - 6 : p.x - hw + 6 - reach;
-    return { x, y: p.y - CONFIG.PLAYER_H / 2 - def.height / 2 - 4, w: reach, h: def.height };
+    return { x, y: p.y - bh(p) / 2 - h / 2 - 4 * size, w: reach, h };
   }
   applyHit(a, t, def, type) {
     t.damage = Math.min(t.damage + def.damage, 999);
@@ -619,13 +656,18 @@ class Sim {
     if (t.flyT > 0 && t.vy < 0) t.flyDownT = SKILLS.fly.hitDrop;
     if (t.rockT > 0) {
       // 바위: 넉백과 경직 없음
-      this.ev({ k: 'hit', x: r0(t.x), y: r0(t.y - CONFIG.PLAYER_H / 2), p: type === 'heavy' ? 2 : 1, rk: 1 });
+      this.ev({ k: 'hit', x: r0(t.x), y: r0(t.y - bh(t) / 2), p: type === 'heavy' ? 2 : 1, rk: 1 });
       return;
     }
-    const kb = (def.baseKB + def.growthKB * t.damage) * (t.buffT > 0 ? SKILLS.empower.kbMul : 1);
+    let kb = (def.baseKB + def.growthKB * t.damage) * (t.buffT > 0 ? SKILLS.empower.kbMul : 1);
+    if (t.giantT > 0) kb *= SKILLS.giant.kbMul;                       // 거인은 덜 날아감
+    if (a.engineT > 0) {                                               // 엔진: 빠를수록 세게
+      const e = SKILLS.engine;
+      kb *= Math.min(e.kbMax, 1 + (Math.abs(a.vx) / CONFIG.RUN_SPEED) * e.kbPerSpeed);
+    }
     t.vx = a.facing * kb * 0.85; t.vy = -kb * def.lift - 120;
     t.grounded = false; t.hitstun = 0.15 + kb * 0.00025;
-    this.ev({ k: 'hit', x: r0(t.x), y: r0(t.y - CONFIG.PLAYER_H / 2), p: type === 'heavy' ? 2 : 1 });
+    this.ev({ k: 'hit', x: r0(t.x), y: r0(t.y - bh(t) / 2), p: type === 'heavy' ? 2 : 1 });
   }
   // 분신이 무대 밖으로 날아가면 주인 옆으로 돌아옴 (KO 아님)
   checkCloneBounds(c) {
@@ -656,7 +698,7 @@ class Sim {
   }
 
   inSmoke(o) {
-    const x = o.x, y = o.y - CONFIG.PLAYER_H / 2;
+    const x = o.x, y = o.y - bh(o) / 2;
     return this.smokes.some((s) => Math.hypot(x - s.x, y - s.y) < s.r * 0.9);
   }
   snapshot() {
@@ -669,6 +711,7 @@ class Sim {
     const status = (p) => ({
       sl: p.slow > 0 ? 1 : 0, stl: p.stealth > 0 ? 1 : 0, frz: p.frozen > 0 ? 1 : 0,
       fly: p.flyT > 0 ? 1 : 0, rk: p.rockT > 0 ? 1 : 0, bf: p.buffT > 0 ? 1 : 0,
+      gt: p.giantT > 0 ? 1 : 0, rb: p.rubberT > 0 ? 1 : 0, en: p.engineT > 0 ? 1 : 0,
       smk: this.inSmoke(p) ? 1 : 0,
     });
     return {
@@ -730,7 +773,7 @@ function botThink(sim, b) {
       if (o === b || o.ownerId === b.id || !o.alive || o.inside || o.invincible > 0 || o.frozen > 0) continue;
       if (o.stealth > 0) continue;
       // 연기 속에 있는 상대는 봇도 볼 수 없음
-      if (sim.smokes.some((s) => Math.hypot(o.x - s.x, o.y - CONFIG.PLAYER_H / 2 - s.y) < s.r * 0.75)) continue;
+      if (sim.smokes.some((s) => Math.hypot(o.x - s.x, o.y - bh(o) / 2 - s.y) < s.r * 0.75)) continue;
       const d = Math.abs(o.x - b.x) + Math.abs(o.y - b.y);
       if (d < best) { best = d; target = o; }
     }
@@ -777,6 +820,9 @@ function botThink(sim, b) {
       if (sk === 'magnet' && ready && best > 120 && best < 300 && R < 0.03) inp.s = 1;
       if (sk === 'magnet' && b.skillCd2 <= 0 && best < 110 && (target.x < 330 || target.x > 950) && R < 0.08) inp.e = 1;
       if (sk === 'empower' && b.charged && best < 250) inp.s = 1;
+      if (sk === 'quake' && ready && best < 400 && R < 0.01) inp.s = 1;
+      if ((sk === 'giant' || sk === 'rubber') && ready && best < 200 && R < 0.04) inp.s = 1;
+      if (sk === 'engine' && ready && best > 200 && R < 0.03) inp.s = 1;
       if (sk === 'parasite' && Object.values(b.parHits).some((n) => n >= SKILLS.parasite.hitsNeeded) && R < 0.03) inp.s = 1;
       if (Math.abs(dx) < 80 && Math.abs(dy) < 50 && b.facing === side && !b.attack && b.botCd <= 0) {
         if (target.damage > 70 && Math.random() < 0.5) inp.h = 1; else inp.a = 1;

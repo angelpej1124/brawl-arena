@@ -112,7 +112,7 @@ function scrypt(pw, salt) {
 //  보석 · 스킬 뽑기 · 관리자
 //  숫자를 바꾸면 보석 획득량과 뽑기 확률이 바뀌어요.
 // =====================================================================
-const ALL_SKILLS = ['slow', 'blink', 'stealth', 'clone', 'swap', 'fly', 'explode', 'freeze', 'rock', 'magnet', 'empower', 'parasite'];
+const ALL_SKILLS = ['slow', 'blink', 'stealth', 'clone', 'swap', 'fly', 'explode', 'freeze', 'rock', 'magnet', 'empower', 'parasite', 'quake', 'giant', 'rubber', 'engine'];
 const BASE_SKILLS = ['slow', 'blink'];          // 게스트·새 계정 기본 스킬
 const GEMS = {
   START: 50,          // 가입 선물
@@ -127,18 +127,11 @@ const GACHA = {
   DUP_REFUND: 40,     // 이미 가진 스킬이 나오면 돌려주는 보석
   // 뽑기 확률 (가중치)
   POOL: [
-    { skill: 'stealth', weight: 9 },
-    { skill: 'clone', weight: 9 },
-    { skill: 'swap', weight: 9 },
-    { skill: 'fly', weight: 9 },
-    { skill: 'explode', weight: 9 },
-    { skill: 'freeze', weight: 9 },
-    { skill: 'rock', weight: 9 },
-    { skill: 'magnet', weight: 9 },
-    { skill: 'empower', weight: 9 },
-    { skill: 'parasite', weight: 9 },
-    { skill: 'slow', weight: 5 },
-    { skill: 'blink', weight: 5 },
+    // 새 스킬 14개는 각 7%, 기본 스킬(둔화·점멸)은 각 1%
+    ...['stealth', 'clone', 'swap', 'fly', 'explode', 'freeze', 'rock', 'magnet', 'empower', 'parasite', 'quake', 'giant', 'rubber', 'engine']
+      .map((skill) => ({ skill, weight: 7 })),
+    { skill: 'slow', weight: 1 },
+    { skill: 'blink', weight: 1 },
   ],
 };
 // 관리자 닉네임 (환경 변수 ADMIN_NICKS, 쉼표로 여러 명). 이미 가입된 계정에만 적용돼요.

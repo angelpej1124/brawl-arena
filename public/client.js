@@ -26,11 +26,16 @@ const SKILLS = {
   rock:     { name: '바위', desc: '6초간 넉백 없음. 대신 아주 느려지고 점프도 낮아짐', cd: '쿨 10초' },
   magnet:   { name: '자석', desc: 'Q로 주변을 끌어당기고 E로 밀어냄', cd: '각 쿨 9초', two: true },
   empower:  { name: '강화', desc: '가만히 있는 시간이 8초 쌓이면 충전 (움직여도 유지). 6초간 넉백↓ 사거리·속도·점프↑', cd: '충전식' },
+  quake:    { name: '지진', desc: '나를 뺀 모두의 화면이 3초간 격하게 흔들림', cd: '쿨 12초' },
+  giant:    { name: '거인', desc: '9초간 2배로 커짐. 넉백·속도 조금↓, 사거리↑', cd: '쿨 14초' },
+  rubber:   { name: '고무', desc: '7초간 사거리 2배, 점프가 더 높아짐', cd: '쿨 13초' },
+  engine:   { name: '엔진', desc: '6초간 빨라짐. 빠를수록 때릴 때 넉백이 커짐', cd: '쿨 12초' },
   parasite: { name: '기생', desc: '3번 때린 상대 몸에 들어가 7초 조종. 다시 Q로 나옴', cd: '3번 때리면 준비' },
 };
 const SKILL_COLOR = {
   slow: '#7fb8ff', blink: '#c77dff', stealth: '#7fe0c8', clone: '#ff9ecf', swap: '#b48cff', fly: '#9ad7ff',
   explode: '#ff8a3d', freeze: '#d5ecff', rock: '#b5aca2', magnet: '#ff5d73', empower: '#4f8bff', parasite: '#7be36f',
+  quake: '#d6a45c', giant: '#ff6b4a', rubber: '#ff9ff3', engine: '#ffb000',
 };
 const SKILL_IDS = Object.keys(SKILLS);
 const MAPS = window.BRAWL_MAPS;   // maps.js (서버와 같은 맵 정보)
@@ -611,6 +616,16 @@ function onEvent(ev) {
     if (ev.k === 'infest') banners.push({ text: `${ev.n} → ${ev.n2} 기생!`, life: 1.6, max: 1.6, small: true, color: '#7be36f' });
   } else if (ev.k === 'deny') {
     banners.push({ text: ev.msg, life: 1.6, max: 1.6, small: true, color: '#ff9b9b' });
+  } else if (ev.k === 'quake') {
+    if (ev.by !== myId) { quakeT = ev.d || 3; banners.push({ text: '지진!', life: 1.2, max: 1.2, small: true, color: '#d6a45c' }); }
+    for (let i = 0; i < 20; i++) particles.push({ x: ev.x + (Math.random() - 0.5) * 120, y: ev.y, vx: (Math.random() - 0.5) * 300, vy: -Math.random() * 400, life: 0.6, max: 0.6, c: '#a3825a', r: 6 });
+  } else if (ev.k === 'giant' || ev.k === 'rubber' || ev.k === 'engine') {
+    const col = ev.k === 'giant' ? '255,107,74' : ev.k === 'rubber' ? '255,159,243' : '255,176,0';
+    particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.4, max: 0.4, r: ev.k === 'giant' ? 120 : 70, c: col });
+    for (let i = 0; i < 16; i++) {
+      const a = Math.random() * Math.PI * 2, sp = 80 + Math.random() * 220;
+      particles.push({ x: ev.x, y: ev.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.45, max: 0.45, c: `rgb(${col})`, r: 5, nograv: true });
+    }
   } else if (ev.k === 'map') {
     banners.push({ text: `맵: ${ev.n}`, life: 2.5, max: 2.5, small: true, color: '#ffcf3f' });
   } else if (ev.k === 'host') {
@@ -735,7 +750,8 @@ function drawPlayer(p, time) {
   ctx.globalAlpha = baseAlpha * (p.inv && Math.floor(time / 80) % 2 === 0 ? 0.45 : 1);
   const x = p.x, y = p.y, f = p.f || 1;
   ctx.fillStyle = 'rgba(0,0,0,0.25)';
-  ctx.beginPath(); ctx.ellipse(x, y + 2, 22, 5, 0, 0, Math.PI * 2); ctx.fill();
+  const G = p.gt ? 2 : 1;
+  ctx.beginPath(); ctx.ellipse(x, y + 2, 22 * G, 5 * G, 0, 0, Math.PI * 2); ctx.fill();
   // 둔화 상태: 발밑에 파란 고리
   if (p.sl) {
     ctx.strokeStyle = 'rgba(127,184,255,0.85)'; ctx.lineWidth = 3;
@@ -745,10 +761,24 @@ function drawPlayer(p, time) {
   if (!p.g) { sy = p.vy < 0 ? 1.08 : 0.95; sx = 2 - sy; }
   ctx.save(); ctx.translate(x, y);
   if (p.hs && !reduceMotion) ctx.rotate(Math.sin(time / 30) * 0.25);
-  ctx.scale(sx, sy);
+  ctx.scale(sx * G, sy * G);
   if (p.at === 2 && p.ap === 1) {
     ctx.fillStyle = 'rgba(255,207,63,0.35)';
     ctx.beginPath(); ctx.arc(0, -PH / 2, 44 + Math.sin(time / 30) * 4, 0, Math.PI * 2); ctx.fill();
+  }
+  if (p.en) {
+    // 엔진: 뒤쪽 불꽃
+    const len = 18 + Math.min(40, Math.abs(p.vx || 0) / 14) + Math.sin(time / 40) * 5;
+    const back = -f * PW / 2;
+    const g2 = ctx.createLinearGradient(back, 0, back - f * len, 0);
+    g2.addColorStop(0, 'rgba(255,220,90,0.95)'); g2.addColorStop(1, 'rgba(255,90,30,0)');
+    ctx.fillStyle = g2;
+    ctx.beginPath(); ctx.moveTo(back, -PH * 0.62); ctx.lineTo(back - f * len, -PH * 0.45); ctx.lineTo(back, -PH * 0.28); ctx.closePath(); ctx.fill();
+  }
+  if (p.rb) {
+    // 고무: 말랑하게 출렁임
+    const wob = 1 + Math.sin(time / 70) * 0.06;
+    ctx.scale(2 - wob, wob);
   }
   if (p.bf) {
     // 강화: 파란 오라
@@ -796,8 +826,17 @@ function drawPlayer(p, time) {
   ctx.fillStyle = '#1a1030';
   ctx.fillRect(f * 4 + f * 2, -PH + 17, 4, 6); ctx.fillRect(f * 4 + 10 * f + f * 2, -PH + 17, 4, 6);
   let reach = 0;
-  if (p.at) { const full = p.at === 2 ? 60 : 46; reach = p.ap === 1 ? -6 : p.ap === 2 ? full : full * 0.4; }
+  if (p.at) {
+    // 사거리 늘어나는 스킬은 팔도 길어짐 (거인은 몸이 2배라 그만큼 나눔)
+    const mult = (p.rb ? 2 : 1) * (p.gt ? 1.6 / 2 : 1) * (p.bf ? 1.3 : 1);
+    const full = (p.at === 2 ? 60 : 46) * mult + (p.rb ? 40 : 0);
+    reach = p.ap === 1 ? -6 : p.ap === 2 ? full : full * 0.4;
+  }
   const fx = f * (PW / 2 + 4 + reach), fy = -PH / 2 - 2;
+  if (p.rb && p.at && p.ap !== 1) {
+    ctx.strokeStyle = p.c; ctx.lineWidth = 7; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(f * PW / 2, -PH / 2 - 2); ctx.lineTo(f * (PW / 2 + 4 + reach), -PH / 2 - 2); ctx.stroke();
+  }
   if (p.ap === 2) {
     ctx.strokeStyle = p.at === 2 ? 'rgba(255,207,63,0.8)' : 'rgba(255,255,255,0.6)';
     ctx.lineWidth = p.at === 2 ? 10 : 6; ctx.lineCap = 'round';
@@ -808,7 +847,7 @@ function drawPlayer(p, time) {
   if (light) { ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.beginPath(); ctx.arc(fx, fy, 10, 0, Math.PI * 2); ctx.fill(); }
   ctx.restore();
   ctx.globalAlpha = baseAlpha;
-  const lift = p.b ? 12 : 0;
+  const lift = (p.b ? 12 : 0) + PH * (G - 1);
   ctx.font = '700 15px "Noto Sans KR", sans-serif'; ctx.textAlign = 'center';
   const isMe = p.id === myId || p.ctl === myId;
   const label = light ? '내 분신' : (isMe ? '▼ ' : '') + (ownerId === hostLive ? '♛ ' : '') + p.n
@@ -960,6 +999,7 @@ function drawSmoke(list, time) {
   }
 }
 let freezeFlash = 0;
+let quakeT = 0;   // 지진: 남은 흔들림 시간 (시전자는 0)
 
 // ---------------- 대기실 패널 (준비 · 시작 · 색 · 스킬) ----------------
 const PALETTE = MAPS.COLORS;
@@ -1065,8 +1105,17 @@ function frame(now) {
     const players = interpolatedPlayers();
     ctx.save();
     shake *= Math.pow(0.002, dt);
-    const sx = (Math.random() - 0.5) * shake * scale, sy = (Math.random() - 0.5) * shake * scale;
-    ctx.translate(offX + sx, offY + sy); ctx.scale(scale, scale);
+    let sx = (Math.random() - 0.5) * shake * scale, sy = (Math.random() - 0.5) * shake * scale;
+    let rot = 0;
+    if (quakeT > 0) {
+      quakeT -= dt;
+      const q = reduceMotion ? 6 : 34 * Math.min(1, quakeT + 0.3);
+      sx += (Math.random() - 0.5) * q * 2 * scale; sy += (Math.random() - 0.5) * q * 2 * scale;
+      rot = reduceMotion ? 0 : (Math.random() - 0.5) * 0.05;
+    }
+    ctx.translate(offX + sx, offY + sy);
+    if (rot) { ctx.translate(canvas.width / 2, canvas.height / 2); ctx.rotate(rot); ctx.translate(-canvas.width / 2, -canvas.height / 2); }
+    ctx.scale(scale, scale);
     drawStage();
     interpolatedPlayers('cl').forEach((c) => drawPlayer(c, now));
     players.filter((p) => p.id !== myId).forEach((p) => drawPlayer(p, now));
