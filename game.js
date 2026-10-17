@@ -15,8 +15,8 @@ const ATTACKS = {
 };
 // 스킬 (Q) — 숫자를 바꿔서 밸런스를 조절하세요
 const SKILLS = {
-  slow:  { name: '둔화', cd: 12, radius: 230, duration: 5, moveMul: 0.5, attackMul: 0.5 },
-  blink: { name: '점멸', cd: 6, distance: 230 },
+  slow:  { name: '둔화', cd: 6, radius: 230, duration: 5, moveMul: 0.5, attackMul: 0.5 },
+  blink: { name: '점멸', cd: 12, distance: 230 },
 };
 const STAGE = {
   width: 1280, height: 720,

@@ -15,8 +15,8 @@ const ATTACKS = {
 };
 // 스킬 (Q) — 숫자를 바꿔서 밸런스를 조절하세요
 const SKILLS = {
-  slow:  { name: '둔화', cd: 12, radius: 230, duration: 5, moveMul: 0.5, attackMul: 0.5 },
-  blink: { name: '점멸', cd: 6, distance: 230 },
+  slow:  { name: '둔화', cd: 6, radius: 230, duration: 5, moveMul: 0.5, attackMul: 0.5 },
+  blink: { name: '점멸', cd: 12, distance: 230 },
 };
 const STAGE = {
   width: 1280, height: 720,
@@ -38,7 +38,8 @@ const validSkill = (s) => (s === 'blink' ? 'blink' : 'slow');
 // =====================================================================
 const $ = (id) => document.getElementById(id);
 const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-const isHost = true; // 화면 문구용 (서버 버전에서는 누구나 봇을 추가할 수 있음)
+let isHost = false;   // 내가 방장인지 (서버가 알려줌)
+let hostLive = null;  // 지금 방장의 id
 
 const account = { token: null, profile: null, skill: 'slow' };
 let authTab = 'login';
@@ -188,30 +189,86 @@ let snapshots = [], latest = null, lastEvSeen = 0, pingMs = null;
 
 try { $('roomcode').value = localStorage.getItem('brawl_room') || ''; } catch (e) {}
 if (isTouch) { $('keysPc').hidden = true; $('keysTouch').hidden = false; }
-$('playBtn').addEventListener('click', enter);
-['gNick', 'roomcode'].forEach((id) => $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') enter(); }));
+$('playBtn').addEventListener('click', () => enter());
+['gNick', 'roomcode', 'roomTitle'].forEach((id) => $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') enter(); }));
 $('exitBtn').addEventListener('click', () => { location.reload(); });
+
+// ---------------- 방 고르기 (공개 방 목록 · 방 만들기 · 초대 코드) ----------------
+let roomTab = 'list';
+function setRoomTab(tab) {
+  roomTab = tab;
+  for (const [t, id] of [['list', 'rtList'], ['create', 'rtCreate'], ['code', 'rtCode']]) $(id).setAttribute('aria-selected', String(t === tab));
+  $('rpList').hidden = tab !== 'list';
+  $('rpCreate').hidden = tab !== 'create';
+  $('rpCode').hidden = tab !== 'code';
+  $('playBtn').textContent = tab === 'list' ? '빠른 입장' : tab === 'create' ? '공개 방 만들기' : '코드로 입장';
+  $('err').textContent = '';
+  if (tab === 'list') loadRooms();
+}
+$('rtList').addEventListener('click', () => setRoomTab('list'));
+$('rtCreate').addEventListener('click', () => setRoomTab('create'));
+$('rtCode').addEventListener('click', () => setRoomTab('code'));
+
+const PHASE_KO = { waiting: '대기 중', countdown: '곧 시작', playing: '게임 중', ended: '결과 화면' };
+async function loadRooms() {
+  try {
+    const r = await api('/api/rooms');
+    $('onlineNow').textContent = r.online;
+    const ul = $('roomList');
+    ul.textContent = '';
+    for (const room of r.rooms || []) {
+      const li = document.createElement('li');
+      const b = document.createElement('button');
+      b.className = 'room-btn';
+      const full = room.players >= room.max;
+      b.disabled = full;
+      const t = document.createElement('span'); t.className = 't'; t.textContent = room.title;
+      const c = document.createElement('span'); c.className = 'c'; c.textContent = full ? '꽉 참' : `${room.players}/${room.max}명`;
+      const st = document.createElement('span'); st.className = 's';
+      st.textContent = `방장 ${room.host || '-'} · ${PHASE_KO[room.phase] || ''}${room.bots ? ` · 봇 ${room.bots}` : ''}`;
+      b.append(t, c, st);
+      b.addEventListener('click', () => enter({ mode: 'listed', room: room.code }));
+      li.append(b);
+      ul.append(li);
+    }
+    $('roomEmpty').hidden = (r.rooms || []).length > 0;
+  } catch (e) {}
+}
+loadRooms();
+setInterval(() => { if (!$('lobby').hidden && roomTab === 'list') loadRooms(); }, 5000);
 
 function send(obj) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); }
 
-function enter() {
-  const code = ($('roomcode').value.trim().toLowerCase() || 'lobby');
+function enter(pick) {
+  if (ws) return;
   if (!account.profile && authTab !== 'guest') { $('err').textContent = '먼저 로그인하거나, 게스트 탭에서 닉네임을 정해 주세요.'; return; }
   const guest = cleanNick($('gNick').value);
   if (!account.profile && guest.length < 2) { $('err').textContent = '닉네임은 2~12자로 써 주세요.'; return; }
-  if (!/^[a-z0-9][a-z0-9_.-]{0,19}$/.test(code)) { $('err').textContent = '방 코드는 영어 소문자와 숫자로 써 주세요.'; return; }
-  try { localStorage.setItem('brawl_room', code); } catch (e) {}
+
+  let join;
+  if (pick) join = pick;
+  else if (roomTab === 'create') join = { mode: 'create', title: $('roomTitle').value.trim().slice(0, 20) };
+  else if (roomTab === 'code') {
+    const code = $('roomcode').value.trim().toLowerCase();
+    if (!/^[a-z0-9][a-z0-9_.-]{0,19}$/.test(code)) { $('err').textContent = '초대 코드는 영어 소문자와 숫자로 써 주세요.'; return; }
+    try { localStorage.setItem('brawl_room', code); } catch (e) {}
+    join = { mode: 'code', room: code };
+  } else join = { mode: 'quick' };
+
   $('err').textContent = '연결 중…';
   $('playBtn').disabled = true;
-
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(`${proto}://${location.host}/ws`);
-  ws.onopen = () => send({ t: 'join', room: code, skill: account.skill, ...(account.profile ? { token: account.token } : { guest }) });
+  ws.onopen = () => send({ t: 'join', ...join, skill: account.skill, ...(account.profile ? { token: account.token } : { guest }) });
   ws.onmessage = (e) => onMessage(JSON.parse(e.data));
   ws.onclose = () => {
     online = false;
     if (inGame) $('net').textContent = '서버와 연결이 끊겼어요 · 오른쪽 위 "나가기"를 눌러 다시 들어와 주세요';
-    else { $('err').textContent = $('err').textContent === '연결 중…' ? '서버에 연결할 수 없어요. 잠시 후 다시 해 주세요.' : $('err').textContent; $('playBtn').disabled = false; }
+    else {
+      ws = null;
+      if ($('err').textContent === '연결 중…') $('err').textContent = '서버에 연결할 수 없어요. 잠시 후 다시 해 주세요.';
+      $('playBtn').disabled = false;
+    }
   };
 }
 
@@ -219,14 +276,14 @@ function onMessage(m) {
   if (m.t === 'welcome') {
     myId = m.id; online = true; inGame = true;
     $('lobby').hidden = true; $('bar').hidden = false; $('net').hidden = false;
-    $('roomLabel').textContent = `방: ${m.room}`;
+    $('roomLabel').textContent = m.isPublic ? `공개 · ${m.title}` : `초대 코드: ${m.room}`;
     if (isTouch) $('touch').hidden = false;
     resize();
     setInterval(() => send({ t: 'ping', c: performance.now() }), 2000);
   } else if (m.t === 'error') {
     $('err').textContent = m.msg;
     $('playBtn').disabled = false;
-    if (!inGame) { ws.onclose = null; ws.close(); }
+    if (!inGame && ws) { const w = ws; ws = null; w.onclose = null; w.close(); loadRooms(); }
   } else if (m.t === 'pong') {
     pingMs = Math.round(performance.now() - m.c);
   } else if (m.t === 'profile') {
@@ -237,6 +294,13 @@ function onMessage(m) {
     snapshots.push(m);
     if (snapshots.length > 30) snapshots.shift();
     latest = m;
+    // 방장만 봇 추가/빼기 버튼이 보임
+    if (m.host !== hostLive || isHost !== (m.host === myId)) {
+      hostLive = m.host;
+      isHost = m.host === myId;
+      $('botAdd').hidden = !isHost;
+      $('botDel').hidden = !isHost;
+    }
     for (const e of m.ev || []) if (e.i > lastEvSeen) { lastEvSeen = e.i; onEvent(e); }
   }
 }
@@ -355,6 +419,8 @@ function onEvent(ev) {
       const a = Math.random() * Math.PI * 2, s = 80 + Math.random() * 200;
       particles.push({ x: ev.x2, y: ev.y2 - PH / 2, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 0.35, max: 0.35, c: '#e2b8ff', r: 4, nograv: true });
     }
+  } else if (ev.k === 'host') {
+    banners.push({ text: `${ev.n} 님이 새 방장이에요`, life: 2, max: 2, small: true, color: '#ffcf3f' });
   } else if (ev.k === 'start') {
     banners.push({ text: '싸워라!', life: 1, max: 1 });
   } else if (ev.k === 'join') {
@@ -484,7 +550,7 @@ function drawPlayer(p, time) {
   ctx.globalAlpha = 1;
   const lift = p.b ? 12 : 0;
   ctx.font = '700 15px "Noto Sans KR", sans-serif'; ctx.textAlign = 'center';
-  const label = (p.id === myId ? '▼ ' : '') + p.n;
+  const label = (p.id === myId ? '▼ ' : '') + (p.id === hostLive ? '♛ ' : '') + p.n;
   ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillText(label, x + 1, y - PH - 13 - lift);
   ctx.fillStyle = p.id === myId ? '#ffcf3f' : '#fff'; ctx.fillText(label, x, y - PH - 14 - lift);
   if (x < 0 || x > W || y < 0) {
@@ -563,7 +629,7 @@ function drawPhase(state, players, dt) {
   const ph = state.ph;
   if (ph === 'waiting') {
     bigText('상대를 기다리는 중', 130, 42, '#ffffff');
-    smallText(isHost ? '친구가 같은 방 코드로 들어오거나, 오른쪽 위 "봇 추가"로 바로 시작할 수 있어요' : '곧 시작합니다', 168);
+    smallText(isHost ? '방장이에요 · 다른 사람이 들어오거나, 오른쪽 위 "봇 추가"로 바로 시작할 수 있어요' : '방장(♛)이 봇을 추가하거나 다른 사람이 들어오면 시작해요', 168);
   } else if (ph === 'countdown') {
     bigText(String(state.tm), 300, 140, '#ffcf3f');
   } else if (ph === 'ended') {

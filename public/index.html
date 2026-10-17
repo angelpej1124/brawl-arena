@@ -63,6 +63,15 @@
   .me-box .dot { display: inline-block; margin: 0 2px 1px 0; vertical-align: middle; }
   .link { background: none; border: 0; color: var(--muted); text-decoration: underline; cursor: pointer; font-size: 13px; padding: 4px; }
   #authBox, #meBox { margin-bottom: 4px; }
+  .room-pane { margin-top: 8px; }
+  .rooms { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 232px; overflow-y: auto; }
+  .room-btn { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; text-align: left; background: #15122a;
+    border: 1.5px solid var(--line); border-radius: 10px; padding: 9px 12px; color: var(--text); cursor: pointer; font-family: inherit; touch-action: manipulation; }
+  .room-btn:hover:not(:disabled) { border-color: var(--accent); }
+  .room-btn:disabled { opacity: .5; cursor: not-allowed; }
+  .room-btn .t { font-weight: 700; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .room-btn .c { font-size: 13px; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .room-btn .s { grid-column: 1 / -1; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .skills { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .skill { text-align: left; border: 1.5px solid var(--line); background: #15122a; color: var(--text); border-radius: 12px;
     padding: 10px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 3px; min-width: 0; touch-action: manipulation; }
@@ -182,18 +191,34 @@
         <button id="logoutBtn" class="link" type="button">로그아웃</button>
       </div>
 
-      <label for="roomcode">방 코드 (영어·숫자, 친구와 같은 코드면 같은 방)</label>
-      <input id="roomcode" maxlength="20" placeholder="lobby" autocomplete="off" autocapitalize="off">
+      <span class="lbl" id="roomLbl">방 고르기</span>
+      <div class="tabs" role="tablist" aria-labelledby="roomLbl">
+        <button role="tab" id="rtList" aria-selected="true">공개 방</button>
+        <button role="tab" id="rtCreate" aria-selected="false">방 만들기</button>
+        <button role="tab" id="rtCode" aria-selected="false">초대 코드</button>
+      </div>
+      <div id="rpList" class="room-pane">
+        <ul class="rooms" id="roomList" aria-label="공개 방 목록"></ul>
+        <p class="hint" id="roomEmpty">열린 공개 방이 없어요. 아래 빠른 입장을 누르면 새 공개 방이 만들어져요.</p>
+      </div>
+      <div id="rpCreate" class="room-pane" hidden>
+        <label for="roomTitle">방 제목 (누구나 목록에서 보고 들어올 수 있어요)</label>
+        <input id="roomTitle" maxlength="20" placeholder="예: 초보만 오세요" autocomplete="off">
+      </div>
+      <div id="rpCode" class="room-pane" hidden>
+        <label for="roomcode">초대 코드 (같은 코드를 쓴 친구끼리만 · 목록에 안 보여요)</label>
+        <input id="roomcode" maxlength="20" placeholder="예: ourroom" autocomplete="off" autocapitalize="off">
+      </div>
       <span class="lbl" id="skillLbl">스킬 선택 (Q)</span>
       <div class="skills" role="group" aria-labelledby="skillLbl">
         <button class="skill" id="skSlow" data-skill="slow" aria-pressed="true">
-          <b><i></i>둔화</b><span>주변 적의 이동·공격 속도를 5초간 절반으로. 쿨 12초</span>
+          <b><i></i>둔화</b><span>주변 적의 이동·공격 속도를 5초간 절반으로. 쿨 6초</span>
         </button>
         <button class="skill" id="skBlink" data-skill="blink" aria-pressed="false">
-          <b><i></i>점멸</b><span>누른 방향으로 순간이동. 떨어질 때 복귀용. 쿨 6초</span>
+          <b><i></i>점멸</b><span>누른 방향으로 순간이동. 떨어질 때 복귀용. 쿨 12초</span>
         </button>
       </div>
-      <button class="play" id="playBtn">입장하기</button>
+      <button class="play" id="playBtn">빠른 입장</button>
       <div id="err" role="status"></div>
       <div class="keys" id="keysPc">
         <b>←</b><b>→</b> / <b>A</b><b>D</b> 이동 &nbsp; <b>↑</b> <b>W</b> <b>Space</b> 점프(2단)<br>
@@ -226,8 +251,8 @@
 
 <div id="bar" hidden>
   <span id="roomLabel"></span>
-  <button id="botAdd">봇 추가</button>
-  <button id="botDel">봇 빼기</button>
+  <button id="botAdd" hidden>봇 추가</button>
+  <button id="botDel" hidden>봇 빼기</button>
   <button id="exitBtn">나가기</button>
 </div>
 <div id="net" hidden></div>

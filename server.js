@@ -67,6 +67,9 @@ async function api(req, res, urlPath) {
       if (!key) return sendJson(res, 401, { error: '로그인이 필요해요.' });
       return sendJson(res, 200, { profile: accounts.profileOf(key) });
     }
+    if (req.method === 'GET' && urlPath === '/api/rooms') {
+      return sendJson(res, 200, { rooms: publicRooms(), online: onlineCount() });
+    }
     if (req.method === 'GET' && urlPath === '/api/ranking') {
       return sendJson(res, 200, { ranking: accounts.ranking(10), online: onlineCount() });
     }
@@ -95,19 +98,38 @@ const rooms = new Map();
 let nextId = 1;
 const onlineCount = () => [...rooms.values()].reduce((n, r) => n + r.clients.size, 0);
 
+function cleanTitle(t) {
+  return String(t || '').normalize('NFC')
+    .replace(/[<>&"'\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]/g, '')
+    .trim().slice(0, 20);
+}
+function newPublicCode() {
+  const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
+  let code;
+  do { code = 'pub-' + Array.from({ length: 5 }, () => chars[Math.floor(Math.random() * chars.length)]).join(''); }
+  while (rooms.has(code));
+  return code;
+}
+
 class GameRoom {
-  constructor(name) {
-    this.name = name;
+  constructor(code, { isPublic = false, title = '' } = {}) {
+    this.name = code;
+    this.isPublic = isPublic;
+    this.title = title || code;
+    this.createdAt = Date.now();
     this.sim = new Sim();
-    this.clients = new Map(); // id -> { socket, accountKey }
+    this.clients = new Map(); // id -> { socket, accountKey, name } (들어온 순서대로 저장됨)
+    this.hostId = null;       // 방장: 이 방에 가장 먼저 들어온 사람
     this.tickN = 0;
     this.sim.onEvent = (e) => { if (e.k === 'win') this.recordRound(); };
     this.timer = setInterval(() => this.step(), 1000 / CONFIG.TICK_RATE);
   }
+  humans() { return this.clients.size; }
+  isFull() { return this.clients.size >= CONFIG.MAX_PLAYERS; }
   step() {
     this.sim.tick(1 / CONFIG.TICK_RATE);
     if (++this.tickN % CONFIG.SEND_EVERY === 0) {
-      const msg = JSON.stringify({ t: 's', ...this.sim.snapshot() });
+      const msg = JSON.stringify({ t: 's', host: this.hostId, ...this.sim.snapshot() });
       for (const c of this.clients.values()) c.socket.send(msg);
     }
   }
@@ -123,21 +145,28 @@ class GameRoom {
     }
   }
   join(id, socket, name, accountKey, skill) {
+    if (this.isFull()) return false;
     if (this.sim.players.size >= CONFIG.MAX_PLAYERS) {
       const bot = this.sim.list().reverse().find((p) => p.bot);
-      if (!bot) return false;
-      this.sim.removePlayer(bot.id);
+      if (bot) this.sim.removePlayer(bot.id);
     }
-    this.clients.set(id, { socket, accountKey });
+    this.clients.set(id, { socket, accountKey, name });
     this.sim.addPlayer(id, name, false, skill);
+    if (!this.hostId) this.hostId = id;
     return true;
   }
   leave(id) {
     this.clients.delete(id);
     this.sim.removePlayer(id);
-    if (this.clients.size === 0) { clearInterval(this.timer); rooms.delete(this.name); }
+    if (this.clients.size === 0) { clearInterval(this.timer); rooms.delete(this.name); return; }
+    // 방장이 나가면 그다음으로 먼저 들어온 사람이 방장
+    if (this.hostId === id) {
+      this.hostId = this.clients.keys().next().value;
+      this.sim.ev({ k: 'host', n: this.clients.get(this.hostId).name });
+    }
   }
-  bot(add) {
+  bot(byId, add) {
+    if (byId !== this.hostId) return; // 봇은 방장만
     if (add) {
       if (this.sim.players.size >= CONFIG.MAX_PLAYERS) return;
       const used = new Set(this.sim.list().map((p) => p.name));
@@ -148,6 +177,20 @@ class GameRoom {
       if (bot) this.sim.removePlayer(bot.id);
     }
   }
+  summary() {
+    const host = this.clients.get(this.hostId);
+    return {
+      code: this.name, title: this.title, players: this.humans(),
+      bots: this.sim.list().filter((p) => p.bot).length, max: CONFIG.MAX_PLAYERS,
+      phase: this.sim.phase, host: host ? host.name : '',
+    };
+  }
+}
+
+function publicRooms() {
+  return [...rooms.values()].filter((r) => r.isPublic)
+    .sort((a, b) => (a.isFull() - b.isFull()) || b.humans() - a.humans() || a.createdAt - b.createdAt)
+    .slice(0, 30).map((r) => r.summary());
 }
 
 // ---------- 실시간 연결 ----------
@@ -167,8 +210,6 @@ server.on('upgrade', (req, sock) => {
       if (!m || typeof m !== 'object') return;
 
       if (m.t === 'join' && !room) {
-        const code = String(m.room || 'lobby').toLowerCase();
-        if (!/^[a-z0-9][a-z0-9_.-]{0,19}$/.test(code)) return fail('방 코드는 영어 소문자와 숫자로 써 주세요.');
         const skill = validSkill(m.skill);
         let name, accountKey = null;
         if (m.token) {
@@ -181,16 +222,45 @@ server.on('upgrade', (req, sock) => {
           if (name.length < 2) return fail('닉네임은 2~12자로 써 주세요.');
           if (accounts.isTaken(name)) return fail('가입된 닉네임이에요. 로그인하거나 다른 닉네임을 써 주세요.');
         }
-        if (!rooms.has(code)) rooms.set(code, new GameRoom(code));
-        const r = rooms.get(code);
-        if (!r.join(id, socket, name, accountKey, skill)) return fail('방이 가득 찼어요. 다른 방 코드를 써 주세요.');
+
+        let r;
+        if (m.mode === 'create') {
+          // 공개 방 만들기
+          const code = newPublicCode();
+          r = new GameRoom(code, { isPublic: true, title: cleanTitle(m.title) || `${name}의 방` });
+          rooms.set(code, r);
+        } else if (m.mode === 'quick') {
+          // 빠른 입장: 사람이 가장 많은 빈자리 공개 방, 없으면 새로 만들기
+          r = [...rooms.values()].filter((x) => x.isPublic && !x.isFull())
+            .sort((a, b) => b.humans() - a.humans() || a.createdAt - b.createdAt)[0];
+          if (!r) {
+            const code = newPublicCode();
+            r = new GameRoom(code, { isPublic: true, title: `${name}의 방` });
+            rooms.set(code, r);
+          }
+        } else {
+          // 목록에서 고른 공개 방, 또는 초대 코드 방 (없으면 비공개 방으로 새로 만듦)
+          const code = String(m.room || '').toLowerCase();
+          if (!/^[a-z0-9][a-z0-9_.-]{0,19}$/.test(code)) return fail('초대 코드는 영어 소문자와 숫자로 써 주세요.');
+          r = rooms.get(code);
+          if (!r) {
+            if (m.mode === 'listed') return fail('그 방은 방금 사라졌어요. 목록을 새로 보고 다른 방을 골라 주세요.');
+            if (code.startsWith('pub-')) return fail('pub- 로 시작하는 코드는 쓸 수 없어요. 다른 초대 코드를 써 주세요.');
+            r = new GameRoom(code, { isPublic: false });
+            rooms.set(code, r);
+          }
+        }
+        if (!r.join(id, socket, name, accountKey, skill)) {
+          if (r.clients.size === 0) { clearInterval(r.timer); rooms.delete(r.name); }
+          return fail('방이 가득 찼어요. 다른 방을 골라 주세요.');
+        }
         room = r;
-        socket.send(JSON.stringify({ t: 'welcome', id, room: code }));
+        socket.send(JSON.stringify({ t: 'welcome', id, room: r.name, title: r.title, isPublic: r.isPublic }));
       } else if (m.t === 'input' && room) {
         const p = room.sim.players.get(id);
         if (p) p.input = cleanInput(m);
       } else if (m.t === 'bot' && room) {
-        room.bot(!!m.add);
+        room.bot(id, !!m.add);
       } else if (m.t === 'ping') {
         socket.send(JSON.stringify({ t: 'pong', c: m.c }));
       }
