@@ -16,16 +16,16 @@ const ATTACKS = {
 // 스킬 정보 (실제 판정은 서버의 game.js가 함)
 const SKILLS = {
   slow:     { name: '둔화', desc: '주변 적의 이동·공격 속도를 5초간 절반으로', cd: '쿨 6초' },
-  blink:    { name: '점멸', desc: '누른 방향으로 순간이동. 떨어질 때 복귀용', cd: '쿨 12초' },
+  blink:    { name: '점멸', desc: '누른 방향으로 순간이동. 떨어질 때 복귀용', cd: '쿨 10초' },
   stealth:  { name: '은신', desc: '5초간 상대 화면에서 사라짐. 맞히면 맞음', cd: '쿨 11초' },
   clone:    { name: '분신', desc: '나와 똑같은 분신이 곁에서 지켜줌. 4대 맞으면 사라짐', cd: '쿨 10초' },
   swap:     { name: '전환', desc: '랜덤한 상대와 위치를 바꿈. 강공격 맞고 1초간 불가', cd: '쿨 12초' },
   fly:      { name: '비행', desc: '6초간 비행. 점프 키 누르면 올라가고 떼면 내려감', cd: '쿨 14초' },
-  explode:  { name: '폭파', desc: '주변을 폭파해 넉백 + 0.5초 스턴. 3초간 연기. 공중이면 3단 점프', cd: '쿨 8초' },
+  explode:  { name: '폭파', desc: '주변을 폭파해 넉백 + 0.5초 스턴. 3초간 짙은 연기로 가려짐. 공중이면 3단 점프', cd: '쿨 9초' },
   freeze:   { name: '정지', desc: '나 빼고 모두 1초 정지. 정지 중엔 공격이 안 맞음', cd: '쿨 8초' },
   rock:     { name: '바위', desc: '6초간 넉백 없음. 대신 아주 느려지고 점프도 낮아짐', cd: '쿨 10초' },
   magnet:   { name: '자석', desc: 'Q로 주변을 끌어당기고 E로 밀어냄', cd: '각 쿨 9초', two: true },
-  empower:  { name: '강화', desc: '10초 가만히 있으면 충전. 5초간 넉백↓ 사거리·속도·점프↑', cd: '충전식' },
+  empower:  { name: '강화', desc: '가만히 있는 시간이 10초 쌓이면 충전 (움직여도 유지). 5초간 넉백↓ 사거리·속도·점프↑', cd: '충전식' },
   parasite: { name: '기생', desc: '3번 때린 상대 몸에 들어가 7초 조종. 다시 Q로 나옴', cd: '3번 때리면 준비' },
 };
 const SKILL_COLOR = {
@@ -904,21 +904,28 @@ function drawPhase(state, players, dt) {
 }
 
 
-// 폭파 연기: 안에 있는 사람은 서버가 위치를 안 보내줌
+// 폭파 연기: 짙은 연기가 물리적으로 덮어서 안이 안 보임 (캐릭터 위에 그림)
 function drawSmoke(list, time) {
   for (const s of list) {
-    const a = Math.min(1, s.a * 1.6);
-    for (let i = 0; i < 14; i++) {
-      const ang = i * 2.399 + time / 2600, rr = s.r * (0.25 + (i % 5) * 0.16);
-      const x = s.x + Math.cos(ang) * rr * 0.7, y = s.y + Math.sin(ang) * rr * 0.45;
-      const g = ctx.createRadialGradient(x, y, 0, x, y, s.r * 0.6);
-      g.addColorStop(0, `rgba(120,116,138,${0.85 * a})`);
-      g.addColorStop(1, 'rgba(120,116,138,0)');
+    const a = Math.min(1, s.a * 2.2);
+    // 바깥쪽 몽글몽글한 가장자리
+    for (let i = 0; i < 16; i++) {
+      const ang = i * 2.399 + time / 2600, rr = s.r * (0.55 + (i % 4) * 0.12);
+      const x = s.x + Math.cos(ang) * rr * 0.75, y = s.y + Math.sin(ang) * rr * 0.6;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, s.r * 0.5);
+      g.addColorStop(0, `rgba(104,100,122,${0.95 * a})`);
+      g.addColorStop(1, 'rgba(104,100,122,0)');
       ctx.fillStyle = g;
-      ctx.beginPath(); ctx.arc(x, y, s.r * 0.6, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x, y, s.r * 0.5, 0, Math.PI * 2); ctx.fill();
     }
-    ctx.fillStyle = `rgba(96,92,112,${0.75 * a})`;
-    ctx.beginPath(); ctx.arc(s.x, s.y, s.r * 0.72, 0, Math.PI * 2); ctx.fill();
+    // 가운데는 완전히 불투명
+    ctx.fillStyle = `rgba(92,88,108,${a})`;
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.r * 0.82, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = `rgba(120,116,136,${0.5 * a})`;
+    for (let i = 0; i < 6; i++) {
+      const ang = i * 1.05 + time / 1800;
+      ctx.beginPath(); ctx.arc(s.x + Math.cos(ang) * s.r * 0.35, s.y + Math.sin(ang) * s.r * 0.3, s.r * 0.3, 0, Math.PI * 2); ctx.fill();
+    }
   }
 }
 let freezeFlash = 0;

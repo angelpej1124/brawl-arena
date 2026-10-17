@@ -17,12 +17,12 @@ const ATTACKS = {
 // 스킬 — 숫자를 바꿔서 밸런스를 조절하세요 (cd = 쿨타임 초)
 const SKILLS = {
   slow:     { name: '둔화', cd: 6, radius: 230, duration: 5, moveMul: 0.5, attackMul: 0.5 },
-  blink:    { name: '점멸', cd: 12, distance: 230 },
+  blink:    { name: '점멸', cd: 10, distance: 230 },
   stealth:  { name: '은신', cd: 11, duration: 5 },
   clone:    { name: '분신', cd: 10, hits: 4 },
   swap:     { name: '전환', cd: 12, heavyLock: 1 },                       // 강공격 맞고 1초 동안은 못 씀
   fly:      { name: '비행', cd: 14, duration: 6, up: 380, down: 260, hitDrop: 0.6 },
-  explode:  { name: '폭파', cd: 8, radius: 210, power: 640, damage: 6, stun: 0.5, smoke: 3, smokeR: 230 },
+  explode:  { name: '폭파', cd: 9, radius: 210, power: 640, damage: 6, stun: 0.5, smoke: 3, smokeR: 230 },
   freeze:   { name: '정지', cd: 8, duration: 1 },
   rock:     { name: '바위', cd: 10, duration: 6, moveMul: 0.32, jumpMul: 0.7 },
   magnet:   { name: '자석', cd: 9, cd2: 9, radius: 330, power: 720 },     // Q 끌어당김, E 밀어냄
@@ -222,8 +222,9 @@ class Sim {
 
     // 강화 충전: 아무것도 안 하고 가만히 서 있는 시간
     if (p.skill === 'empower' && !p.clone && !p.charged && p.buffT <= 0) {
+      // 가만히 있는 동안만 쌓이고, 움직여도 쌓인 양은 그대로 유지
       const idle = !inp.l && !inp.r && !inp.u && !inp.d && !inp.a && !inp.h && p.grounded && Math.abs(p.vx) < 20 && p.hitstun <= 0;
-      p.stillT = idle ? p.stillT + dt : 0;
+      if (idle) p.stillT += dt;
       if (p.stillT >= SKILLS.empower.charge) { p.charged = true; p.stillT = 0; this.ev({ k: 'charged', only: p.id }); }
     }
 
@@ -653,9 +654,32 @@ function botThink(sim, b) {
     let target = null, best = 1e9;
     for (const o of [...sim.players.values(), ...sim.clones.values()]) {
       if (o === b || o.ownerId === b.id || !o.alive || o.inside || o.invincible > 0 || o.frozen > 0) continue;
-      if (o.stealth > 0 || sim.inSmoke(o)) continue;
+      if (o.stealth > 0) continue;
+      // 연기 속에 있는 상대는 봇도 볼 수 없음
+      if (sim.smokes.some((s) => Math.hypot(o.x - s.x, o.y - CONFIG.PLAYER_H / 2 - s.y) < s.r * 0.75)) continue;
       const d = Math.abs(o.x - b.x) + Math.abs(o.y - b.y);
       if (d < best) { best = d; target = o; }
+    }
+    // 연기가 있으면 그 안에 누가 있는지 모른 채 아무 데나 때려 봄
+    const smoke = sim.smokes.length ? sim.smokes.reduce((m, s) => (Math.abs(s.x - b.x) < Math.abs(m.x - b.x) ? s : m)) : null;
+    if (smoke && (!target || Math.abs(smoke.x - b.x) + 60 < best) && Math.random() < 0.985) {
+      if (!b.pokeT || b.pokeT <= 0 || !b.pokeX) {
+        b.pokeX = clamp(smoke.x + (Math.random() - 0.5) * smoke.r * 1.4, 270, 1010);
+        b.pokeT = 30 + Math.floor(Math.random() * 40);
+      }
+      b.pokeT--;
+      const pdx = b.pokeX - b.x;
+      if (Math.abs(pdx) > 20) { if (pdx > 0) inp.r = 1; else inp.l = 1; }
+      else if (Math.random() < 0.3) { inp.l = 0; inp.r = 0; if (Math.random() < 0.5) inp.r = 1; else inp.l = 1; }
+      if (b.botCd > 0) b.botCd--;
+      if (Math.abs(b.x - smoke.x) < smoke.r && !b.attack && b.botCd <= 0 && Math.random() < 0.25) {
+        if (Math.random() < 0.3) inp.h = 1; else inp.a = 1;
+        b.botCd = 10 + Math.floor(Math.random() * 20);
+      }
+      if (b.grounded && smoke.y < b.y - 150 && Math.random() < 0.05) wantJump = true;
+      if (b.grounded && ((b.x < 280 && inp.l) || (b.x > 1000 && inp.r))) { inp.l = 0; inp.r = 0; }
+      if (wantJump && !b.prevInput.u) inp.u = 1;
+      return inp;
     }
     if (target) {
       const dx = target.x - b.x, dy = target.y - b.y;

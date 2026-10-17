@@ -156,12 +156,10 @@ class GameRoom {
     if (++this.tickN % CONFIG.SEND_EVERY === 0) {
       const snap = { t: 's', host: this.hostId, ...this.sim.snapshot() };
       // 보이면 안 되는 정보는 서버에서 빼고 보냄 (화면을 조작해도 못 봄)
-      //  - 연기 속: 모두에게 안 보임 (자기 자신 포함)
       //  - 기생 중인 몸: 모두에게 안 보임
       //  - 은신: 본인만 보임 (정지당하면 모두에게 반투명하게 드러남)
-      const hideFor = (q, cid) => q.smk || q.ins || (q.stl && !q.frz && q.id !== cid);
-      const needCustom = snap.p.some((q) => q.smk || q.ins || q.stl) || snap.cl.some((c) => c.smk)
-        || snap.ev.some((e) => e.only);
+      const hideFor = (q, cid) => q.ins || (q.stl && !q.frz && q.id !== cid);
+      const needCustom = snap.p.some((q) => q.ins || q.stl) || snap.ev.some((e) => e.only);
       if (!needCustom) {
         const msg = JSON.stringify(snap);
         for (const c of this.clients.values()) c.socket.send(msg);
@@ -173,7 +171,6 @@ class GameRoom {
         const view = {
           ...snap,
           p: snap.p.map((q) => (hidden.has(q.id) ? { ...q, ...blank } : q)),
-          cl: snap.cl.map((q) => (q.smk ? { ...q, ...blank } : q)),
           ev: snap.ev.filter((e) => !(e.only && e.only !== cid)
             && !(e.pid && hidden.has(e.pid) && e.pid !== cid)
             && !(e.pid2 && hidden.has(e.pid2) && e.pid2 !== cid)),
