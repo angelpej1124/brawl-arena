@@ -56,7 +56,16 @@ const COLORS = ['#ff5a5f', '#3fa7ff', '#ffc93c', '#4cd97b', '#c77dff', '#ff8c42'
 const BOT_NAMES = ['봇 철수', '봇 영희', '봇 바둑이', '봇 민수', '봇 지수'];
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const approach = (v, t, s) => (v < t ? Math.min(v + s, t) : Math.max(v - s, t));
-const EMPTY_INPUT = () => ({ l: 0, r: 0, u: 0, d: 0, a: 0, h: 0, s: 0, e: 0 });
+const EMPTY_INPUT = () => ({ l: 0, r: 0, u: 0, d: 0, a: 0, h: 0, s: 0, e: 0, x: 0 });
+const TEAMS = [null, { name: '빨강팀', color: '#ff4d4d' }, { name: '파랑팀', color: '#3f8cff' }, { name: '초록팀', color: '#3ccf6e' }, { name: '노랑팀', color: '#ffd23f' }];
+// 키 배치 (서버와 같은 규칙): Q=스킬1, E=스킬2 / 자석이 있으면 Q·E 자석, R 나머지
+function slotsOf(p) {
+  if (!p.sk2) return { s: p.sk, e: p.sk === 'magnet' ? 'magnet2' : null, x: null };
+  if (p.sk === 'magnet' || p.sk2 === 'magnet') return { s: 'magnet', e: 'magnet2', x: p.sk === 'magnet' ? p.sk2 : p.sk };
+  return { s: p.sk, e: p.sk2, x: null };
+}
+// 그 슬롯 스킬의 남은 쿨타임
+const cdOf = (p, k) => (k === 'magnet2' ? p.cd2 : k === p.sk ? p.cd : p.cdB);
 const cleanInput = (i) => ({ l: i.l ? 1 : 0, r: i.r ? 1 : 0, u: i.u ? 1 : 0, d: i.d ? 1 : 0, a: i.a ? 1 : 0, h: i.h ? 1 : 0, s: i.s ? 1 : 0 });
 const validSkill = (s) => (Object.prototype.hasOwnProperty.call(SKILLS, s) ? s : 'slow');
 
@@ -468,7 +477,7 @@ const input = EMPTY_INPUT();
 const KEYMAP = {
   ArrowLeft: 'l', KeyA: 'l', ArrowRight: 'r', KeyD: 'r',
   ArrowUp: 'u', KeyW: 'u', Space: 'u', ArrowDown: 'd', KeyS: 'd',
-  KeyJ: 'a', KeyZ: 'a', KeyK: 'h', KeyX: 'h', KeyQ: 's', KeyL: 's', KeyE: 'e', KeyI: 'e',
+  KeyJ: 'a', KeyZ: 'a', KeyK: 'h', KeyX: 'h', KeyQ: 's', KeyL: 's', KeyE: 'e', KeyI: 'e', KeyR: 'x', KeyO: 'x',
 };
 // 아주 짧게 눌러도 놓치지 않도록 최소 90ms는 눌린 상태로 유지
 const downAt = {}, releaseTimers = {};
@@ -822,6 +831,11 @@ function drawPlayer(p, time) {
   ctx.fillStyle = 'rgba(0,0,0,0.25)';
   const G = p.sz || (p.gt ? 2 : 1);
   ctx.beginPath(); ctx.ellipse(x, y + 2, 22 * G, 5 * G, 0, 0, Math.PI * 2); ctx.fill();
+  if (latest && latest.md && latest.md[0] && !isClone && TEAMS[p.tm]) {
+    // 팀 모드: 발밑에 팀 색 고리
+    ctx.strokeStyle = TEAMS[p.tm].color; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.ellipse(x, y + 2, 28 * G, 8 * G, 0, 0, Math.PI * 2); ctx.stroke();
+  }
   // 둔화 상태: 발밑에 파란 고리
   if (p.sl) {
     ctx.strokeStyle = 'rgba(127,184,255,0.85)'; ctx.lineWidth = 3;
@@ -1125,7 +1139,15 @@ function drawHUD(state, players) {
     const ready = st.ready;
     ctx.font = '700 11px "Noto Sans KR", sans-serif'; ctx.textAlign = 'left';
     ctx.fillStyle = ready ? skColor : '#6d6893';
-    ctx.fillText(`${sk.name} ${st.text}`, x0 + 18, y0 + 76, cw - 60);
+    if (p.sk2) {
+      // 더블: 두 스킬을 짧게
+      const st2 = skillStatus({ ...p, sk: p.sk2, cd: p.cdB });
+      const short = (t) => t.replace('준비', '✓');
+      ctx.fillText(`${sk.name} ${short(st.text)}`, x0 + 18, y0 + 69, cw - 60);
+      ctx.fillStyle = st2.ready ? SKILL_COLOR[validSkill(p.sk2)] : '#6d6893';
+      ctx.fillText(`${SKILLS[validSkill(p.sk2)].name} ${short(st2.text)}`, x0 + 18, y0 + 81, cw - 60);
+    } else ctx.fillText(`${sk.name} ${st.text}`, x0 + 18, y0 + 76, cw - 60);
+    if (state.md && state.md[0] && TEAMS[p.tm]) { ctx.fillStyle = TEAMS[p.tm].color; roundRect(x0 + 10, y0, cw - 10, 5, 2); ctx.fill(); }
     ctx.fillStyle = '#a39fc4'; ctx.textAlign = 'right';
     ctx.fillText(`${p.wn}승`, x0 + cw - 12, y0 + 76);
     ctx.globalAlpha = 1;
@@ -1285,14 +1307,22 @@ let myReady = false;
     if (isHost) send({ t: 'start' });
     else { myReady = !myReady; send({ t: 'ready', on: myReady }); }
   });
+  for (const [segId, field] of [['segTeam', 0], ['segDbl', 1]]) {
+    $(segId).querySelectorAll('button').forEach((b) => b.addEventListener('click', (e) => {
+      e.currentTarget.blur();
+      if (!latest || !latest.md) return;
+      const md = [...latest.md]; md[field] = +b.dataset.v;
+      send({ t: 'mode', team: !!md[0], dbl: !!md[1] });
+    }));
+  }
   $('rpFold').addEventListener('click', (e) => {
     const folded = $('roomPanel').classList.toggle('folded');
     e.currentTarget.textContent = folded ? '펼치기' : '접기';
     e.currentTarget.setAttribute('aria-expanded', String(!folded));
   });
 })();
-function renderSkillChips(current) {
-  const box = $('skillChips');
+function renderSkillChips(current, boxId = 'skillChips', msg = 'skill', other = null) {
+  const box = $(boxId);
   const owned = account.profile ? account.profile.owned : BASE_SKILLS;
   box.textContent = '';
   for (const k of SKILL_IDS) {
@@ -1301,8 +1331,9 @@ function renderSkillChips(current) {
     b.className = 'chip' + (k === current ? ' on' : ''); b.type = 'button';
     const dot = document.createElement('i'); dot.style.background = SKILL_COLOR[k];
     b.append(dot, SKILLS[k].name);
-    b.title = `${SKILLS[k].desc}. ${SKILLS[k].cd}`;
-    b.addEventListener('click', (e) => { e.currentTarget.blur(); send({ t: 'skill', skill: k }); });
+    b.title = `${SKILLS[k].desc}. ${SKILLS[k].cd}` + (k === other ? ' (다른 칸에서 쓰는 중 · 누르면 서로 바뀜)' : '');
+    if (k === other) b.style.opacity = '.5';
+    b.addEventListener('click', (e) => { e.currentTarget.blur(); send({ t: msg, skill: k }); });
     box.append(b);
   }
 }
@@ -1317,7 +1348,9 @@ function updateRoomPanel(m) {
   const taken = new Set(m.p.filter((p) => p.id !== myId).map((p) => p.c));
   const [ready, need] = m.rdy || [0, 0];
   const host = m.host === myId;
-  const key = [me.c, me.sk, me.rd, host, ready, need, m.p.length, [...taken].join(), (account.profile && account.profile.owned.join()) || ''].join('|');
+  const md = m.md || [0, 0];
+  const key = [me.c, me.sk, me.sk2, me.rd, host, ready, need, m.p.length, [...taken].join(), (account.profile && account.profile.owned.join()) || '',
+    md.join(), m.p.map((p) => p.id + ':' + p.tm + ':' + p.n).join()].join('|');
   if (key === panelKey) return;
   panelKey = key;
   document.querySelectorAll('.sw').forEach((b) => {
@@ -1326,14 +1359,45 @@ function updateRoomPanel(m) {
     const name = PALETTE.find((c) => c.hex === b.dataset.hex).name;
     b.title = b.disabled ? `${name} (다른 사람이 사용 중)` : name;
   });
-  renderSkillChips(me.sk);
+  renderSkillChips(me.sk, 'skillChips', 'skill', md[1] ? me.sk2 : null);
+  // 모드 (방장만 바꿀 수 있음)
+  for (const [segId, field] of [['segTeam', 0], ['segDbl', 1]]) {
+    $(segId).querySelectorAll('button').forEach((b) => { b.classList.toggle('on', +b.dataset.v === md[field]); b.disabled = !host; b.setAttribute('aria-pressed', String(+b.dataset.v === md[field])); });
+  }
+  $('modeNote').textContent = host ? '' : '방장이 정해요';
+  // 팀 나누기 (팀 모드)
+  $('teamRow').hidden = !md[0];
+  const tl = $('teamList'); tl.textContent = '';
+  if (md[0]) {
+    for (const p of m.p) {
+      const pill = document.createElement('div'); pill.className = 'tp';
+      const nm = document.createElement('span'); nm.textContent = (p.b ? '🤖 ' : '') + p.n; nm.style.color = p.id === myId ? '#ffcf3f' : '';
+      pill.append(nm);
+      for (let t = 1; t <= 4; t++) {
+        const d = document.createElement('button'); d.type = 'button';
+        d.className = 'tdot' + (p.tm === t ? ' on' : ''); d.style.background = TEAMS[t].color;
+        d.title = `${p.n} → ${TEAMS[t].name}`; d.setAttribute('aria-label', d.title); d.disabled = !host;
+        d.addEventListener('click', (e) => { e.currentTarget.blur(); send({ t: 'team', id: p.id, team: t }); });
+        pill.append(d);
+      }
+      tl.append(pill);
+    }
+  }
+  // 두 번째 스킬 (더블 모드)
+  $('chip2Row').hidden = !md[1];
+  if (md[1]) renderSkillChips(me.sk2, 'skillChips2', 'skill2', me.sk);
+  const sl = slotsOf(me);
+  $('keysNote').hidden = !md[1];
+  if (md[1]) $('keysNote').textContent = sl.x ? `자석 당기기 Q · 밀기 E · ${SKILLS[validSkill(sl.x)].name} R` : `${SKILLS[validSkill(me.sk)].name} Q · ${me.sk2 ? SKILLS[validSkill(me.sk2)].name : '?'} E`;
   const btn = $('readyBtn');
   if (host) {
-    const canStart = m.p.length >= 2 && ready === need;
+    const teamsOk = !md[0] || new Set(m.p.map((p) => p.tm)).size >= 2;
+    const canStart = m.p.length >= 2 && ready === need && teamsOk;
     btn.textContent = '게임 시작';
     btn.classList.remove('on');
     btn.disabled = !canStart;
     $('rpStatus').textContent = m.p.length < 2 ? '방장 · 2명 이상 필요 (봇 추가 가능)'
+      : !teamsOk ? '방장 · 팀을 2개 이상으로 나눠 주세요'
       : need === 0 ? '방장 · 바로 시작할 수 있어요' : `방장 · 준비 ${ready}/${need}명`;
   } else {
     btn.disabled = false;
@@ -1351,15 +1415,24 @@ function frame(now) {
   if (latest && isTouch) {
     const meS = latest.p.find((p) => p.id === myId);
     if (meS) {
-      const k = validSkill(meS.sk);
-      let ready = !(meS.cd > 0), txt = meS.cd > 0 ? meS.cd.toFixed(1) : 'Q';
-      if (k === 'empower') { ready = meS.chg >= 100 || meS.bf; txt = meS.bf ? '강화' : `${meS.chg || 0}%`; }
-      if (k === 'parasite') { ready = meS.pr > 0 || meS.ins; txt = meS.ins ? '나가기' : `${meS.pr || 0}명`; }
-      if (k === 'undying' || k === 'hulk') { ready = true; txt = SKILLS[k].name; }
-      $('tSkillCd').textContent = txt;
-      $('tSkill').classList.toggle('cool', !ready);
-      $('tSkill2Cd').textContent = meS.cd2 > 0 ? meS.cd2.toFixed(1) : 'E';
-      $('tSkill2').classList.toggle('cool', meS.cd2 > 0);
+      const sl = slotsOf(meS);
+      const btn = (el, nameEl, cdEl, k, keyName) => {
+        el.hidden = !k;
+        if (!k) return;
+        const kk = k === 'magnet2' ? 'magnet' : validSkill(k), cd = cdOf(meS, k);
+        let ready = !(cd > 0), txt = cd > 0 ? cd.toFixed(1) : keyName;
+        if (kk === 'empower') { ready = meS.chg >= 100 || meS.bf; txt = meS.bf ? '강화' : `${meS.chg || 0}%`; }
+        if (kk === 'parasite') { ready = meS.pr > 0 || meS.ins; txt = meS.ins ? '나가기' : `${meS.pr || 0}명`; }
+        if (kk === 'undying' || kk === 'hulk') { ready = true; txt = '패시브'; }
+        const nm = k === 'magnet2' ? '밀기' : sl.e === 'magnet2' && k === 'magnet' ? '당기기' : SKILLS[kk].name;
+        if (nameEl.textContent !== nm) nameEl.textContent = nm;
+        el.style.borderColor = SKILL_COLOR[kk];
+        cdEl.textContent = txt;
+        el.classList.toggle('cool', !ready);
+      };
+      btn($('tSkill'), $('tSkillName'), $('tSkillCd'), sl.s, 'Q');
+      btn($('tSkill2'), $('tSkill2Name'), $('tSkill2Cd'), sl.e, 'E');
+      btn($('tSkill3'), $('tSkill3Name'), $('tSkill3Cd'), sl.x, 'R');
     }
   }
   if (online && latest && ++barCounter % 30 === 0) {

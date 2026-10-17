@@ -189,7 +189,8 @@ class GameRoom {
       const c = this.clients.get(p.id);
       if (!c || !c.accountKey) continue;
       const r = accounts.record(c.accountKey, {
-        counted, win: counted && p.id === this.sim.winnerId, kills: p.kos, botKills: p.botKos || 0,
+        counted, win: counted && (this.sim.teamMode ? !!this.sim.winTeam && p.team === this.sim.winTeam : p.id === this.sim.winnerId),
+        kills: p.kos, botKills: p.botKos || 0,
       });
       if (r) c.socket.send(JSON.stringify({ t: 'profile', profile: r.profile, gained: r.gained }));
     }
@@ -203,7 +204,16 @@ class GameRoom {
     this.clients.set(id, { socket, accountKey, name });
     this.sim.addPlayer(id, name, false, skill);
     if (!this.hostId) this.hostId = id;
+    if (this.sim.doubleMode) this.giveSkill2(id);
     return true;
+  }
+  // 더블 모드: 두 번째 스킬이 없는 사람에게 가진 스킬 중 하나를 넣어 줌
+  giveSkill2(id) {
+    const p = this.sim.players.get(id), c = this.clients.get(id);
+    if (!p || !c || p.skill2) return;
+    const owned = c.accountKey ? accounts.ownedOf(c.accountKey) : accounts.BASE_SKILLS;
+    const k = owned.find((x) => x !== p.skill);
+    if (k) this.sim.setSkill2(id, k);
   }
   leave(id) {
     this.clients.delete(id);
@@ -321,6 +331,8 @@ server.on('upgrade', (req, sock) => {
         const st = room.sim.startStatus(id);
         if (room.sim.phase !== 'waiting') return;
         if (st.count < 2) return notice('2명 이상 있어야 해요. 봇을 추가하거나 친구를 기다려 주세요.');
+        if (!st.teamsOk) return notice('팀 모드는 2팀 이상이어야 해요. 팀을 나눠 주세요.');
+        if (!st.doubleOk) return notice('더블 모드: 두 번째 스킬이 없는 사람이 있어요. (게스트는 둔화·점멸 두 개를 같이 써요)');
         if (!st.ok) return notice(`아직 준비 안 한 사람이 있어요 (${st.ready}/${st.need})`);
         room.sim.checkStart();
       } else if (m.t === 'color' && room) {
@@ -335,6 +347,22 @@ server.on('upgrade', (req, sock) => {
         const err = room.sim.setSkill(id, skill);
         if (err) return notice(err);
         if (c.accountKey) accounts.setSkill(c.accountKey, skill);
+      } else if (m.t === 'skill2' && room) {
+        const skill = validSkill(m.skill);
+        const c = room.clients.get(id);
+        if (c.accountKey ? !accounts.owns(c.accountKey, skill) : !accounts.BASE_SKILLS.includes(skill)) {
+          return notice(c.accountKey ? '아직 뽑지 않은 스킬이에요.' : '게스트는 둔화와 점멸만 쓸 수 있어요.');
+        }
+        const err = room.sim.setSkill2(id, skill);
+        if (err) return notice(err);
+      } else if (m.t === 'mode' && room) {
+        if (id !== room.hostId) return notice('모드는 방장만 바꿀 수 있어요.');
+        const err = room.sim.setMode(!!m.team, !!m.dbl);
+        if (err) return notice(err);
+        if (room.sim.doubleMode) for (const cid of room.clients.keys()) room.giveSkill2(cid);
+      } else if (m.t === 'team' && room) {
+        if (id !== room.hostId) return notice('팀은 방장만 정할 수 있어요.');
+        room.sim.setTeam(String(m.id || ''), m.team);
       } else if (m.t === 'ping') {
         socket.send(JSON.stringify({ t: 'pong', c: m.c }));
       }

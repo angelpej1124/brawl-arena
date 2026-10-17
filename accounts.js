@@ -224,6 +224,10 @@ function isTaken(nick) {
   return !!store.accounts[keyOf(nick)];
 }
 
+function ownedOf(key) {
+  const a = store.accounts[key];
+  return a ? [...a.owned] : [...BASE_SKILLS];
+}
 function owns(key, skill) {
   const a = store.accounts[key];
   return !!a && a.owned.includes(skill);
@@ -319,6 +323,6 @@ setInterval(() => {
 
 module.exports = {
   init, storage: () => storageName, signup, login, logout, fromToken, profileOf, nickOf, isTaken,
-  owns, setSkill, record, ranking, cleanNick, gacha, isAdmin, adminList, adminUpdate,
+  owns, ownedOf, setSkill, record, ranking, cleanNick, gacha, isAdmin, adminList, adminUpdate,
   GEMS, GACHA, BASE_SKILLS, ALL_SKILLS,
 };
