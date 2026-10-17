@@ -93,6 +93,7 @@
   .adm-skills { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
   .chk { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; color: var(--text); background: #15122a; border-radius: 8px; padding: 8px 10px; }
   .chk input { width: auto; }
+  #skillBox { max-height: 300px; overflow-y: auto; padding-right: 2px; }
   .skills { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .skill { text-align: left; border: 1.5px solid var(--line); background: #15122a; color: var(--text); border-radius: 12px;
     padding: 10px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 3px; min-width: 0; touch-action: manipulation; }
@@ -158,7 +159,9 @@
   .tb-h { right: calc(108px + env(safe-area-inset-right, 0px)); bottom: calc(106px + env(safe-area-inset-bottom, 0px)); }
   .tb-s { right: calc(20px + env(safe-area-inset-right, 0px)); bottom: calc(116px + env(safe-area-inset-bottom, 0px)); border-color: var(--blink); }
   .tb-s small { font-size: 11px; font-weight: 500; opacity: .85; }
-  .tb-s.cool { opacity: .5; }
+  .tb-s.cool, .tb-e.cool { opacity: .5; }
+  .tb-e { right: calc(196px + env(safe-area-inset-right, 0px)); bottom: calc(116px + env(safe-area-inset-bottom, 0px)); width: 62px; height: 62px; border-color: #5a96ff; }
+  .tb-e small { font-size: 11px; font-weight: 500; opacity: .85; }
   @media (orientation: landscape) and (max-height: 500px) {
     #touch { height: 100%; }
     .tbtn { width: 64px; height: 64px; font-size: 13px; background: rgba(255,255,255,.08); }
@@ -168,6 +171,7 @@
     .tb-a { right: calc(96px + env(safe-area-inset-right, 0px)); }
     .tb-h { right: calc(96px + env(safe-area-inset-right, 0px)); bottom: calc(94px + env(safe-area-inset-bottom, 0px)); }
     .tb-s { bottom: calc(104px + env(safe-area-inset-bottom, 0px)); }
+    .tb-e { right: calc(176px + env(safe-area-inset-right, 0px)); bottom: calc(100px + env(safe-area-inset-bottom, 0px)); width: 56px; height: 56px; }
     #rotate { display: none; }
   }
   @media (max-width: 640px) { #net { top: calc(62px + env(safe-area-inset-top, 0px)); } }
@@ -233,25 +237,12 @@
         <input id="roomcode" maxlength="20" placeholder="예: ourroom" autocomplete="off" autocapitalize="off">
       </div>
       <span class="lbl" id="skillLbl">스킬 선택 (Q)</span>
-      <div class="skills" role="group" aria-labelledby="skillLbl">
-        <button class="skill" id="skSlow" data-skill="slow" aria-pressed="true">
-          <b><i></i>둔화</b><span>주변 적의 이동·공격 속도를 5초간 절반으로. 쿨 6초</span>
-        </button>
-        <button class="skill" id="skBlink" data-skill="blink" aria-pressed="false">
-          <b><i></i>점멸</b><span>누른 방향으로 순간이동. 떨어질 때 복귀용. 쿨 12초</span>
-        </button>
-        <button class="skill" id="skStealth" data-skill="stealth" aria-pressed="false">
-          <b><i></i>은신</b><span>5초 동안 상대 화면에서 사라짐. 위치를 맞히면 맞음. 쿨 11초</span>
-        </button>
-        <button class="skill" id="skClone" data-skill="clone" aria-pressed="false">
-          <b><i></i>분신</b><span>나와 똑같은 분신이 곁에서 지켜줌. 4대 맞으면 사라짐. 쿨 10초</span>
-        </button>
-      </div>
+      <div class="skills" id="skillBox" role="group" aria-labelledby="skillLbl"></div>
       <button class="play" id="playBtn">빠른 입장</button>
       <div id="err" role="status"></div>
       <div class="keys" id="keysPc">
         <b>←</b><b>→</b> / <b>A</b><b>D</b> 이동 &nbsp; <b>↑</b> <b>W</b> <b>Space</b> 점프(2단)<br>
-        <b>↓</b> <b>S</b> 발판 내려가기 &nbsp; <b>J</b> 약공격 &nbsp; <b>K</b> 강공격 &nbsp; <b>Q</b> 스킬<br>
+        <b>↓</b> <b>S</b> 발판 내려가기 &nbsp; <b>J</b> 약공격 &nbsp; <b>K</b> 강공격 &nbsp; <b>Q</b> 스킬 &nbsp; <b>E</b> 자석 밀기<br>
         데미지 %가 높을수록 멀리 날아가요. 목숨은 3개!
       </div>
       <div class="keys" id="keysTouch" hidden>
@@ -294,12 +285,7 @@
         <label for="admGems">보석</label>
         <input id="admGems" type="number" min="0" max="1000000" step="1" inputmode="numeric">
         <span class="lbl">가진 스킬</span>
-        <div class="adm-skills">
-          <label class="chk"><input type="checkbox" id="admSkslow" data-skill="slow" checked disabled> 둔화 (기본)</label>
-          <label class="chk"><input type="checkbox" id="admSkblink" data-skill="blink" checked disabled> 점멸 (기본)</label>
-          <label class="chk"><input type="checkbox" id="admSkstealth" data-skill="stealth"> 은신</label>
-          <label class="chk"><input type="checkbox" id="admSkclone" data-skill="clone"> 분신</label>
-        </div>
+        <div class="adm-skills" id="admSkills"></div>
         <button class="sub-btn" id="admSave" type="button">저장</button>
         <p class="hint" id="admMsg" role="status"></p>
       </div>
@@ -324,6 +310,7 @@
   <div class="tbtn tb-a" data-k="a">약</div>
   <div class="tbtn tb-u" data-k="u">점프</div>
   <div class="tbtn tb-s" data-k="s" id="tSkill"><span id="tSkillName">스킬</span><small id="tSkillCd"></small></div>
+  <div class="tbtn tb-e" data-k="e" id="tSkill2" hidden><span>밀기</span><small id="tSkill2Cd">E</small></div>
 </div>
 
 <script src="client.js"></script>

@@ -13,14 +13,26 @@ const ATTACKS = {
   light: { startup: 0.06, active: 0.10, total: 0.28, reach: 58, height: 40, damage: 6,  baseKB: 280, growthKB: 9,  lift: 0.45 },
   heavy: { startup: 0.24, active: 0.10, total: 0.62, reach: 72, height: 50, damage: 13, baseKB: 420, growthKB: 15, lift: 0.65 },
 };
-// 스킬 (Q) — 숫자를 바꿔서 밸런스를 조절하세요
+// 스킬 정보 (실제 판정은 서버의 game.js가 함)
 const SKILLS = {
-  slow:  { name: '둔화', cd: 6, radius: 230, duration: 5, moveMul: 0.5, attackMul: 0.5 },
-  blink: { name: '점멸', cd: 12, distance: 230 },
-  stealth: { name: '은신', cd: 11, duration: 5 },
-  clone: { name: '분신', cd: 10, hits: 4 },
+  slow:     { name: '둔화', desc: '주변 적의 이동·공격 속도를 5초간 절반으로', cd: '쿨 6초' },
+  blink:    { name: '점멸', desc: '누른 방향으로 순간이동. 떨어질 때 복귀용', cd: '쿨 12초' },
+  stealth:  { name: '은신', desc: '5초간 상대 화면에서 사라짐. 맞히면 맞음', cd: '쿨 11초' },
+  clone:    { name: '분신', desc: '나와 똑같은 분신이 곁에서 지켜줌. 4대 맞으면 사라짐', cd: '쿨 10초' },
+  swap:     { name: '전환', desc: '랜덤한 상대와 위치를 바꿈. 강공격 맞고 1초간 불가', cd: '쿨 12초' },
+  fly:      { name: '비행', desc: '6초간 비행. 점프 키 누르면 올라가고 떼면 내려감', cd: '쿨 14초' },
+  explode:  { name: '폭파', desc: '주변을 폭파해 넉백 + 0.5초 스턴. 3초간 연기. 공중이면 3단 점프', cd: '쿨 8초' },
+  freeze:   { name: '정지', desc: '나 빼고 모두 1초 정지. 정지 중엔 공격이 안 맞음', cd: '쿨 8초' },
+  rock:     { name: '바위', desc: '6초간 넉백 없음. 대신 아주 느려지고 점프도 낮아짐', cd: '쿨 10초' },
+  magnet:   { name: '자석', desc: 'Q로 주변을 끌어당기고 E로 밀어냄', cd: '각 쿨 9초', two: true },
+  empower:  { name: '강화', desc: '10초 가만히 있으면 충전. 5초간 넉백↓ 사거리·속도·점프↑', cd: '충전식' },
+  parasite: { name: '기생', desc: '3번 때린 상대 몸에 들어가 7초 조종. 다시 Q로 나옴', cd: '3번 때리면 준비' },
 };
-const SKILL_COLOR = { slow: '#7fb8ff', blink: '#c77dff', stealth: '#7fe0c8', clone: '#ff9ecf' };
+const SKILL_COLOR = {
+  slow: '#7fb8ff', blink: '#c77dff', stealth: '#7fe0c8', clone: '#ff9ecf', swap: '#b48cff', fly: '#9ad7ff',
+  explode: '#ff8a3d', freeze: '#d5ecff', rock: '#b5aca2', magnet: '#ff5d73', empower: '#4f8bff', parasite: '#7be36f',
+};
+const SKILL_IDS = Object.keys(SKILLS);
 const STAGE = {
   width: 1280, height: 720,
   solids: [{ x: 240, y: 520, w: 800, h: 70 }],
@@ -32,7 +44,7 @@ const COLORS = ['#ff5a5f', '#3fa7ff', '#ffc93c', '#4cd97b', '#c77dff', '#ff8c42'
 const BOT_NAMES = ['봇 철수', '봇 영희', '봇 바둑이', '봇 민수', '봇 지수'];
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const approach = (v, t, s) => (v < t ? Math.min(v + s, t) : Math.max(v - s, t));
-const EMPTY_INPUT = () => ({ l: 0, r: 0, u: 0, d: 0, a: 0, h: 0, s: 0 });
+const EMPTY_INPUT = () => ({ l: 0, r: 0, u: 0, d: 0, a: 0, h: 0, s: 0, e: 0 });
 const cleanInput = (i) => ({ l: i.l ? 1 : 0, r: i.r ? 1 : 0, u: i.u ? 1 : 0, d: i.d ? 1 : 0, a: i.a ? 1 : 0, h: i.h ? 1 : 0, s: i.s ? 1 : 0 });
 const validSkill = (s) => (Object.prototype.hasOwnProperty.call(SKILLS, s) ? s : 'slow');
 
@@ -189,7 +201,7 @@ async function adminSearch() {
       if (adminSel && adminSel.nick === u.nick) li.className = 'sel';
       const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = u.nick + (u.admin ? ' (관리자)' : '');
       const sc = document.createElement('span'); sc.className = 'sc';
-      sc.textContent = `보석 ${u.gems} · ${u.owned.map((k) => SKILLS[k] ? SKILLS[k].name : k).join('·')}`;
+      sc.textContent = `보석 ${u.gems} · 스킬 ${u.owned.length}/${SKILL_IDS.length}`;
       li.style.gridTemplateColumns = 'minmax(0,1fr) auto';
       li.append(nm, sc);
       li.addEventListener('click', () => adminPick(u));
@@ -205,7 +217,7 @@ function adminPick(u) {
   $('admEdit').hidden = false;
   $('admName').textContent = `${u.nick} 관리 중`;
   $('admGems').value = u.gems;
-  for (const k of ['stealth', 'clone']) $('admSk' + k).checked = u.owned.includes(k);
+  for (const k of SKILL_IDS) if (k !== 'slow' && k !== 'blink') $('admSk' + k).checked = u.owned.includes(k);
   $('admMsg').textContent = '';
   document.querySelectorAll('#admList li').forEach((li) => li.classList.toggle('sel', li.firstChild && li.firstChild.textContent.startsWith(u.nick)));
 }
@@ -267,15 +279,45 @@ setInterval(() => { if (!$('lobby').hidden) loadRanking(); }, 15000);
 })();
 
 // ---------------- 스킬 선택 ----------------
+// 로비 스킬 버튼 만들기
+(function buildSkillButtons() {
+  const box = $('skillBox');
+  box.textContent = '';
+  for (const k of SKILL_IDS) {
+    const b = document.createElement('button');
+    b.className = 'skill'; b.dataset.skill = k; b.type = 'button';
+    b.setAttribute('aria-pressed', 'false');
+    const t = document.createElement('b');
+    const dot = document.createElement('i'); dot.style.background = SKILL_COLOR[k];
+    t.append(dot, SKILLS[k].name);
+    const d = document.createElement('span'); d.textContent = `${SKILLS[k].desc}. ${SKILLS[k].cd}`;
+    b.append(t, d);
+    box.append(b);
+  }
+  // 관리자 스킬 체크박스
+  const adm = $('admSkills');
+  adm.textContent = '';
+  for (const k of SKILL_IDS) {
+    const l = document.createElement('label'); l.className = 'chk';
+    const c = document.createElement('input'); c.type = 'checkbox'; c.dataset.skill = k; c.id = 'admSk' + k;
+    if (k === 'slow' || k === 'blink') { c.checked = true; c.disabled = true; }
+    l.append(c, ' ' + SKILLS[k].name + (c.disabled ? ' (기본)' : ''));
+    adm.append(l);
+  }
+})();
+
 function selectSkill(skill, save) {
   skill = validSkill(skill);
   document.querySelectorAll('.skill').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.skill === skill)));
   account.skill = skill;
   $('tSkillName').textContent = SKILLS[skill].name;
   $('tSkill').style.borderColor = SKILL_COLOR[skill];
+  $('tSkill2').hidden = !SKILLS[skill].two;
+  $('skillLbl').textContent = SKILLS[skill].two ? '스킬 선택 (Q · E)' : '스킬 선택 (Q)';
   if (save) { try { localStorage.setItem('brawl_skill', skill); } catch (e) {} }
 }
 document.querySelectorAll('.skill').forEach((b) => b.addEventListener('click', () => selectSkill(b.dataset.skill, true)));
+renderAccount(); // 스킬 버튼을 만든 뒤 잠금 상태 반영
 
 // =====================================================================
 //  서버 연결
@@ -410,7 +452,7 @@ const input = EMPTY_INPUT();
 const KEYMAP = {
   ArrowLeft: 'l', KeyA: 'l', ArrowRight: 'r', KeyD: 'r',
   ArrowUp: 'u', KeyW: 'u', Space: 'u', ArrowDown: 'd', KeyS: 'd',
-  KeyJ: 'a', KeyZ: 'a', KeyK: 'h', KeyX: 'h', KeyQ: 's', KeyL: 's',
+  KeyJ: 'a', KeyZ: 'a', KeyK: 'h', KeyX: 'h', KeyQ: 's', KeyL: 's', KeyE: 'e', KeyI: 'e',
 };
 // 아주 짧게 눌러도 놓치지 않도록 최소 90ms는 눌린 상태로 유지
 const downAt = {}, releaseTimers = {};
@@ -524,6 +566,52 @@ function onEvent(ev) {
       particles.push({ x: ev.x, y: ev.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 40, life: 0.5, max: 0.5, c: col, r: 7, nograv: true });
     }
     particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.35, max: 0.35, r: 60, c: '255,255,255' });
+  } else if (ev.k === 'swap') {
+    for (const [x, y] of [[ev.x, ev.y], [ev.x2, ev.y2]]) {
+      for (let i = 0; i < 16; i++) {
+        const a = (i / 16) * Math.PI * 2;
+        particles.push({ x: x + Math.cos(a) * 34, y: y + Math.sin(a) * 34, vx: -Math.sin(a) * 260, vy: Math.cos(a) * 260, life: 0.45, max: 0.45, c: '#b48cff', r: 5, nograv: true });
+      }
+    }
+  } else if (ev.k === 'fly') {
+    for (let i = 0; i < 12; i++) particles.push({ x: ev.x + (Math.random() - 0.5) * 40, y: ev.y - 20, vx: (Math.random() - 0.5) * 120, vy: 60 + Math.random() * 80, life: 0.6, max: 0.6, c: '#eaf6ff', r: 5, nograv: true });
+  } else if (ev.k === 'explode') {
+    for (let i = 0; i < 46; i++) {
+      const a = Math.random() * Math.PI * 2, sp = 200 + Math.random() * 520;
+      particles.push({ x: ev.x, y: ev.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.5, max: 0.5, c: i % 3 ? '#ff8a3d' : '#ffd36b', r: 7, nograv: true });
+    }
+    particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.4, max: 0.4, r: ev.r, c: '255,160,80' });
+    shake = Math.max(shake, 18);
+    if (ev.h > 0) banners.push({ text: `폭파! ${ev.h}명`, life: 1, max: 1, small: true, color: '#ff8a3d' });
+  } else if (ev.k === 'freeze') {
+    freezeFlash = 0.35;
+    particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.5, max: 0.5, r: 900, c: '210,236,255' });
+    banners.push({ text: '정지!', life: 1, max: 1, small: true, color: '#d5ecff' });
+  } else if (ev.k === 'rock') {
+    for (let i = 0; i < 14; i++) particles.push({ x: ev.x + (Math.random() - 0.5) * 40, y: ev.y, vx: (Math.random() - 0.5) * 300, vy: -Math.random() * 300, life: 0.5, max: 0.5, c: '#9b938a', r: 6 });
+  } else if (ev.k === 'pull' || ev.k === 'push') {
+    const c = ev.k === 'pull' ? '255,93,115' : '90,150,255';
+    particles.push({ ring: true, fill: true, x: ev.x, y: ev.y, life: 0.5, max: 0.5, r: ev.r, c, grow: ev.k === 'push', shrink: ev.k === 'pull' });
+    for (let i = 0; i < 24; i++) {
+      const a = (i / 24) * Math.PI * 2, d = ev.k === 'pull' ? ev.r : 30, sp = ev.k === 'pull' ? -520 : 520;
+      particles.push({ x: ev.x + Math.cos(a) * d, y: ev.y + Math.sin(a) * d, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.45, max: 0.45, c: `rgb(${c})`, r: 4, nograv: true });
+    }
+  } else if (ev.k === 'empower') {
+    for (let i = 0; i < 24; i++) {
+      const a = Math.random() * Math.PI * 2, sp = 100 + Math.random() * 260;
+      particles.push({ x: ev.x, y: ev.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 100, life: 0.6, max: 0.6, c: '#6fa4ff', r: 5, nograv: true });
+    }
+    particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.4, max: 0.4, r: 90, c: '80,140,255' });
+  } else if (ev.k === 'charged') {
+    banners.push({ text: '강화 충전 완료! Q를 눌러요', life: 2, max: 2, small: true, color: '#6fa4ff' });
+  } else if (ev.k === 'infest' || ev.k === 'unfest') {
+    for (let i = 0; i < 20; i++) {
+      const a = Math.random() * Math.PI * 2, sp = 60 + Math.random() * 200;
+      particles.push({ x: ev.x, y: ev.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.55, max: 0.55, c: '#7be36f', r: 6, nograv: true });
+    }
+    if (ev.k === 'infest') banners.push({ text: `${ev.n} → ${ev.n2} 기생!`, life: 1.6, max: 1.6, small: true, color: '#7be36f' });
+  } else if (ev.k === 'deny') {
+    banners.push({ text: ev.msg, life: 1.6, max: 1.6, small: true, color: '#ff9b9b' });
   } else if (ev.k === 'host') {
     banners.push({ text: `${ev.n} 님이 새 방장이에요`, life: 2, max: 2, small: true, color: '#ffcf3f' });
   } else if (ev.k === 'start') {
@@ -638,8 +726,42 @@ function drawPlayer(p, time) {
     ctx.fillStyle = 'rgba(255,207,63,0.35)';
     ctx.beginPath(); ctx.arc(0, -PH / 2, 44 + Math.sin(time / 30) * 4, 0, Math.PI * 2); ctx.fill();
   }
+  if (p.bf) {
+    // 강화: 파란 오라
+    const pulse = 1 + Math.sin(time / 90) * 0.08;
+    ctx.fillStyle = 'rgba(80,140,255,0.28)';
+    ctx.beginPath(); ctx.ellipse(0, -PH / 2, 36 * pulse, 46 * pulse, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(120,170,255,0.9)'; ctx.lineWidth = 3; ctx.stroke();
+  }
+  if (p.fly) {
+    // 비행: 날개
+    const flap = Math.sin(time / 60) * 0.5;
+    ctx.fillStyle = 'rgba(240,248,255,0.92)';
+    for (const sd of [-1, 1]) {
+      ctx.save(); ctx.translate(sd * PW / 2, -PH * 0.62); ctx.rotate(sd * (0.5 + flap));
+      ctx.beginPath(); ctx.ellipse(sd * 16, 0, 18, 8, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    }
+  }
   ctx.fillStyle = p.hs ? '#ffffff' : p.c;
   roundRect(-PW / 2, -PH, PW, PH, 12); ctx.fill();
+  if (p.rk) {
+    // 바위: 딱딱한 돌 모양
+    ctx.fillStyle = 'rgba(128,122,116,0.88)';
+    ctx.beginPath(); ctx.moveTo(-PW / 2 - 3, -PH + 8); ctx.lineTo(-6, -PH - 4); ctx.lineTo(PW / 2 + 3, -PH + 4);
+    ctx.lineTo(PW / 2 + 2, -4); ctx.lineTo(4, 2); ctx.lineTo(-PW / 2 - 2, -2); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(60,56,52,0.9)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(-10, -PH + 6); ctx.lineTo(-2, -PH / 2); ctx.lineTo(-12, -14); ctx.moveTo(8, -PH + 14); ctx.lineTo(12, -24); ctx.stroke();
+  }
+  if (p.frz) {
+    ctx.fillStyle = 'rgba(214,238,255,0.55)'; roundRect(-PW / 2 - 4, -PH - 4, PW + 8, PH + 8, 14); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.95)'; ctx.lineWidth = 2; ctx.stroke();
+  }
+  if (p.ctl) {
+    // 기생당함: 초록 눈
+    ctx.fillStyle = 'rgba(123,227,111,0.9)';
+    ctx.beginPath(); ctx.arc(0, -PH - 14, 7, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#163a12'; ctx.beginPath(); ctx.arc(0, -PH - 14, 3, 0, Math.PI * 2); ctx.fill();
+  }
   if (light) { ctx.fillStyle = 'rgba(255,255,255,0.5)'; roundRect(-PW / 2, -PH, PW, PH, 12); ctx.fill(); }
   if (p.sl) { ctx.fillStyle = 'rgba(127,184,255,0.45)'; roundRect(-PW / 2, -PH, PW, PH, 12); ctx.fill(); }
   ctx.fillStyle = 'rgba(0,0,0,0.18)'; roundRect(-PW / 2, -PH * 0.35, PW, PH * 0.35, 10); ctx.fill();
@@ -663,9 +785,11 @@ function drawPlayer(p, time) {
   ctx.globalAlpha = baseAlpha;
   const lift = p.b ? 12 : 0;
   ctx.font = '700 15px "Noto Sans KR", sans-serif'; ctx.textAlign = 'center';
-  const label = light ? '내 분신' : (p.id === myId ? '▼ ' : '') + (ownerId === hostLive ? '♛ ' : '') + p.n + (p.stl && p.id === myId ? ' (은신)' : '');
-  ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillText(label, x + 1, y - PH - 13 - lift);
-  ctx.fillStyle = p.id === myId ? '#ffcf3f' : '#fff'; ctx.fillText(label, x, y - PH - 14 - lift);
+  const isMe = p.id === myId || p.ctl === myId;
+  const label = light ? '내 분신' : (isMe ? '▼ ' : '') + (ownerId === hostLive ? '♛ ' : '') + p.n
+    + (p.stl && p.id === myId ? ' (은신)' : '') + (p.ctl ? (p.ctl === myId ? ' (조종 중)' : ' (기생당함)') : '');
+  ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillText(label, x + 1, y - PH - 13 - lift - (p.ctl ? 14 : 0));
+  ctx.fillStyle = isMe ? '#ffcf3f' : p.ctl ? '#9ef08f' : '#fff'; ctx.fillText(label, x, y - PH - 14 - lift - (p.ctl ? 14 : 0));
   ctx.globalAlpha = 1;
   if (!isClone && (x < 0 || x > W || y < 0)) {
     const ax = Math.max(24, Math.min(W - 24, x)), ay = Math.max(24, y);
@@ -678,7 +802,7 @@ function drawParticles(dt) {
   for (const p of particles) {
     const a = Math.max(0, p.life / p.max);
     if (p.ring) {
-      const rad = p.grow ? p.r * (1 - a * 0.6) : p.r * (1 - a) + 8;
+      const rad = p.shrink ? p.r * a : p.grow ? p.r * (1 - a * 0.6) : p.r * (1 - a) + 8;
       if (p.fill) { ctx.fillStyle = `rgba(${p.c},${a * 0.18})`; ctx.beginPath(); ctx.arc(p.x, p.y, rad, 0, Math.PI * 2); ctx.fill(); }
       ctx.strokeStyle = `rgba(${p.c},${a})`; ctx.lineWidth = 4 * a + 1;
       ctx.beginPath(); ctx.arc(p.x, p.y, rad, 0, Math.PI * 2); ctx.stroke();
@@ -695,6 +819,14 @@ function drawParticles(dt) {
 function dmgColor(d) {
   const t = Math.min(d / 150, 1);
   return `rgb(255,${Math.round(255 - 200 * t)},${Math.round(255 - 230 * t)})`;
+}
+function skillStatus(p) {
+  const k = validSkill(p.sk);
+  const t = (v) => (v > 0 ? v.toFixed(1) + 's' : '준비');
+  if (k === 'magnet') return { ready: !(p.cd > 0) || !(p.cd2 > 0), text: `Q ${t(p.cd)} E ${t(p.cd2)}` };
+  if (k === 'empower') return p.bf ? { ready: true, text: `강화 중 ${p.bt}s` } : { ready: p.chg >= 100, text: p.chg >= 100 ? '충전 완료!' : `충전 ${p.chg || 0}%` };
+  if (k === 'parasite') return p.ins ? { ready: true, text: `기생 중 ${p.pt}s` } : { ready: p.pr > 0, text: p.pr > 0 ? `가능 ${p.pr}명` : '3번 때리기' };
+  return { ready: !(p.cd > 0), text: t(p.cd) };
 }
 function drawHUD(state, players) {
   const list = players.filter((p) => p.im || state.ph !== 'playing');
@@ -720,10 +852,11 @@ function drawHUD(state, players) {
     // 스킬 쿨타임
     const sk = SKILLS[validSkill(p.sk)];
     const skColor = SKILL_COLOR[validSkill(p.sk)];
-    const ready = !(p.cd > 0);
+    const st = skillStatus(p);
+    const ready = st.ready;
     ctx.font = '700 11px "Noto Sans KR", sans-serif'; ctx.textAlign = 'left';
     ctx.fillStyle = ready ? skColor : '#6d6893';
-    ctx.fillText(`Q ${sk.name} ${ready ? '준비' : p.cd.toFixed(1) + 's'}`, x0 + 18, y0 + 76);
+    ctx.fillText(`${sk.name} ${st.text}`, x0 + 18, y0 + 76, cw - 60);
     ctx.fillStyle = '#a39fc4'; ctx.textAlign = 'right';
     ctx.fillText(`${p.wn}승`, x0 + cw - 12, y0 + 76);
     ctx.globalAlpha = 1;
@@ -771,6 +904,25 @@ function drawPhase(state, players, dt) {
 }
 
 
+// 폭파 연기: 안에 있는 사람은 서버가 위치를 안 보내줌
+function drawSmoke(list, time) {
+  for (const s of list) {
+    const a = Math.min(1, s.a * 1.6);
+    for (let i = 0; i < 14; i++) {
+      const ang = i * 2.399 + time / 2600, rr = s.r * (0.25 + (i % 5) * 0.16);
+      const x = s.x + Math.cos(ang) * rr * 0.7, y = s.y + Math.sin(ang) * rr * 0.45;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, s.r * 0.6);
+      g.addColorStop(0, `rgba(120,116,138,${0.85 * a})`);
+      g.addColorStop(1, 'rgba(120,116,138,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(x, y, s.r * 0.6, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.fillStyle = `rgba(96,92,112,${0.75 * a})`;
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.r * 0.72, 0, Math.PI * 2); ctx.fill();
+  }
+}
+let freezeFlash = 0;
+
 // ---------------- 메인 루프 ----------------
 let last = performance.now(), barCounter = 0;
 function frame(now) {
@@ -778,9 +930,16 @@ function frame(now) {
 
   if (latest && isTouch) {
     const meS = latest.p.find((p) => p.id === myId);
-    const cd = meS ? meS.cd : 0;
-    $('tSkillCd').textContent = cd > 0 ? cd.toFixed(1) : 'Q';
-    $('tSkill').classList.toggle('cool', cd > 0);
+    if (meS) {
+      const k = validSkill(meS.sk);
+      let ready = !(meS.cd > 0), txt = meS.cd > 0 ? meS.cd.toFixed(1) : 'Q';
+      if (k === 'empower') { ready = meS.chg >= 100 || meS.bf; txt = meS.bf ? '강화' : `${meS.chg || 0}%`; }
+      if (k === 'parasite') { ready = meS.pr > 0 || meS.ins; txt = meS.ins ? '나가기' : `${meS.pr || 0}명`; }
+      $('tSkillCd').textContent = txt;
+      $('tSkill').classList.toggle('cool', !ready);
+      $('tSkill2Cd').textContent = meS.cd2 > 0 ? meS.cd2.toFixed(1) : 'E';
+      $('tSkill2').classList.toggle('cool', meS.cd2 > 0);
+    }
   }
   if (online && latest && ++barCounter % 30 === 0) {
     const people = latest.p.filter((p) => !p.b).length;
@@ -799,6 +958,8 @@ function frame(now) {
     players.filter((p) => p.id !== myId).forEach((p) => drawPlayer(p, now));
     players.filter((p) => p.id === myId).forEach((p) => drawPlayer(p, now));
     drawParticles(dt);
+    drawSmoke(latest.sm || [], now);
+    if (freezeFlash > 0) { ctx.fillStyle = `rgba(210,236,255,${Math.min(0.35, freezeFlash)})`; ctx.fillRect(-200, -200, W + 400, H + 400); freezeFlash -= dt; }
     ctx.restore();
     ctx.save(); ctx.translate(offX, offY); ctx.scale(scale, scale);
     drawHUD(latest, players);
