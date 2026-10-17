@@ -20,6 +20,8 @@
     --accent-deep: #b3471f;
     --slow: #7fb8ff;
     --blink: #c77dff;
+    --stealth: #7fe0c8;
+    --clone: #ff9ecf;
     --danger: #ff7b7b;
     --ok: #6fe39a;
     --display: 'Black Han Sans', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
@@ -81,6 +83,8 @@
   .skill[aria-pressed="true"] { border-color: var(--accent); background: #221d3f; }
   .skill[data-skill="slow"] b i { background: var(--slow); }
   .skill[data-skill="blink"] b i { background: var(--blink); }
+  .skill[data-skill="stealth"] b i { background: var(--stealth); }
+  .skill[data-skill="clone"] b i { background: var(--clone); }
 
   .play { width: 100%; margin-top: 18px; padding: 14px; border: 0; border-radius: 12px; cursor: pointer;
     background: var(--accent); color: #2a1a00; font-size: 18px; font-family: var(--display);
@@ -217,6 +221,12 @@
         <button class="skill" id="skBlink" data-skill="blink" aria-pressed="false">
           <b><i></i>점멸</b><span>누른 방향으로 순간이동. 떨어질 때 복귀용. 쿨 12초</span>
         </button>
+        <button class="skill" id="skStealth" data-skill="stealth" aria-pressed="false">
+          <b><i></i>은신</b><span>5초 동안 상대 화면에서 사라짐. 위치를 맞히면 맞음. 쿨 11초</span>
+        </button>
+        <button class="skill" id="skClone" data-skill="clone" aria-pressed="false">
+          <b><i></i>분신</b><span>나와 똑같은 분신이 곁에서 지켜줌. 4대 맞으면 사라짐. 쿨 10초</span>
+        </button>
       </div>
       <button class="play" id="playBtn">빠른 입장</button>
       <div id="err" role="status"></div>
@@ -227,7 +237,7 @@
       </div>
       <div class="keys" id="keysTouch" hidden>
         화면 왼쪽 버튼으로 이동, 오른쪽 버튼으로 점프·공격·스킬을 써요.<br>
-        점멸은 ◀ ▶ ▼ 나 점프 버튼을 누른 채로 쓰면 그 방향으로 이동해요.<br>
+        점멸은 ◀ ▶ ▼ 나 점프 버튼을 누른 채로 쓰면 그 방향으로 이동해요. 스킬은 로비에서 4개 중 하나를 골라요.<br>
         가로로 돌리면 화면이 더 커져요.
       </div>
       <div id="mode">지금 접속 중: <span id="onlineNow">-</span>명</div>

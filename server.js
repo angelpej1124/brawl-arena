@@ -9,7 +9,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { handleUpgrade } = require('./ws');
-const { Sim, CONFIG, BOT_NAMES, validSkill, cleanInput } = require('./game');
+const { Sim, CONFIG, SKILL_IDS, BOT_NAMES, validSkill, cleanInput } = require('./game');
 const accounts = require('./accounts');
 
 const PORT = process.env.PORT || 3000;
@@ -129,8 +129,23 @@ class GameRoom {
   step() {
     this.sim.tick(1 / CONFIG.TICK_RATE);
     if (++this.tickN % CONFIG.SEND_EVERY === 0) {
-      const msg = JSON.stringify({ t: 's', host: this.hostId, ...this.sim.snapshot() });
-      for (const c of this.clients.values()) c.socket.send(msg);
+      const snap = { t: 's', host: this.hostId, ...this.sim.snapshot() };
+      const hidden = new Set(snap.p.filter((q) => q.stl).map((q) => q.id));
+      if (!hidden.size) {
+        const msg = JSON.stringify(snap);
+        for (const c of this.clients.values()) c.socket.send(msg);
+        return;
+      }
+      // 은신 중인 사람의 위치는 본인에게만 보냄 (상대 화면에서는 아예 정보가 없음)
+      for (const [cid, c] of this.clients) {
+        const view = {
+          ...snap,
+          p: snap.p.map((q) => (hidden.has(q.id) && q.id !== cid
+            ? { ...q, x: 0, y: 0, vx: 0, vy: 0, at: 0, ap: 0, hid: 1 } : q)),
+          ev: snap.ev.filter((e) => !(e.pid && hidden.has(e.pid) && e.pid !== cid)),
+        };
+        c.socket.send(JSON.stringify(view));
+      }
     }
   }
   // 사람이 2명 이상 참가한 판만 서버가 직접 기록 (조작 불가)
@@ -171,7 +186,7 @@ class GameRoom {
       if (this.sim.players.size >= CONFIG.MAX_PLAYERS) return;
       const used = new Set(this.sim.list().map((p) => p.name));
       const name = BOT_NAMES.find((n) => !used.has(n)) || '봇';
-      this.sim.addPlayer('bot' + nextId++, name, true, Math.random() < 0.5 ? 'slow' : 'blink');
+      this.sim.addPlayer('bot' + nextId++, name, true, SKILL_IDS[Math.floor(Math.random() * SKILL_IDS.length)]);
     } else {
       const bot = this.sim.list().reverse().find((p) => p.bot);
       if (bot) this.sim.removePlayer(bot.id);

@@ -17,7 +17,10 @@ const ATTACKS = {
 const SKILLS = {
   slow:  { name: '둔화', cd: 6, radius: 230, duration: 5, moveMul: 0.5, attackMul: 0.5 },
   blink: { name: '점멸', cd: 12, distance: 230 },
+  stealth: { name: '은신', cd: 11, duration: 5 },
+  clone: { name: '분신', cd: 10, hits: 4 },
 };
+const SKILL_COLOR = { slow: '#7fb8ff', blink: '#c77dff', stealth: '#7fe0c8', clone: '#ff9ecf' };
 const STAGE = {
   width: 1280, height: 720,
   solids: [{ x: 240, y: 520, w: 800, h: 70 }],
@@ -31,7 +34,7 @@ const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const approach = (v, t, s) => (v < t ? Math.min(v + s, t) : Math.max(v - s, t));
 const EMPTY_INPUT = () => ({ l: 0, r: 0, u: 0, d: 0, a: 0, h: 0, s: 0 });
 const cleanInput = (i) => ({ l: i.l ? 1 : 0, r: i.r ? 1 : 0, u: i.u ? 1 : 0, d: i.d ? 1 : 0, a: i.a ? 1 : 0, h: i.h ? 1 : 0, s: i.s ? 1 : 0 });
-const validSkill = (s) => (s === 'blink' ? 'blink' : 'slow');
+const validSkill = (s) => (Object.prototype.hasOwnProperty.call(SKILLS, s) ? s : 'slow');
 
 // =====================================================================
 //  계정 (서버에 회원가입 · 로그인)
@@ -171,15 +174,13 @@ setInterval(() => { if (!$('lobby').hidden) loadRanking(); }, 15000);
 // ---------------- 스킬 선택 ----------------
 function selectSkill(skill, save) {
   skill = validSkill(skill);
-  $('skSlow').setAttribute('aria-pressed', String(skill === 'slow'));
-  $('skBlink').setAttribute('aria-pressed', String(skill === 'blink'));
+  document.querySelectorAll('.skill').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.skill === skill)));
   account.skill = skill;
   $('tSkillName').textContent = SKILLS[skill].name;
-  $('tSkill').style.borderColor = skill === 'slow' ? 'var(--slow)' : 'var(--blink)';
+  $('tSkill').style.borderColor = SKILL_COLOR[skill];
   if (save) { try { localStorage.setItem('brawl_skill', skill); } catch (e) {} }
 }
-$('skSlow').addEventListener('click', () => selectSkill('slow', true));
-$('skBlink').addEventListener('click', () => selectSkill('blink', true));
+document.querySelectorAll('.skill').forEach((b) => b.addEventListener('click', () => selectSkill(b.dataset.skill, true)));
 
 // =====================================================================
 //  서버 연결
@@ -419,6 +420,14 @@ function onEvent(ev) {
       const a = Math.random() * Math.PI * 2, s = 80 + Math.random() * 200;
       particles.push({ x: ev.x2, y: ev.y2 - PH / 2, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 0.35, max: 0.35, c: '#e2b8ff', r: 4, nograv: true });
     }
+  } else if (ev.k === 'stealth' || ev.k === 'clone' || ev.k === 'poof') {
+    // 연기 퍼프
+    const col = ev.k === 'stealth' ? '#9fe8d6' : ev.k === 'clone' ? '#ffc4e1' : '#d9d3f0';
+    for (let i = 0; i < 18; i++) {
+      const a = Math.random() * Math.PI * 2, sp = 60 + Math.random() * 160;
+      particles.push({ x: ev.x, y: ev.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 40, life: 0.5, max: 0.5, c: col, r: 7, nograv: true });
+    }
+    particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.35, max: 0.35, r: 60, c: '255,255,255' });
   } else if (ev.k === 'host') {
     banners.push({ text: `${ev.n} 님이 새 방장이에요`, life: 2, max: 2, small: true, color: '#ffcf3f' });
   } else if (ev.k === 'start') {
@@ -432,7 +441,7 @@ function onEvent(ev) {
   if (particles.length > 500) particles.splice(0, particles.length - 500);
 }
 
-function interpolatedPlayers() {
+function interpolatedPlayers(key = 'p') {
   if (!snapshots.length) return [];
   const t = performance.now() - INTERP_DELAY;
   let a = snapshots[0], b = snapshots[snapshots.length - 1];
@@ -441,8 +450,8 @@ function interpolatedPlayers() {
   }
   const span = b.time - a.time;
   const k = span > 0 ? Math.min(1, Math.max(0, (t - a.time) / span)) : 1;
-  const prev = new Map(a.p.map((p) => [p.id, p]));
-  return b.p.map((p) => {
+  const prev = new Map((a[key] || []).map((p) => [p.id, p]));
+  return (b[key] || []).map((p) => {
     const q = prev.get(p.id);
     if (!q || Math.abs(q.x - p.x) > 120 || Math.abs(q.y - p.y) > 120) return p;
     return { ...p, x: q.x + (p.x - q.x) * k, y: q.y + (p.y - q.y) * k };
@@ -508,8 +517,14 @@ function drawStage() {
   }
 }
 function drawPlayer(p, time) {
-  if (!p.al) return;
-  if (p.inv && Math.floor(time / 80) % 2 === 0) ctx.globalAlpha = 0.45;
+  if (!p.al || p.hid) return;       // 은신 중인 상대는 서버가 위치를 안 보내줌
+  const isClone = !!p.ow;
+  const ownerId = p.ow || p.id;
+  // 은신 중인 나: 반투명 / 내 분신: 연하게 / 상대 분신: 진짜와 똑같이
+  let baseAlpha = 1;
+  if (p.stl) baseAlpha = 0.35;
+  const light = isClone && p.ow === myId; // 내 분신은 연한 색으로
+  ctx.globalAlpha = baseAlpha * (p.inv && Math.floor(time / 80) % 2 === 0 ? 0.45 : 1);
   const x = p.x, y = p.y, f = p.f || 1;
   ctx.fillStyle = 'rgba(0,0,0,0.25)';
   ctx.beginPath(); ctx.ellipse(x, y + 2, 22, 5, 0, 0, Math.PI * 2); ctx.fill();
@@ -529,6 +544,7 @@ function drawPlayer(p, time) {
   }
   ctx.fillStyle = p.hs ? '#ffffff' : p.c;
   roundRect(-PW / 2, -PH, PW, PH, 12); ctx.fill();
+  if (light) { ctx.fillStyle = 'rgba(255,255,255,0.5)'; roundRect(-PW / 2, -PH, PW, PH, 12); ctx.fill(); }
   if (p.sl) { ctx.fillStyle = 'rgba(127,184,255,0.45)'; roundRect(-PW / 2, -PH, PW, PH, 12); ctx.fill(); }
   ctx.fillStyle = 'rgba(0,0,0,0.18)'; roundRect(-PW / 2, -PH * 0.35, PW, PH * 0.35, 10); ctx.fill();
   if (p.b) { ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(-2, -PH - 10, 4, 10); ctx.beginPath(); ctx.arc(0, -PH - 12, 4, 0, Math.PI * 2); ctx.fill(); }
@@ -546,14 +562,16 @@ function drawPlayer(p, time) {
   }
   ctx.fillStyle = p.c; ctx.strokeStyle = '#1a1030'; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.arc(fx, fy, p.at === 2 ? 13 : 10, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  if (light) { ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.beginPath(); ctx.arc(fx, fy, 10, 0, Math.PI * 2); ctx.fill(); }
   ctx.restore();
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha = baseAlpha;
   const lift = p.b ? 12 : 0;
   ctx.font = '700 15px "Noto Sans KR", sans-serif'; ctx.textAlign = 'center';
-  const label = (p.id === myId ? '▼ ' : '') + (p.id === hostLive ? '♛ ' : '') + p.n;
+  const label = light ? '내 분신' : (p.id === myId ? '▼ ' : '') + (ownerId === hostLive ? '♛ ' : '') + p.n + (p.stl && p.id === myId ? ' (은신)' : '');
   ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillText(label, x + 1, y - PH - 13 - lift);
   ctx.fillStyle = p.id === myId ? '#ffcf3f' : '#fff'; ctx.fillText(label, x, y - PH - 14 - lift);
-  if (x < 0 || x > W || y < 0) {
+  ctx.globalAlpha = 1;
+  if (!isClone && (x < 0 || x > W || y < 0)) {
     const ax = Math.max(24, Math.min(W - 24, x)), ay = Math.max(24, y);
     ctx.fillStyle = p.c; ctx.beginPath(); ctx.arc(ax, ay, 14, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
@@ -605,7 +623,7 @@ function drawHUD(state, players) {
     }
     // 스킬 쿨타임
     const sk = SKILLS[validSkill(p.sk)];
-    const skColor = validSkill(p.sk) === 'slow' ? '#7fb8ff' : '#c77dff';
+    const skColor = SKILL_COLOR[validSkill(p.sk)];
     const ready = !(p.cd > 0);
     ctx.font = '700 11px "Noto Sans KR", sans-serif'; ctx.textAlign = 'left';
     ctx.fillStyle = ready ? skColor : '#6d6893';
@@ -681,6 +699,7 @@ function frame(now) {
     const sx = (Math.random() - 0.5) * shake * scale, sy = (Math.random() - 0.5) * shake * scale;
     ctx.translate(offX + sx, offY + sy); ctx.scale(scale, scale);
     drawStage();
+    interpolatedPlayers('cl').forEach((c) => drawPlayer(c, now));
     players.filter((p) => p.id !== myId).forEach((p) => drawPlayer(p, now));
     players.filter((p) => p.id === myId).forEach((p) => drawPlayer(p, now));
     drawParticles(dt);

@@ -17,7 +17,10 @@ const ATTACKS = {
 const SKILLS = {
   slow:  { name: '둔화', cd: 6, radius: 230, duration: 5, moveMul: 0.5, attackMul: 0.5 },
   blink: { name: '점멸', cd: 12, distance: 230 },
+  stealth: { name: '은신', cd: 11, duration: 5 },   // 상대 화면에서 사라짐 (맞으면 맞음)
+  clone: { name: '분신', cd: 10, hits: 4 },          // 나를 지키는 분신, 4대 맞으면 사라짐
 };
+const SKILL_IDS = Object.keys(SKILLS);
 const STAGE = {
   width: 1280, height: 720,
   solids: [{ x: 240, y: 520, w: 800, h: 70 }],
@@ -31,7 +34,7 @@ const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const approach = (v, t, s) => (v < t ? Math.min(v + s, t) : Math.max(v - s, t));
 const EMPTY_INPUT = () => ({ l: 0, r: 0, u: 0, d: 0, a: 0, h: 0, s: 0 });
 const cleanInput = (i) => ({ l: i.l ? 1 : 0, r: i.r ? 1 : 0, u: i.u ? 1 : 0, d: i.d ? 1 : 0, a: i.a ? 1 : 0, h: i.h ? 1 : 0, s: i.s ? 1 : 0 });
-const validSkill = (s) => (s === 'blink' ? 'blink' : 'slow');
+const validSkill = (s) => (Object.prototype.hasOwnProperty.call(SKILLS, s) ? s : 'slow');
 
 class Player {
   constructor(id, name, color, bot, skill) {
@@ -48,13 +51,14 @@ class Player {
     this.damage = 0; this.hitstun = 0; this.invincible = 0;
     this.attack = null; this.dropThrough = 0; this.alive = true;
     this.lastHitBy = null; this.lastHitAt = 0;
-    this.skillCd = 0; this.slow = 0;
+    this.skillCd = 0; this.slow = 0; this.stealth = 0;
   }
 }
 
 class Sim {
   constructor() {
     this.players = new Map();
+    this.clones = new Map(); // 주인 id -> 분신
     this.phase = 'waiting'; this.timer = 0; this.winner = null; this.winnerId = null;
     this.tickCount = 0; this.evSeq = 0; this.recent = [];
     this.onEvent = () => {};
@@ -81,6 +85,7 @@ class Sim {
     const p = this.players.get(id);
     if (!p) return;
     this.players.delete(id);
+    this.clones.delete(id);
     this.ev({ k: 'leave', n: p.name });
     if (this.phase === 'playing') this.checkWinner();
     if (this.phase === 'countdown' && this.players.size < 2) this.phase = 'waiting';
@@ -90,6 +95,7 @@ class Sim {
   }
   startRound() {
     this.phase = 'playing'; this.winner = null; this.winnerId = null;
+    this.clones.clear();
     this.list().forEach((p, i) => {
       const s = STAGE.spawns[i % STAGE.spawns.length];
       p.reset(s.x, s.y); p.stocks = CONFIG.STOCKS; p.kos = 0; p.inMatch = true;
@@ -132,9 +138,18 @@ class Sim {
       if (p.bot) p.input = botThink(this, p);
       if (p.alive) this.updatePlayer(p, dt);
     });
-    for (const p of list) if (p.alive) this.updateAttack(p, list, dt);
+    const clones = [...this.clones.values()];
+    for (const c of clones) {
+      const owner = this.players.get(c.ownerId);
+      if (!owner || !owner.alive) { this.clones.delete(c.ownerId); continue; }
+      c.input = cloneThink(this, c, owner);
+      this.updatePlayer(c, dt);
+    }
+    const targets = list.concat([...this.clones.values()]);
+    for (const p of list) if (p.alive) this.updateAttack(p, targets, dt);
     for (const p of list) if (p.alive) this.checkBlast(p);
-    for (const p of list) p.prevInput = { ...p.input };
+    for (const c of this.clones.values()) this.checkCloneBounds(c);
+    for (const p of targets) p.prevInput = { ...p.input };
   }
   updatePlayer(p, dt) {
     const inp = p.input, prev = p.prevInput;
@@ -144,6 +159,7 @@ class Sim {
     if (p.dropThrough > 0) p.dropThrough -= dt;
     if (p.skillCd > 0) p.skillCd = Math.max(0, p.skillCd - dt);
     if (p.slow > 0) p.slow = Math.max(0, p.slow - dt);
+    if (p.stealth > 0) p.stealth = Math.max(0, p.stealth - dt);
     const slowMul = p.slow > 0 ? SKILLS.slow.moveMul : 1;
     const canFight = this.phase === 'playing' || this.phase === 'waiting';
     if (p.hitstun > 0) {
@@ -158,10 +174,10 @@ class Sim {
       if (pressed('u')) {
         if (p.grounded) {
           p.vy = -CONFIG.JUMP_SPEED; p.grounded = false;
-          this.ev({ k: 'jump', x: Math.round(p.x), y: Math.round(p.y) });
+          this.ev({ k: 'jump', x: Math.round(p.x), y: Math.round(p.y), pid: p.ownerId || p.id });
         } else if (p.jumpsLeft > 0) {
           p.vy = -CONFIG.DOUBLE_JUMP_SPEED; p.jumpsLeft--;
-          this.ev({ k: 'jump2', x: Math.round(p.x), y: Math.round(p.y) });
+          this.ev({ k: 'jump2', x: Math.round(p.x), y: Math.round(p.y), pid: p.ownerId || p.id });
         }
       }
       if (p.grounded && pressed('d') && this.onPlatform(p)) { p.dropThrough = 0.25; p.grounded = false; p.y += 2; }
@@ -181,13 +197,33 @@ class Sim {
       const s = SKILLS.slow;
       const cx = p.x, cy = p.y - CONFIG.PLAYER_H / 2;
       let hits = 0;
-      for (const o of this.players.values()) {
-        if (o === p || !o.alive || o.invincible > 0) continue;
+      for (const o of [...this.players.values(), ...this.clones.values()]) {
+        if (o === p || o.ownerId === p.id || !o.alive || o.invincible > 0) continue;
         const d = Math.hypot(o.x - cx, o.y - CONFIG.PLAYER_H / 2 - cy);
-        if (d <= s.radius) { o.slow = s.duration; hits++; }
+        if (d <= s.radius) { o.slow = s.duration; if (!o.clone) hits++; }
       }
       p.skillCd = s.cd;
-      this.ev({ k: 'slow', x: Math.round(cx), y: Math.round(cy), r: s.radius, h: hits });
+      this.ev({ k: 'slow', x: Math.round(cx), y: Math.round(cy), r: s.radius, h: hits, pid: p.id });
+    } else if (p.skill === 'stealth') {
+      const s = SKILLS.stealth;
+      p.stealth = s.duration;
+      p.skillCd = s.cd;
+      this.ev({ k: 'stealth', x: Math.round(p.x), y: Math.round(p.y - CONFIG.PLAYER_H / 2) });
+    } else if (p.skill === 'clone') {
+      const s = SKILLS.clone;
+      const old = this.clones.get(p.id);
+      if (old) this.ev({ k: 'poof', x: Math.round(old.x), y: Math.round(old.y - CONFIG.PLAYER_H / 2) });
+      // 분신: 주인과 똑같은 모습 (이름·색·스킬 표시까지 같게)
+      const c = new Player('c-' + p.id + '-' + this.tickCount, p.name, p.color, p.bot, p.skill);
+      c.clone = true; c.ownerId = p.id; c.hitsTaken = 0;
+      let cx = p.x - p.facing * 60;
+      if (this.insideSolid(cx, p.y)) cx = p.x;
+      c.reset(cx, p.y);
+      c.facing = p.facing; c.vx = p.vx; c.vy = p.vy;
+      c.patrol = -p.facing; c.patrolT = 0;
+      this.clones.set(p.id, c);
+      p.skillCd = s.cd;
+      this.ev({ k: 'clone', x: Math.round(cx), y: Math.round(p.y - CONFIG.PLAYER_H / 2), pid: p.id });
     } else {
       const s = SKILLS.blink;
       const inp = p.input;
@@ -209,7 +245,7 @@ class Sim {
       p.invincible = Math.max(p.invincible, 0.15);
       p.skillCd = s.cd;
       if (dx) p.facing = dx > 0 ? 1 : -1;
-      this.ev({ k: 'blink', x: Math.round(x0), y: Math.round(y0), x2: Math.round(bx), y2: Math.round(by) });
+      this.ev({ k: 'blink', x: Math.round(x0), y: Math.round(y0), x2: Math.round(bx), y2: Math.round(by), pid: p.id });
     }
   }
   insideSolid(x, y) {
@@ -251,12 +287,23 @@ class Sim {
     if (p.hitstun > 0) { p.attack = null; return; }
     if (atk.t >= def.startup && atk.t < def.startup + def.active && this.phase !== 'countdown' && this.phase !== 'ended') {
       const hb = this.hitbox(p, def);
-      for (const o of list) {
-        if (o === p || !o.alive || o.invincible > 0 || atk.hit.has(o.id)) continue;
+      const overlaps = (o) => {
         const ox = o.x - CONFIG.PLAYER_W / 2, oy = o.y - CONFIG.PLAYER_H;
-        if (hb.x < ox + CONFIG.PLAYER_W && hb.x + hb.w > ox && hb.y < oy + CONFIG.PLAYER_H && hb.y + hb.h > oy) {
+        return hb.x < ox + CONFIG.PLAYER_W && hb.x + hb.w > ox && hb.y < oy + CONFIG.PLAYER_H && hb.y + hb.h > oy;
+      };
+      // 분신과 주인이 한 공격에 같이 걸리면 분신만 맞음 (분신이 지켜줌)
+      const shielded = new Set();
+      for (const o of list) if (o.clone && o.ownerId !== p.id && overlaps(o)) shielded.add(o.ownerId);
+      for (const o of list) {
+        if (o === p || o.ownerId === p.id || !o.alive || o.invincible > 0 || atk.hit.has(o.id)) continue;
+        if (!o.clone && shielded.has(o.id)) continue;
+        if (overlaps(o)) {
           atk.hit.add(o.id);
           this.applyHit(p, o, def, atk.type);
+          if (o.clone && ++o.hitsTaken >= SKILLS.clone.hits) {
+            this.clones.delete(o.ownerId);
+            this.ev({ k: 'poof', x: Math.round(o.x), y: Math.round(o.y - CONFIG.PLAYER_H / 2) });
+          }
         }
       }
     }
@@ -275,6 +322,14 @@ class Sim {
     t.lastHitBy = a.id; t.lastHitAt = this.tickCount;
     this.ev({ k: 'hit', x: Math.round(t.x), y: Math.round(t.y - CONFIG.PLAYER_H / 2), p: type === 'heavy' ? 2 : 1 });
   }
+  // 분신이 무대 밖으로 날아가면 주인 옆으로 돌아옴 (KO 아님)
+  checkCloneBounds(c) {
+    const b = STAGE.blast;
+    if (c.x > b.left && c.x < b.right && c.y > b.top && c.y < b.bottom) return;
+    const owner = this.players.get(c.ownerId);
+    if (!owner) return;
+    c.x = owner.x; c.y = owner.y; c.vx = 0; c.vy = 0; c.hitstun = 0; c.damage = 0;
+  }
   checkBlast(p) {
     const b = STAGE.blast;
     if (p.x > b.left && p.x < b.right && p.y > b.top && p.y < b.bottom) return;
@@ -288,7 +343,7 @@ class Sim {
     }
     p.stocks--;
     if (p.stocks > 0) { p.reset(640, 120); p.invincible = CONFIG.RESPAWN_INVINCIBLE; }
-    else { p.alive = false; this.checkWinner(); }
+    else { p.alive = false; this.clones.delete(p.id); this.checkWinner(); }
   }
   snapshot() {
     const ap = (p) => {
@@ -304,7 +359,12 @@ class Sim {
         g: p.grounded ? 1 : 0, vx: Math.round(p.vx), vy: Math.round(p.vy), dmg: p.damage, st: p.stocks,
         al: p.alive ? 1 : 0, im: p.inMatch ? 1 : 0, at: p.attack ? (p.attack.type === 'heavy' ? 2 : 1) : 0,
         ap: ap(p), inv: p.invincible > 0 ? 1 : 0, hs: p.hitstun > 0 ? 1 : 0, ko: p.kos, wn: p.wins, b: p.bot ? 1 : 0,
-        sk: p.skill, cd: Math.ceil(p.skillCd * 10) / 10, sl: p.slow > 0 ? 1 : 0,
+        sk: p.skill, cd: Math.ceil(p.skillCd * 10) / 10, sl: p.slow > 0 ? 1 : 0, stl: p.stealth > 0 ? 1 : 0,
+      })),
+      cl: [...this.clones.values()].map((c) => ({
+        id: c.id, ow: c.ownerId, n: c.name, c: c.color, x: Math.round(c.x), y: Math.round(c.y), f: c.facing,
+        g: c.grounded ? 1 : 0, vx: Math.round(c.vx), vy: Math.round(c.vy), al: 1, at: 0, ap: 0,
+        hs: c.hitstun > 0 ? 1 : 0, b: c.bot ? 1 : 0, sl: c.slow > 0 ? 1 : 0, inv: 0,
       })),
     };
   }
@@ -335,8 +395,8 @@ function botThink(sim, b) {
     if (b.skill === 'blink' && b.skillCd <= 0 && b.jumpsLeft === 0 && b.vy > 0) { inp.u = 1; inp.s = 1; }
   } else {
     let target = null, best = 1e9;
-    for (const o of sim.players.values()) {
-      if (o === b || !o.alive || o.invincible > 0) continue;
+    for (const o of [...sim.players.values(), ...sim.clones.values()]) {
+      if (o === b || o.ownerId === b.id || !o.alive || o.invincible > 0 || o.stealth > 0) continue;
       const d = Math.abs(o.x - b.x) + Math.abs(o.y - b.y);
       if (d < best) { best = d; target = o; }
     }
@@ -349,6 +409,8 @@ function botThink(sim, b) {
       if (dy > 60 && b.grounded && b.y < 500) inp.d = 1;
       if (b.botCd > 0) b.botCd--;
       if (b.skill === 'slow' && b.skillCd <= 0 && best < 170 && Math.random() < 0.05) inp.s = 1;
+      if (b.skill === 'stealth' && b.skillCd <= 0 && best < 260 && Math.random() < 0.03) inp.s = 1;
+      if (b.skill === 'clone' && b.skillCd <= 0 && !sim.clones.has(b.id) && best < 320 && Math.random() < 0.04) inp.s = 1;
       if (Math.abs(dx) < 80 && Math.abs(dy) < 50 && b.facing === side && !b.attack && b.botCd <= 0) {
         if (target.damage > 70 && Math.random() < 0.5) inp.h = 1; else inp.a = 1;
         b.botCd = 14 + Math.floor(Math.random() * 18);
@@ -361,5 +423,40 @@ function botThink(sim, b) {
   return inp;
 }
 
+// ---------------- 분신 움직임 ----------------
+// 주인 근처를 왔다 갔다 하다가, 적이 다가오면 주인과 적 사이를 막아섬. 공격은 안 함.
+function cloneThink(sim, c, owner) {
+  const inp = EMPTY_INPUT();
+  if (c.hitstun > 0) return inp;
+  let targetX;
+  let enemy = null, best = 1e9;
+  for (const o of sim.players.values()) {
+    if (o.id === owner.id || !o.alive) continue;
+    const d = Math.abs(o.x - owner.x) + Math.abs(o.y - owner.y);
+    if (d < best) { best = d; enemy = o; }
+  }
+  if (enemy && best < 320) {
+    const side = enemy.x >= owner.x ? 1 : -1;
+    targetX = owner.x + side * 55;
+    c.faceTo = side;
+  } else {
+    if (--c.patrolT <= 0) { c.patrol = -c.patrol || 1; c.patrolT = 60 + Math.floor(Math.random() * 60); }
+    targetX = owner.x + c.patrol * 75;
+    c.faceTo = owner.facing;
+  }
+  targetX = clamp(targetX, 260, 1020);
+  const dx = targetX - c.x;
+  if (Math.abs(dx) > 14) { if (dx > 0) inp.r = 1; else inp.l = 1; }
+  else if (c.facing !== c.faceTo) { if (c.faceTo > 0) inp.r = 1; else inp.l = 1; }
+  const dy = owner.y - c.y;
+  let wantJump = false;
+  if (dy < -80 && c.grounded) wantJump = true;                       // 주인이 위에 있으면 따라 올라감
+  if (!c.grounded && c.vy > 200 && (c.x < 250 || c.x > 1030 || c.y > 540)) wantJump = true; // 떨어지면 복귀
+  if (dy > 60 && c.grounded && c.y < 500) inp.d = 1;                 // 주인이 아래에 있으면 내려감
+  if (c.x < 250) inp.r = 1, inp.l = 0;
+  if (c.x > 1030) inp.l = 1, inp.r = 0;
+  if (wantJump && !c.prevInput.u) inp.u = 1;
+  return inp;
+}
 
-module.exports = { Sim, CONFIG, SKILLS, BOT_NAMES, validSkill, cleanInput, EMPTY_INPUT };
+module.exports = { Sim, CONFIG, SKILLS, SKILL_IDS, BOT_NAMES, validSkill, cleanInput, EMPTY_INPUT };
