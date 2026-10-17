@@ -15,13 +15,13 @@ const ATTACKS = {
 };
 // 스킬 정보 (실제 판정은 서버의 game.js가 함)
 const SKILLS = {
-  slow:     { name: '둔화', desc: '주변 적의 이동·공격 속도를 5초간 절반으로', cd: '쿨 6초' },
+  slow:     { name: '둔화', desc: '넓은 범위의 적 이동·공격 속도를 7초간 절반으로', cd: '쿨 6초' },
   blink:    { name: '점멸', desc: '누른 방향으로 순간이동. 떨어질 때 복귀용', cd: '쿨 9초' },
   stealth:  { name: '은신', desc: '5초간 상대 화면에서 사라짐. 맞히면 맞음', cd: '쿨 12초' },
   clone:    { name: '분신', desc: '나와 똑같은 분신이 곁에서 지켜줌. 5대 맞으면 사라짐', cd: '쿨 10초' },
   swap:     { name: '전환', desc: '랜덤한 상대·분신·터렛과 위치를 바꿈. 강공격 맞고 1초간 불가', cd: '쿨 19초' },
   fly:      { name: '비행', desc: '5초간 비행. 점프 키 누르면 올라가고 떼면 내려감', cd: '쿨 15초' },
-  explode:  { name: '폭파', desc: '주변을 폭파해 넉백 + 0.5초 스턴. 3초간 짙은 연기로 가려짐. 공중이면 3단 점프', cd: '쿨 9초' },
+  explode:  { name: '폭파', desc: '넓게 폭파해 크게 날리고 0.5초 스턴. 3초간 반투명 연기. 공중이면 3단 점프', cd: '쿨 9초' },
   freeze:   { name: '정지', desc: '나 빼고 모두 1초 정지. 정지 중엔 공격이 안 맞음', cd: '쿨 8초' },
   rock:     { name: '바위', desc: '6초간 넉백 없음. 대신 아주 느려지고 점프도 낮아짐', cd: '쿨 10초' },
   magnet:   { name: '자석', desc: 'Q로 주변을 끌어당기고 E로 밀어냄', cd: '각 쿨 9초', two: true },
@@ -40,6 +40,10 @@ const SKILLS = {
   ice:      { name: '얼음', desc: '때리면 상대 얼음 게이지가 참. 가득 차면 2초 얼어붙음. Q는 5초 눈보라 (모두의 게이지가 계속 참)', cd: '쿨 11초' },
   error:    { name: '에러', desc: '나를 뺀 모두의 화면이 5초간 끊기고 조작이 제멋대로 됨', cd: '쿨 10초' },
   sun:      { name: '태양', desc: '6초간 태양의 힘: 빨라지고, 평타에 불이 붙고, 넉백이 세짐', cd: '쿨 11초' },
+  wind:     { name: '바람', desc: '공격에 바람이 붙어 더 날아감. Q는 앞으로 나아가며 휩쓸어 가는 소용돌이', cd: '쿨 10초' },
+  archer:   { name: '궁수', desc: '강공격을 누르고 있으면 시위를 당김(1초면 최대), 놓으면 발사. Q는 다음 화살이 벽을 피해 쫓아가는 유도 화살', cd: '쿨 13초' },
+  time:     { name: '시간', desc: '모든 것을 10초 전으로 되돌림 (위치·쿨타임·목숨 등, 시간 쿨타임은 제외). 탈락하면 못 씀', cd: '쿨 20초' },
+  combo:    { name: '콤보', desc: '때릴 때마다 콤보가 쌓임. Q는 콤보만큼 강하고 넓은 스매시 (죽으면 초기화)', cd: '콤보 1 이상' },
   turret:   { name: '터렛', desc: '적을 자동으로 쏘는 터렛 설치 (최대 3개, 4번 맞으면 부서짐)', cd: '쿨 12초' },
 };
 const SKILL_COLOR = {
@@ -48,6 +52,7 @@ const SKILL_COLOR = {
   quake: '#d6a45c', giant: '#ff6b4a', rubber: '#ff9ff3', engine: '#ffb000',
   sword: '#cfe3ff', blackflash: '#c0263a', lightning: '#ffe94a', undying: '#ffd27a',
   hulk: '#5fd35a', fire: '#ff5a1f', ice: '#8fdcff', turret: '#a7b2c4', error: '#39ff88', sun: '#ffc21a',
+  wind: '#b8f2e6', archer: '#c98b4a', time: '#7c9cff', combo: '#ff5fa2',
 };
 const SKILL_IDS = Object.keys(SKILLS);
 const MAPS = window.BRAWL_MAPS;   // maps.js (서버와 같은 맵 정보)
@@ -709,6 +714,21 @@ function onEvent(ev) {
       const a = (i / 24) * Math.PI * 2;
       particles.push({ x: ev.x + Math.cos(a) * 30, y: ev.y + Math.sin(a) * 30, vx: Math.cos(a) * 300, vy: Math.sin(a) * 300, life: 0.5, max: 0.5, c: i % 2 ? '#fff3a0' : '#ffb21a', r: 5, nograv: true });
     }
+  } else if (ev.k === 'wind') {
+    for (let i = 0; i < 14; i++) particles.push({ x: ev.x + ev.f * 30, y: ev.y + (Math.random() - 0.5) * 60, vx: ev.f * (250 + Math.random() * 300), vy: (Math.random() - 0.5) * 100, life: 0.4, max: 0.4, c: '#d8fff5', r: 4, nograv: true });
+  } else if (ev.k === 'windend') {
+    for (let i = 0; i < 20; i++) { const a = Math.random() * Math.PI * 2, sp = 150 + Math.random() * 300; particles.push({ x: ev.x, y: ev.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.4, max: 0.4, c: '#d8fff5', r: 4, nograv: true }); }
+  } else if (ev.k === 'homing') {
+    particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.35, max: 0.35, r: 55, c: '150,130,255' });
+  } else if (ev.k === 'thunk') {
+    for (let i = 0; i < 6; i++) particles.push({ x: ev.x, y: ev.y, vx: (Math.random() - 0.5) * 160, vy: -Math.random() * 160, life: 0.3, max: 0.3, c: '#b59a74', r: 3 });
+  } else if (ev.k === 'rewind') {
+    rewindT = 0.9; banners.push({ text: `${ev.n}: 시간 되돌리기!`, life: 1.6, max: 1.6, small: true, color: '#aebfff' });
+  } else if (ev.k === 'smash') {
+    particles.push({ ring: true, fill: true, x: ev.x, y: ev.y, life: 0.5, max: 0.5, r: ev.r, c: '255,95,162', grow: true });
+    for (let i = 0; i < 30; i++) { const a = Math.random() * Math.PI * 2, sp = 200 + Math.random() * 500; particles.push({ x: ev.x, y: ev.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.45, max: 0.45, c: i % 2 ? '#ff5fa2' : '#ffe0ef', r: 6, nograv: true }); }
+    shake = Math.max(shake, Math.min(26, 8 + ev.n));
+    banners.push({ text: `${ev.n}콤보 스매시!`, life: 1.2, max: 1.2, small: true, color: '#ff5fa2' });
   } else if (ev.k === 'map') {
     banners.push({ text: `맵: ${ev.n}`, life: 2.5, max: 2.5, small: true, color: '#ffcf3f' });
   } else if (ev.k === 'host') {
@@ -966,6 +986,12 @@ function drawPlayer(p, time) {
     reach = p.ap === 1 ? -6 : p.ap === 2 ? full : full * 0.4;
   }
   const fx = f * (PW / 2 + 4 + reach), fy = -PH / 2 - 2;
+  if (hasK(p, 'archer') && !hasK(p, 'sword') && !(p.at === 1 && p.ap === 2)) {
+    drawBow(p, f, time);
+    ctx.restore();
+    finishPlayer(p, x, y, G, light, ownerId, baseAlpha, isClone, time);
+    return;
+  }
   if (hasK(p, 'sword')) {
     drawSword(p, f, time, p.rb ? 2 : 1, otherM);
     ctx.restore();
@@ -1058,6 +1084,12 @@ function drawSword(p, f, time, rubM = 1, otherM = 1) {
   ctx.beginPath(); ctx.arc(hx, hy, 9, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
 }
 function finishPlayer(p, x, y, G, light, ownerId, baseAlpha, isClone, time) {
+  if (p.cb > 0 && !isClone) {
+    // 콤보 스택
+    ctx.font = '400 20px "Black Han Sans", sans-serif'; ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillText(`${p.cb} COMBO`, x + 1, y - PH * G - 46 - (p.b ? 12 : 0));
+    ctx.fillStyle = p.cb >= 10 ? '#ff5fa2' : '#ffd0e6'; ctx.fillText(`${p.cb} COMBO`, x, y - PH * G - 47 - (p.b ? 12 : 0));
+  }
   if (p.ig > 0 && !p.icd) {
     // 얼음 게이지
     const bw2 = 46, bx = x - bw2 / 2, by2 = y - PH * G - 42 - (p.b ? 12 : 0);
@@ -1139,6 +1171,8 @@ function skillStatus(p) {
   if (k === 'magnet') return { ready: !(p.cd > 0) || !(p.cd2 > 0), text: `Q ${t(p.cd)} E ${t(p.cd2)}` };
   if (k === 'empower') return p.bf ? { ready: true, text: `강화 중 ${p.bt}s` } : { ready: p.chg >= 100, text: p.chg >= 100 ? '충전 완료!' : `충전 ${p.chg || 0}%` };
   if (k === 'undying' || k === 'hulk') return { ready: true, text: '패시브' };
+  if (k === 'combo') return { ready: p.cb > 0, text: `콤보 ${p.cb || 0}` };
+  if (k === 'archer' && p.hm) return { ready: true, text: '유도 준비' };
   if (k === 'parasite') return p.ins ? { ready: true, text: `기생 중 ${p.pt}s` } : { ready: p.pr > 0, text: p.pr > 0 ? `가능 ${p.pr}명` : '3번 때리기' };
   return { ready: !(p.cd > 0), text: t(p.cd) };
 }
@@ -1237,7 +1271,7 @@ function drawPhase(state, players, dt) {
 // 폭파 연기: 짙은 연기가 물리적으로 덮어서 안이 안 보임 (캐릭터 위에 그림)
 function drawSmoke(list, time) {
   for (const s of list) {
-    const a = Math.min(1, s.a * 2.2);
+    const a = Math.min(1, s.a * 2.2) * 0.42;   // 반투명 연기
     // 바깥쪽 몽글몽글한 가장자리
     for (let i = 0; i < 16; i++) {
       const ang = i * 2.399 + time / 2600, rr = s.r * (0.55 + (i % 4) * 0.12);
@@ -1258,7 +1292,50 @@ function drawSmoke(list, time) {
     }
   }
 }
-let freezeFlash = 0, lightFlash = 0, errHold = 0;
+let freezeFlash = 0, lightFlash = 0, errHold = 0, rewindT = 0;
+// 화살 + 바람 소용돌이
+function drawArrowsWinds(state, now) {
+  const age = Math.max(-0.07, (now - state.time - INTERP_DELAY) / 1000);
+  for (const a of state.ar || []) {
+    const x = a.x + a.vx * age, y = a.y + a.vy * age, ang = Math.atan2(a.vy, a.vx);
+    ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+    if (a.h) { ctx.strokeStyle = 'rgba(160,140,255,0.5)'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(-40, 0); ctx.lineTo(0, 0); ctx.stroke(); }
+    ctx.strokeStyle = '#6b4a2a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-30, 0); ctx.lineTo(8, 0); ctx.stroke();
+    ctx.fillStyle = a.h ? '#b9a8ff' : '#d8dde6'; ctx.beginPath(); ctx.moveTo(14, 0); ctx.lineTo(4, -5); ctx.lineTo(4, 5); ctx.fill();
+    ctx.fillStyle = a.h ? '#8f7bff' : '#e8e2d0'; ctx.beginPath(); ctx.moveTo(-30, 0); ctx.lineTo(-36, -5); ctx.lineTo(-24, 0); ctx.lineTo(-36, 5); ctx.fill();
+    ctx.restore();
+  }
+  for (const w of state.wd || []) {
+    const x = w.x + w.vx * age, y = w.y;
+    // 아래는 좁고 위는 넓은 소용돌이 (가로 줄이 빙글빙글)
+    for (let i = 0; i < 9; i++) {
+      const t = i / 8, yy = y - t * 170, rx = 18 + t * 62, ph = now / 70 + i * 0.9;
+      ctx.strokeStyle = `rgba(210,250,240,${0.35 + 0.4 * (1 - t)})`; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.ellipse(x + Math.sin(ph) * 8, yy, rx, 9 + t * 6, 0, ph % (Math.PI * 2), ph % (Math.PI * 2) + Math.PI * 1.4); ctx.stroke();
+    }
+  }
+}
+// 활 (몸 좌표계): 시위를 당기면 줄이 뒤로 가고 화살이 걸림
+function drawBow(p, f, time) {
+  const hx = f * (PW / 2 + 8), hy = -PH / 2 - 2;
+  const pull = p.dr || 0;
+  ctx.save(); ctx.translate(hx, hy); ctx.scale(f, 1);
+  if (p.hm) { ctx.shadowColor = 'rgba(150,130,255,0.95)'; ctx.shadowBlur = 14; }
+  ctx.strokeStyle = '#8a5a2b'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.arc(-14, 0, 30, -1.1, 1.1); ctx.stroke();
+  ctx.shadowBlur = 0;
+  const tx = -14 + Math.cos(1.1) * 30, ty = Math.sin(1.1) * 30, sx = tx - pull * 26;
+  ctx.strokeStyle = '#efe6d2'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(tx, -ty); ctx.lineTo(sx, 0); ctx.lineTo(tx, ty); ctx.stroke();
+  if (pull > 0) {
+    ctx.strokeStyle = '#6b4a2a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx + 44, 0); ctx.stroke();
+    ctx.fillStyle = p.hm ? '#b9a8ff' : '#d8dde6'; ctx.beginPath(); ctx.moveTo(sx + 50, 0); ctx.lineTo(sx + 40, -5); ctx.lineTo(sx + 40, 5); ctx.fill();
+    if (pull >= 1) { ctx.strokeStyle = 'rgba(255,230,120,0.8)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(sx + 46, 0, 9 + Math.sin(time / 60) * 2, 0, Math.PI * 2); ctx.stroke(); }
+  }
+  ctx.restore();
+  ctx.fillStyle = p.c; ctx.strokeStyle = '#1a1030'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(hx + f * (-14 + Math.cos(1.1) * 30 - pull * 26) * (pull > 0 ? 1 : 0), hy, 8, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+}
 function drawGlitch() {
   // 화면 위에 어긋난 색 띠와 노이즈
   for (let i = 0; i < 6; i++) {
@@ -1464,6 +1541,7 @@ function frame(now) {
         if (kk === 'empower') { ready = meS.chg >= 100 || meS.bf; txt = meS.bf ? '강화' : `${meS.chg || 0}%`; }
         if (kk === 'parasite') { ready = meS.pr > 0 || meS.ins; txt = meS.ins ? '나가기' : `${meS.pr || 0}명`; }
         if (kk === 'undying' || kk === 'hulk') { ready = true; txt = '패시브'; }
+        if (kk === 'combo') { ready = meS.cb > 0; txt = `${meS.cb || 0}콤보`; }
         const nm = k === 'magnet2' ? '밀기' : sl.e === 'magnet2' && k === 'magnet' ? '당기기' : SKILLS[kk].name;
         if (nameEl.textContent !== nm) nameEl.textContent = nm;
         el.style.borderColor = SKILL_COLOR[kk];
@@ -1505,6 +1583,7 @@ function frame(now) {
     drawStage();
     drawSlashes(latest, now);
     drawTurrets(latest, now);
+    drawArrowsWinds(latest, now);
     interpolatedPlayers('cl').forEach((c) => drawPlayer(c, now));
     players.filter((p) => p.id !== myId).forEach((p) => drawPlayer(p, now));
     players.filter((p) => p.id === myId).forEach((p) => drawPlayer(p, now));
@@ -1512,6 +1591,15 @@ function frame(now) {
     drawSmoke(latest.sm || [], now);
     drawBlizzard(latest, dt, now);
     if (freezeFlash > 0) { ctx.fillStyle = `rgba(210,236,255,${Math.min(0.35, freezeFlash)})`; ctx.fillRect(-400, -400, STAGE.width + 800, STAGE.height + 800); freezeFlash -= dt; }
+    if (rewindT > 0) {
+      // 시간 되돌리기: 푸른 화면 + 거꾸로 도는 시계
+      const k = rewindT / 0.9;
+      ctx.fillStyle = `rgba(90,120,255,${0.35 * k})`; ctx.fillRect(-400, -400, STAGE.width + 800, STAGE.height + 800);
+      ctx.save(); ctx.translate(STAGE.width / 2, STAGE.height / 2 - 60); ctx.globalAlpha = k;
+      ctx.strokeStyle = '#dfe6ff'; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(0, 0, 90, 0, Math.PI * 2); ctx.stroke();
+      ctx.rotate(-(1 - k) * Math.PI * 6); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -70); ctx.moveTo(0, 0); ctx.lineTo(45, 0); ctx.stroke();
+      ctx.restore(); rewindT -= dt;
+    }
     if (lightFlash > 0) { ctx.fillStyle = `rgba(255,250,200,${Math.min(0.3, lightFlash)})`; ctx.fillRect(-400, -400, STAGE.width + 800, STAGE.height + 800); lightFlash -= dt; }
     ctx.restore();
     ctx.save(); ctx.translate(offX, offY); ctx.scale(scale, scale);
