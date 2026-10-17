@@ -59,12 +59,15 @@ async function initStore() {
 
 let saveTimer = null;
 let saving = Promise.resolve();
+let dirty = false;   // 아직 저장 안 된 변경이 있는지
 function save() {
+  dirty = true;
   if (saveTimer) return;
   saveTimer = setTimeout(flush, 500);
 }
 function flush() {
   clearTimeout(saveTimer); saveTimer = null;
+  dirty = false;
   const json = JSON.stringify(store);
   if (pool) {
     saving = saving.then(() => pool.query(
@@ -81,8 +84,11 @@ function flush() {
   }
   return Promise.resolve();
 }
+// 서버가 꺼질 때는 '저장 안 된 변경'이 있을 때만 저장
+// (새 서버로 바뀌는 순간 예전 서버가 오래된 데이터로 덮어쓰지 않게)
 async function shutdown() {
-  await flush();
+  if (dirty) await flush();
+  else await saving;
   if (pool) await pool.end().catch(() => {});
   process.exit(0);
 }
