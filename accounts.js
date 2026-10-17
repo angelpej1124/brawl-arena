@@ -115,12 +115,12 @@ function scrypt(pw, salt) {
 const ALL_SKILLS = ['slow', 'blink', 'stealth', 'clone', 'swap', 'fly', 'explode', 'freeze', 'rock', 'magnet', 'empower', 'parasite', 'quake', 'giant', 'rubber', 'engine', 'sword', 'blackflash', 'lightning', 'undying', 'hulk', 'fire', 'ice', 'turret'];
 const BASE_SKILLS = ['slow', 'blink'];          // 게스트·새 계정 기본 스킬
 const GEMS = {
-  START: 50,          // 가입 선물
-  PLAY: 10,           // 사람 2명 이상인 판에 참가
-  PLAY_BOT: 3,        // 봇이랑만 한 판
-  WIN: 15,            // 사람 2명 이상인 판에서 우승
-  KILL: 5,            // 사람을 장외로 보냄
-  KILL_BOT: 2,        // 봇을 장외로 보냄
+  START: 100,          // 가입 선물
+  PLAY: 25,           // 사람 2명 이상인 판에 참가
+  PLAY_BOT: 10,        // 봇이랑만 한 판
+  WIN: 40,            // 사람 2명 이상인 판에서 우승
+  KILL: 12,            // 사람을 장외로 보냄
+  KILL_BOT: 5,        // 봇을 장외로 보냄
 };
 const GACHA = {
   COST: 100,          // 뽑기 1회 가격

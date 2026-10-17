@@ -35,7 +35,7 @@ const SKILLS = {
   // 검사: 공격이 검으로 바뀜 (사거리 1.25배). 약공격은 앞으로 돌진하며 베기, 강공격은 주변 부채꼴 베기, Q는 참격 발사
   sword:    { name: '검사', cd: 12, reachMul: 1.25, lunge: 620, fanR: 125, slashSpeed: 950, slashLife: 0.65, slashDmg: 9, slashKB: 380, slashGrowth: 12 },
   // 흑섬: Q 자체는 이펙트만. 공격이 맞는 순간과 같은 타이밍(±window초)이면 넉백 강화
-  blackflash: { name: '흑섬', cd: 3, window: 0.1, heavyKbMul: 1.45, stun: 0.7 },
+  blackflash: { name: '흑섬', cd: 0, window: 0.1, heavyKbMul: 1.45, stun: 0.7 },
   lightning: { name: '번개', cd: 11, radius: 480, count: 3, damage: 10, stun: 3 },
   undying:  { name: '불사', lives: 5 },                                   // 목숨 5개 (패시브)
   // 헐크: 퍼센트(맞은 정도)가 높을수록 커지고 강해짐 (패시브). maxAt% 에서 최대
@@ -472,15 +472,22 @@ class Sim {
     } else if (k === 'swap') {
       const s = SKILLS.swap;
       if (this.time - p.heavyHitAt < s.heavyLock) return this.deny(p, '강공격을 맞은 직후엔 전환할 수 없어요');
-      const cands = [...this.players.values()].filter((o) => o !== p && o.alive && !o.inside && (this.phase !== 'playing' || o.inMatch));
-      if (!cands.length) return this.deny(p, '바꿀 상대가 없어요');
+      // 다른 플레이어·봇, 분신(내 것 포함), 터렛(내 것 포함) 중 랜덤
+      const cands = [
+        ...[...this.players.values()].filter((o) => o !== p && o.alive && !o.inside && (this.phase !== 'playing' || o.inMatch)),
+        ...[...this.clones.values()].filter((c) => c.alive),
+        ...this.turrets,
+      ];
+      if (!cands.length) return this.deny(p, '바꿀 대상이 없어요');
       const o = cands[Math.floor(Math.random() * cands.length)];
+      const isTurret = this.turrets.includes(o);
       const a = { x: p.x, y: p.y, vx: p.vx, vy: p.vy };
-      p.x = o.x; p.y = o.y; p.vx = o.vx; p.vy = o.vy;
-      o.x = a.x; o.y = a.y; o.vx = a.vx; o.vy = a.vy;
-      p.grounded = false; o.grounded = false;
+      p.x = o.x; p.y = o.y; p.vx = isTurret ? 0 : o.vx; p.vy = isTurret ? 0 : o.vy;
+      o.x = a.x; o.y = a.y;
+      if (isTurret) o.vy = 0; else { o.vx = a.vx; o.vy = a.vy; o.grounded = false; }
+      p.grounded = false;
       p.skillCd = s.cd;
-      this.ev({ k: 'swap', x: r0(a.x), y: r0(a.y - 30), x2: r0(p.x), y2: r0(p.y - 30), pid: p.id, pid2: o.id });
+      this.ev({ k: 'swap', x: r0(a.x), y: r0(a.y - 30), x2: r0(p.x), y2: r0(p.y - 30), pid: p.id, pid2: o.clone || isTurret ? undefined : o.id });
     } else if (k === 'fly') {
       const s = SKILLS.fly;
       p.flyT = s.duration; p.flyDownT = 0;
