@@ -419,6 +419,8 @@ function onMessage(m) {
     if (!inGame && ws) { const w = ws; ws = null; w.onclose = null; w.close(); loadRooms(); }
   } else if (m.t === 'pong') {
     pingMs = Math.round(performance.now() - m.c);
+  } else if (m.t === 'notice') {
+    banners.push({ text: m.msg, life: 2, max: 2, small: true, color: '#ff9b9b' });
   } else if (m.t === 'profile') {
     account.profile = m.profile;
     renderAccount();
@@ -429,6 +431,7 @@ function onMessage(m) {
     if (snapshots.length > 30) snapshots.shift();
     latest = m;
     if (m.mp && m.mp !== STAGE.id) STAGE = MAPS.find((x) => x.id === m.mp) || STAGE;
+    updateRoomPanel(m);
     // 방장만 봇 추가/빼기 버튼이 보임
     if (m.host !== hostLive || isHost !== (m.host === myId)) {
       hostLive = m.host;
@@ -765,6 +768,7 @@ function drawPlayer(p, time) {
   }
   ctx.fillStyle = p.hs ? '#ffffff' : p.c;
   roundRect(-PW / 2, -PH, PW, PH, 12); ctx.fill();
+  if (p.c === '#26252e' || p.c === '#f4f4f6') { ctx.strokeStyle = p.c === '#26252e' ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.35)'; ctx.lineWidth = 2; ctx.stroke(); }
   if (p.rk) {
     // 바위: 딱딱한 돌 모양
     ctx.fillStyle = 'rgba(128,122,116,0.88)';
@@ -864,6 +868,13 @@ function drawHUD(state, players) {
     ctx.fillText(p.n, x0 + 18, y0 + 22, cw - 70);
     ctx.font = '400 32px "Black Han Sans", sans-serif'; ctx.fillStyle = dmgColor(p.dmg);
     ctx.fillText(p.al ? `${p.dmg}%` : 'OUT', x0 + 18, y0 + 58);
+    if (state.ph === 'waiting') {
+      const host = p.id === state.host, bot = p.b;
+      ctx.font = '700 11px "Noto Sans KR", sans-serif'; ctx.textAlign = 'right';
+      ctx.fillStyle = host ? '#ffcf3f' : (p.rd || bot) ? '#6fe39a' : '#a39fc4';
+      ctx.fillText(host ? '방장' : bot ? '봇' : p.rd ? '준비 ✓' : '대기', x0 + cw - 12, y0 + 22);
+      ctx.textAlign = 'left';
+    }
     if (state.ph === 'playing' || state.ph === 'ended') {
       for (let i = 0; i < CONFIG.STOCKS; i++) {
         ctx.fillStyle = i < p.st ? p.c : 'rgba(255,255,255,0.15)';
@@ -896,9 +907,7 @@ function smallText(text, y) {
 function drawPhase(state, players, dt) {
   const ph = state.ph;
   if (ph === 'waiting') {
-    bigText('상대를 기다리는 중', 130, 42, '#ffffff');
-    smallText(`맵: ${STAGE.name}`, 200);
-    smallText(isHost ? '방장이에요 · 다른 사람이 들어오거나, 오른쪽 위 "봇 추가"로 바로 시작할 수 있어요' : '방장(♛)이 봇을 추가하거나 다른 사람이 들어오면 시작해요', 168);
+    smallText(isHost ? '모두 준비되면 위의 "게임 시작"을 눌러요 · 그동안 연습할 수 있어요' : '준비를 누르고 방장(♛)이 시작하길 기다려요 · 그동안 연습할 수 있어요', 330);
   } else if (ph === 'countdown') {
     bigText(String(state.tm), 300, 140, '#ffcf3f');
   } else if (ph === 'ended') {
@@ -951,6 +960,82 @@ function drawSmoke(list, time) {
   }
 }
 let freezeFlash = 0;
+
+// ---------------- 대기실 패널 (준비 · 시작 · 색 · 스킬) ----------------
+const PALETTE = MAPS.COLORS;
+let panelKey = '';
+let myReady = false;
+(function buildPanel() {
+  const sw = $('swatches');
+  for (const c of PALETTE) {
+    const b = document.createElement('button');
+    b.className = 'sw'; b.type = 'button'; b.dataset.hex = c.hex;
+    b.style.background = c.hex; b.title = c.name; b.setAttribute('aria-label', c.name);
+    b.addEventListener('click', (e) => { e.currentTarget.blur(); send({ t: 'color', color: c.hex }); });
+    sw.append(b);
+  }
+  $('readyBtn').addEventListener('click', (e) => {
+    e.currentTarget.blur();
+    if (isHost) send({ t: 'start' });
+    else { myReady = !myReady; send({ t: 'ready', on: myReady }); }
+  });
+  $('rpFold').addEventListener('click', (e) => {
+    const folded = $('roomPanel').classList.toggle('folded');
+    e.currentTarget.textContent = folded ? '펼치기' : '접기';
+    e.currentTarget.setAttribute('aria-expanded', String(!folded));
+  });
+})();
+function renderSkillChips(current) {
+  const box = $('skillChips');
+  const owned = account.profile ? account.profile.owned : BASE_SKILLS;
+  box.textContent = '';
+  for (const k of SKILL_IDS) {
+    if (!owned.includes(k)) continue;
+    const b = document.createElement('button');
+    b.className = 'chip' + (k === current ? ' on' : ''); b.type = 'button';
+    const dot = document.createElement('i'); dot.style.background = SKILL_COLOR[k];
+    b.append(dot, SKILLS[k].name);
+    b.title = `${SKILLS[k].desc}. ${SKILLS[k].cd}`;
+    b.addEventListener('click', (e) => { e.currentTarget.blur(); send({ t: 'skill', skill: k }); });
+    box.append(b);
+  }
+}
+function updateRoomPanel(m) {
+  const show = inGame && m.ph === 'waiting';
+  $('roomPanel').hidden = !show;
+  if (!show) { myReady = false; return; }
+  const me = m.p.find((p) => p.id === myId);
+  if (!me) return;
+  if (me.sk !== account.skill) selectSkill(me.sk, true);
+  myReady = !!me.rd;
+  const taken = new Set(m.p.filter((p) => p.id !== myId).map((p) => p.c));
+  const [ready, need] = m.rdy || [0, 0];
+  const host = m.host === myId;
+  const key = [me.c, me.sk, me.rd, host, ready, need, m.p.length, [...taken].join(), (account.profile && account.profile.owned.join()) || ''].join('|');
+  if (key === panelKey) return;
+  panelKey = key;
+  document.querySelectorAll('.sw').forEach((b) => {
+    b.classList.toggle('on', b.dataset.hex === me.c);
+    b.disabled = taken.has(b.dataset.hex);
+    const name = PALETTE.find((c) => c.hex === b.dataset.hex).name;
+    b.title = b.disabled ? `${name} (다른 사람이 사용 중)` : name;
+  });
+  renderSkillChips(me.sk);
+  const btn = $('readyBtn');
+  if (host) {
+    const canStart = m.p.length >= 2 && ready === need;
+    btn.textContent = '게임 시작';
+    btn.classList.remove('on');
+    btn.disabled = !canStart;
+    $('rpStatus').textContent = m.p.length < 2 ? '방장 · 2명 이상 필요 (봇 추가 가능)'
+      : need === 0 ? '방장 · 바로 시작할 수 있어요' : `방장 · 준비 ${ready}/${need}명`;
+  } else {
+    btn.disabled = false;
+    btn.textContent = me.rd ? '준비 완료 (취소하려면 누르기)' : '준비';
+    btn.classList.toggle('on', !!me.rd);
+    $('rpStatus').textContent = `준비 ${ready}/${need}명 · 방장이 시작하면 게임이 시작돼요`;
+  }
+}
 
 // ---------------- 메인 루프 ----------------
 let last = performance.now(), barCounter = 0;

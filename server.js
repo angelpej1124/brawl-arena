@@ -154,7 +154,8 @@ class GameRoom {
   step() {
     this.sim.tick(1 / CONFIG.TICK_RATE);
     if (++this.tickN % CONFIG.SEND_EVERY === 0) {
-      const snap = { t: 's', host: this.hostId, ...this.sim.snapshot() };
+      const ss = this.sim.startStatus(this.hostId);
+      const snap = { t: 's', host: this.hostId, rdy: [ss.ready, ss.need], ...this.sim.snapshot() };
       // 보이면 안 되는 정보는 서버에서 빼고 보냄 (화면을 조작해도 못 봄)
       //  - 기생 중인 몸: 모두에게 안 보임
       //  - 은신: 본인만 보임 (정지당하면 모두에게 반투명하게 드러남)
@@ -251,6 +252,7 @@ server.on('upgrade', (req, sock) => {
     let msgCount = 0;
     const counter = setInterval(() => { msgCount = 0; }, 1000);
     const fail = (msg) => socket.send(JSON.stringify({ t: 'error', msg }));
+    const notice = (msg) => socket.send(JSON.stringify({ t: 'notice', msg }));
 
     socket.on('message', (text) => {
       if (++msgCount > 120) return socket.close();
@@ -312,6 +314,27 @@ server.on('upgrade', (req, sock) => {
         if (p) p.input = cleanInput(m);
       } else if (m.t === 'bot' && room) {
         room.bot(id, !!m.add);
+      } else if (m.t === 'ready' && room) {
+        room.sim.setReady(id, !!m.on);
+      } else if (m.t === 'start' && room) {
+        if (id !== room.hostId) return notice('게임은 방장만 시작할 수 있어요.');
+        const st = room.sim.startStatus(id);
+        if (room.sim.phase !== 'waiting') return;
+        if (st.count < 2) return notice('2명 이상 있어야 해요. 봇을 추가하거나 친구를 기다려 주세요.');
+        if (!st.ok) return notice(`아직 준비 안 한 사람이 있어요 (${st.ready}/${st.need})`);
+        room.sim.checkStart();
+      } else if (m.t === 'color' && room) {
+        const err = room.sim.setColor(id, String(m.color || ''));
+        if (err) notice(err);
+      } else if (m.t === 'skill' && room) {
+        const skill = validSkill(m.skill);
+        const c = room.clients.get(id);
+        if (c.accountKey ? !accounts.owns(c.accountKey, skill) : !accounts.BASE_SKILLS.includes(skill)) {
+          return notice(c.accountKey ? '아직 뽑지 않은 스킬이에요.' : '게스트는 둔화와 점멸만 쓸 수 있어요.');
+        }
+        const err = room.sim.setSkill(id, skill);
+        if (err) return notice(err);
+        if (c.accountKey) accounts.setSkill(c.accountKey, skill);
       } else if (m.t === 'ping') {
         socket.send(JSON.stringify({ t: 'pong', c: m.c }));
       }

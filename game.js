@@ -32,7 +32,7 @@ const SKILLS = {
 const SKILL_IDS = Object.keys(SKILLS);
 
 const MAPS = require('./public/maps.js');   // 맵 목록 (판마다 랜덤)
-const COLORS = ['#ff5a5f', '#3fa7ff', '#ffc93c', '#4cd97b', '#c77dff', '#ff8c42'];
+const COLORS = MAPS.COLORS.map((c) => c.hex);   // 빨강 파랑 노랑 초록 보라 검정 흰색 주황 핑크
 const BOT_NAMES = ['봇 철수', '봇 영희', '봇 바둑이', '봇 민수', '봇 지수'];
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const approach = (v, t, s) => (v < t ? Math.min(v + s, t) : Math.max(v - s, t));
@@ -96,9 +96,42 @@ class Sim {
   addPlayer(id, name, bot, skill) {
     if (this.players.has(id) || this.players.size >= CONFIG.MAX_PLAYERS) return null;
     const p = new Player(id, name, this.freeColor(), bot, skill);
+    p.ready = !!bot;
     this.players.set(id, p);
     this.ev({ k: 'join', n: name });
     return p;
+  }
+  // ---------------- 대기실: 준비 · 색 · 스킬 ----------------
+  setReady(id, on) {
+    const p = this.players.get(id);
+    if (!p || this.phase !== 'waiting') return;
+    p.ready = !!on;
+  }
+  setColor(id, hex) {
+    const p = this.players.get(id);
+    if (!p) return '없는 플레이어예요.';
+    if (this.phase !== 'waiting') return '색은 게임 시작 전에만 바꿀 수 있어요.';
+    if (!COLORS.includes(hex)) return '고를 수 없는 색이에요.';
+    if (this.list().some((o) => o !== p && o.color === hex)) return '다른 사람이 쓰고 있는 색이에요.';
+    p.color = hex;
+    return null;
+  }
+  setSkill(id, skill) {
+    const p = this.players.get(id);
+    if (!p) return '없는 플레이어예요.';
+    if (this.phase !== 'waiting') return '스킬은 게임 시작 전에만 바꿀 수 있어요.';
+    if (p.parHost) this.endParasite(p, true);
+    p.skill = validSkill(skill);
+    p.skillCd = 0; p.skillCd2 = 0; p.charged = false; p.stillT = 0; p.parHits = {};
+    p.flyT = 0; p.rockT = 0; p.buffT = 0; p.stealth = 0;
+    this.clones.delete(id);
+    return null;
+  }
+  // 방장이 시작 가능한지: 2명 이상(봇 포함), 방장 빼고 사람은 모두 준비
+  startStatus(hostId) {
+    const humans = this.list().filter((p) => !p.bot && p.id !== hostId);
+    const ready = humans.filter((p) => p.ready).length;
+    return { ok: this.phase === 'waiting' && this.players.size >= 2 && ready === humans.length, ready, need: humans.length, count: this.players.size };
   }
   removePlayer(id) {
     const p = this.players.get(id);
@@ -111,6 +144,7 @@ class Sim {
     if (this.phase === 'playing') this.checkWinner();
     if (this.phase === 'countdown' && this.players.size < 2) this.phase = 'waiting';
   }
+  // 방장이 '게임 시작'을 누르면 호출
   checkStart() {
     if (this.players.size >= 2) {
       this.phase = 'countdown'; this.timer = CONFIG.COUNTDOWN;
@@ -172,7 +206,7 @@ class Sim {
     this.tickCount++;
     this.time += dt;
     if (this.phase === 'waiting') {
-      if (this.players.size >= 2) this.checkStart();
+      // 방장이 시작할 때까지 대기 (연습은 가능)
     } else if (this.phase === 'countdown') {
       this.timer -= dt;
       if (this.players.size < 2) this.phase = 'waiting';
@@ -180,8 +214,8 @@ class Sim {
     } else if (this.phase === 'ended') {
       this.timer -= dt;
       if (this.timer <= 0) {
-        this.list().forEach((p) => { p.inMatch = false; });
-        this.phase = 'waiting'; this.checkStart();
+        this.list().forEach((p) => { p.inMatch = false; p.ready = !!p.bot; });
+        this.phase = 'waiting';
       }
     }
     for (const s of this.smokes) s.t -= dt;
@@ -651,7 +685,7 @@ class Sim {
         ft: ten(p.flyT), rt: ten(p.rockT), bt: ten(p.buffT),
         chg: p.skill === 'empower' ? (p.charged ? 100 : Math.floor((p.stillT / SKILLS.empower.charge) * 100)) : 0,
         pr: p.skill === 'parasite' ? Object.values(p.parHits).filter((n) => n >= SKILLS.parasite.hitsNeeded).length : 0,
-        ins: p.inside ? 1 : 0, phost: p.parHost, pt: ten(p.parT), ctl: p.controller,
+        ins: p.inside ? 1 : 0, phost: p.parHost, pt: ten(p.parT), ctl: p.controller, rd: p.ready ? 1 : 0,
       })),
       cl: [...this.clones.values()].map((c) => ({
         id: c.id, ow: c.ownerId, n: c.name, c: c.color, x: r0(c.x), y: r0(c.y), f: c.facing,
@@ -800,4 +834,4 @@ function cloneThink(sim, c, owner) {
   return inp;
 }
 
-module.exports = { Sim, MAPS, CONFIG, SKILLS, SKILL_IDS, BOT_NAMES, validSkill, cleanInput, EMPTY_INPUT };
+module.exports = { Sim, MAPS, COLORS, CONFIG, SKILLS, SKILL_IDS, BOT_NAMES, validSkill, cleanInput, EMPTY_INPUT };

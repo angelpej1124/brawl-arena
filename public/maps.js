@@ -74,6 +74,18 @@
     m.right = Math.max(...m.solids.map((s) => s.x + s.w), ...m.platforms.map((p) => p.x + p.w));
     m.floor = Math.max(...m.solids.map((s) => s.y), ...m.platforms.map((p) => p.y));
   }
+  // 캐릭터 색 (한 방에서 같은 색은 한 명만)
+  MAPS.COLORS = [
+    { id: 'red', name: '빨강', hex: '#ff4d4d' },
+    { id: 'blue', name: '파랑', hex: '#3f8cff' },
+    { id: 'yellow', name: '노랑', hex: '#ffd23f' },
+    { id: 'green', name: '초록', hex: '#3ccf6e' },
+    { id: 'purple', name: '보라', hex: '#a66bff' },
+    { id: 'black', name: '검정', hex: '#26252e' },
+    { id: 'white', name: '흰색', hex: '#f4f4f6' },
+    { id: 'orange', name: '주황', hex: '#ff8c2e' },
+    { id: 'pink', name: '핑크', hex: '#ff7ac8' },
+  ];
   if (typeof module !== 'undefined' && module.exports) module.exports = MAPS;
   else root.BRAWL_MAPS = MAPS;
 })(this);
