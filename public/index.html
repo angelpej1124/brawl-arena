@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#12101f">
+<title>난투 아레나</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  /* Layout: full-bleed night arena canvas; lobby = entry card + account/ranking card side by side (stacked on phones). Single dark arcade look by choice. */
+  :root {
+    --bg: #12101f;
+    --panel: #1d1a33;
+    --panel-2: #26224a;
+    --line: #34305a;
+    --text: #f3f0ff;
+    --muted: #a39fc4;
+    --accent: #ffcf3f;
+    --accent-deep: #b3471f;
+    --slow: #7fb8ff;
+    --blink: #c77dff;
+    --danger: #ff7b7b;
+    --ok: #6fe39a;
+    --display: 'Black Han Sans', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+    --body: 'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
+    color-scheme: dark;
+  }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--text); overflow: hidden; font-family: var(--body);
+    user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+
+  /* ---------- 로비 ---------- */
+  #lobby { position: fixed; inset: 0; z-index: 10; overflow-y: auto; touch-action: pan-y;
+    background: radial-gradient(ellipse at 50% 20%, #2b2350 0%, var(--bg) 70%);
+    padding-block: max(20px, env(safe-area-inset-top, 0px)) max(20px, env(safe-area-inset-bottom, 0px));
+    padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .lobby-wrap { min-height: 100%; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: center; }
+  .card { width: 100%; max-width: 380px; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 18px; padding: 24px 22px; box-shadow: 0 20px 60px rgba(0,0,0,.45); box-sizing: border-box; min-width: 0; }
+  h1 { font-family: var(--display); font-weight: 400; font-size: 44px; letter-spacing: 1px; margin: 0;
+    text-align: center; color: var(--accent); text-shadow: 0 4px 0 var(--accent-deep); line-height: 1.1; text-wrap: balance; }
+  h2 { font-family: var(--display); font-weight: 400; font-size: 22px; margin: 0 0 4px; letter-spacing: .5px; }
+  .sub { text-align: center; color: var(--muted); font-size: 14px; margin: 8px 0 14px; }
+  label, .lbl { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 6px; }
+  input { width: 100%; box-sizing: border-box; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line);
+    background: #120f24; color: var(--text); font-size: 16px; font-family: inherit; outline: none; user-select: text; -webkit-user-select: text; }
+  input:focus-visible { border-color: var(--accent); }
+  button { font-family: inherit; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; background: #15122a; padding: 4px; border-radius: 12px; }
+  .tabs button { border: 0; border-radius: 9px; padding: 9px 4px; background: transparent; color: var(--muted); font-size: 14px; font-weight: 700; cursor: pointer; touch-action: manipulation; }
+  .tabs button[aria-selected="true"] { background: var(--panel-2); color: var(--text); }
+  .sub-btn { width: 100%; margin-top: 14px; padding: 11px; border-radius: 10px; border: 1.5px solid var(--accent); background: transparent;
+    color: var(--accent); font-size: 15px; font-weight: 700; cursor: pointer; touch-action: manipulation; }
+  .sub-btn:disabled { opacity: .5; cursor: wait; }
+  .hint { font-size: 12px; color: var(--muted); margin: 8px 0 0; line-height: 1.5; min-height: 0; }
+  .hint:empty { display: none; }
+  .me-box { display: flex; justify-content: space-between; align-items: center; gap: 8px; background: #15122a; border-radius: 10px; padding: 10px 12px; font-size: 14px; }
+  .me-box .dot { display: inline-block; margin: 0 2px 1px 0; vertical-align: middle; }
+  .link { background: none; border: 0; color: var(--muted); text-decoration: underline; cursor: pointer; font-size: 13px; padding: 4px; }
+  #authBox, #meBox { margin-bottom: 4px; }
+  .skills { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .skill { text-align: left; border: 1.5px solid var(--line); background: #15122a; color: var(--text); border-radius: 12px;
+    padding: 10px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 3px; min-width: 0; touch-action: manipulation; }
+  .skill b { font-size: 15px; display: flex; align-items: center; gap: 6px; }
+  .skill b i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .skill span { font-size: 12px; color: var(--muted); line-height: 1.45; }
+  .skill[aria-pressed="true"] { border-color: var(--accent); background: #221d3f; }
+  .skill[data-skill="slow"] b i { background: var(--slow); }
+  .skill[data-skill="blink"] b i { background: var(--blink); }
+
+  .play { width: 100%; margin-top: 18px; padding: 14px; border: 0; border-radius: 12px; cursor: pointer;
+    background: var(--accent); color: #2a1a00; font-size: 18px; font-family: var(--display);
+    box-shadow: 0 4px 0 var(--accent-deep); touch-action: manipulation; }
+  .play:active { transform: translateY(2px); box-shadow: 0 2px 0 var(--accent-deep); }
+  .play:disabled { opacity: .6; cursor: wait; }
+  .keys { margin-top: 16px; font-size: 13px; color: var(--muted); line-height: 1.9; }
+  .keys b { display: inline-block; min-width: 22px; padding: 0 6px; border-radius: 5px; background: #2a2648;
+    color: var(--text); text-align: center; font-weight: 700; font-size: 12px; }
+  #err { color: var(--danger); font-size: 13px; margin-top: 10px; min-height: 18px; text-align: center; }
+  #mode { margin-top: 10px; font-size: 12px; color: var(--muted); text-align: center; line-height: 1.6; }
+
+  .acct-status { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: var(--muted); line-height: 1.5; margin: 6px 0 14px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; margin-top: 6px; }
+  .dot.ok { background: var(--ok); }
+  .dot.local { background: var(--accent); }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .stat { background: #15122a; border-radius: 10px; padding: 10px 8px; text-align: center; }
+  .stat strong { display: block; font-family: var(--display); font-weight: 400; font-size: 26px; color: var(--text); font-variant-numeric: tabular-nums; }
+  .stat small { font-size: 11px; color: var(--muted); letter-spacing: .5px; }
+  .rank { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+  .rank li { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 8px; align-items: center;
+    padding: 7px 10px; border-radius: 8px; background: #15122a; font-size: 14px; }
+  .rank li.me { background: #2a2348; outline: 1px solid var(--accent); }
+  .rank .pos { font-family: var(--display); color: var(--muted); font-variant-numeric: tabular-nums; }
+  .rank li:nth-child(1) .pos { color: var(--accent); }
+  .rank .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rank .sc { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .rank .sc em { font-style: normal; color: var(--text); font-weight: 700; }
+  .empty { font-size: 13px; color: var(--muted); padding: 10px 0; }
+
+  /* ---------- 게임 중 UI ---------- */
+  #bar { position: fixed; top: calc(10px + env(safe-area-inset-top, 0px)); right: max(12px, env(safe-area-inset-right, 0px)); z-index: 5;
+    display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: flex-end; max-width: calc(100% - 24px);
+    background: rgba(18,16,31,.78); border: 1px solid var(--line); border-radius: 10px; padding: 5px 6px 5px 12px; font-size: 13px; }
+  #bar button { border: 0; border-radius: 7px; padding: 6px 10px; background: #2f2a55; color: var(--text); cursor: pointer; font-size: 13px; touch-action: manipulation; }
+  #bar button:hover { background: #3d3670; }
+  #net { position: fixed; top: calc(14px + env(safe-area-inset-top, 0px)); left: max(14px, env(safe-area-inset-left, 0px)); z-index: 5; font-size: 12px; color: var(--muted); }
+  #rotate { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(46% + 8px); z-index: 4; font-size: 12px; color: var(--muted);
+    background: rgba(18,16,31,.7); padding: 4px 10px; border-radius: 99px; white-space: nowrap; }
+
+  #touch { position: fixed; inset: auto 0 0 0; height: 46%; z-index: 4; pointer-events: none; }
+  .tbtn { position: absolute; width: 74px; height: 74px; border-radius: 50%; background: rgba(255,255,255,.12);
+    border: 2px solid rgba(255,255,255,.25); color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 15px; pointer-events: auto; touch-action: none; box-sizing: border-box; }
+  .tbtn.on { background: rgba(255,207,63,.45); }
+  .tb-l { left: calc(14px + env(safe-area-inset-left, 0px)); bottom: calc(26px + env(safe-area-inset-bottom, 0px)); }
+  .tb-r { left: calc(100px + env(safe-area-inset-left, 0px)); bottom: calc(26px + env(safe-area-inset-bottom, 0px)); }
+  .tb-d { left: calc(64px + env(safe-area-inset-left, 0px)); bottom: calc(110px + env(safe-area-inset-bottom, 0px)); width: 58px; height: 58px; }
+  .tb-u { right: calc(14px + env(safe-area-inset-right, 0px)); bottom: calc(22px + env(safe-area-inset-bottom, 0px)); width: 84px; height: 84px; }
+  .tb-a { right: calc(108px + env(safe-area-inset-right, 0px)); bottom: calc(22px + env(safe-area-inset-bottom, 0px)); }
+  .tb-h { right: calc(108px + env(safe-area-inset-right, 0px)); bottom: calc(106px + env(safe-area-inset-bottom, 0px)); }
+  .tb-s { right: calc(20px + env(safe-area-inset-right, 0px)); bottom: calc(116px + env(safe-area-inset-bottom, 0px)); border-color: var(--blink); }
+  .tb-s small { font-size: 11px; font-weight: 500; opacity: .85; }
+  .tb-s.cool { opacity: .5; }
+  @media (orientation: landscape) and (max-height: 500px) {
+    #touch { height: 100%; }
+    .tbtn { width: 64px; height: 64px; font-size: 13px; background: rgba(255,255,255,.08); }
+    .tb-u { width: 74px; height: 74px; }
+    .tb-r { left: calc(88px + env(safe-area-inset-left, 0px)); }
+    .tb-d { left: calc(56px + env(safe-area-inset-left, 0px)); bottom: calc(96px + env(safe-area-inset-bottom, 0px)); width: 52px; height: 52px; }
+    .tb-a { right: calc(96px + env(safe-area-inset-right, 0px)); }
+    .tb-h { right: calc(96px + env(safe-area-inset-right, 0px)); bottom: calc(94px + env(safe-area-inset-bottom, 0px)); }
+    .tb-s { bottom: calc(104px + env(safe-area-inset-bottom, 0px)); }
+    #rotate { display: none; }
+  }
+  @media (max-width: 640px) { #net { top: calc(62px + env(safe-area-inset-top, 0px)); } }
+  @media (prefers-reduced-motion: reduce) { .play:active { transform: none; } }
+</style>
+</head>
+<body>
+
+<canvas id="game"></canvas>
+
+<div id="lobby">
+  <div class="lobby-wrap">
+    <div class="card">
+      <h1>난투 아레나</h1>
+      <p class="sub">서로 때려서 날려버리고, 마지막까지 살아남으세요</p>
+
+      <section id="authBox" aria-label="로그인">
+        <div class="tabs" role="tablist">
+          <button role="tab" id="tabLogin" aria-selected="true">로그인</button>
+          <button role="tab" id="tabSignup" aria-selected="false">회원가입</button>
+          <button role="tab" id="tabGuest" aria-selected="false">게스트</button>
+        </div>
+        <form id="authForm" novalidate>
+          <label for="aNick">닉네임</label>
+          <input id="aNick" maxlength="12" autocomplete="username" placeholder="2~12자">
+          <label for="aPw">비밀번호</label>
+          <input id="aPw" type="password" maxlength="64" autocomplete="current-password" placeholder="4자 이상">
+          <div id="pw2Wrap" hidden>
+            <label for="aPw2">비밀번호 확인</label>
+            <input id="aPw2" type="password" maxlength="64" autocomplete="new-password">
+          </div>
+          <button class="sub-btn" id="authBtn" type="submit">로그인</button>
+          <p class="hint" id="authMsg" role="status"></p>
+          <p class="hint" id="pwWarn" hidden>이 게임에서만 쓰는 비밀번호를 정해 주세요. 다른 사이트에서 쓰는 비밀번호는 쓰지 마세요.</p>
+        </form>
+        <div id="guestBox" hidden>
+          <label for="gNick">닉네임</label>
+          <input id="gNick" maxlength="12" placeholder="닉네임 입력" autocomplete="off">
+          <p class="hint">게스트는 기록이 저장되지 않고 랭킹에 오르지 않아요.</p>
+        </div>
+      </section>
+      <div id="meBox" class="me-box" hidden>
+        <span><span class="dot ok"></span> <b id="meNick"></b> 님으로 로그인됨</span>
+        <button id="logoutBtn" class="link" type="button">로그아웃</button>
+      </div>
+
+      <label for="roomcode">방 코드 (영어·숫자, 친구와 같은 코드면 같은 방)</label>
+      <input id="roomcode" maxlength="20" placeholder="lobby" autocomplete="off" autocapitalize="off">
+      <span class="lbl" id="skillLbl">스킬 선택 (Q)</span>
+      <div class="skills" role="group" aria-labelledby="skillLbl">
+        <button class="skill" id="skSlow" data-skill="slow" aria-pressed="true">
+          <b><i></i>둔화</b><span>주변 적의 이동·공격 속도를 5초간 절반으로. 쿨 12초</span>
+        </button>
+        <button class="skill" id="skBlink" data-skill="blink" aria-pressed="false">
+          <b><i></i>점멸</b><span>누른 방향으로 순간이동. 떨어질 때 복귀용. 쿨 6초</span>
+        </button>
+      </div>
+      <button class="play" id="playBtn">입장하기</button>
+      <div id="err" role="status"></div>
+      <div class="keys" id="keysPc">
+        <b>←</b><b>→</b> / <b>A</b><b>D</b> 이동 &nbsp; <b>↑</b> <b>W</b> <b>Space</b> 점프(2단)<br>
+        <b>↓</b> <b>S</b> 발판 내려가기 &nbsp; <b>J</b> 약공격 &nbsp; <b>K</b> 강공격 &nbsp; <b>Q</b> 스킬<br>
+        데미지 %가 높을수록 멀리 날아가요. 목숨은 3개!
+      </div>
+      <div class="keys" id="keysTouch" hidden>
+        화면 왼쪽 버튼으로 이동, 오른쪽 버튼으로 점프·공격·스킬을 써요.<br>
+        점멸은 ◀ ▶ ▼ 나 점프 버튼을 누른 채로 쓰면 그 방향으로 이동해요.<br>
+        가로로 돌리면 화면이 더 커져요.
+      </div>
+      <div id="mode">지금 접속 중: <span id="onlineNow">-</span>명</div>
+    </div>
+
+    <div class="card" id="acctCard">
+      <h2>내 기록</h2>
+      <div class="acct-status"><span class="dot" id="acctDot"></span><span id="acctText">확인 중…</span></div>
+      <div class="stats">
+        <div class="stat"><strong id="stWins">-</strong><small>승리</small></div>
+        <div class="stat"><strong id="stGames">-</strong><small>판수</small></div>
+        <div class="stat"><strong id="stKos">-</strong><small>KO</small></div>
+      </div>
+      <span class="lbl">랭킹 (승리 순)</span>
+      <ol class="rank" id="rank"></ol>
+      <div class="empty" id="rankEmpty">아직 기록이 없어요. 가입하고 친구와 한 판 붙어서 첫 기록을 남겨 보세요.</div>
+      <div class="empty">친구와 2명 이상 싸운 판만 기록돼요. 봇전은 연습으로 쳐요.</div>
+    </div>
+  </div>
+</div>
+
+<div id="bar" hidden>
+  <span id="roomLabel"></span>
+  <button id="botAdd">봇 추가</button>
+  <button id="botDel">봇 빼기</button>
+  <button id="exitBtn">나가기</button>
+</div>
+<div id="net" hidden></div>
+<div id="rotate" hidden>가로로 돌리면 더 크게 보여요</div>
+
+<div id="touch" hidden>
+  <div class="tbtn tb-l" data-k="l">◀</div>
+  <div class="tbtn tb-r" data-k="r">▶</div>
+  <div class="tbtn tb-d" data-k="d">▼</div>
+  <div class="tbtn tb-h" data-k="h">강</div>
+  <div class="tbtn tb-a" data-k="a">약</div>
+  <div class="tbtn tb-u" data-k="u">점프</div>
+  <div class="tbtn tb-s" data-k="s" id="tSkill"><span id="tSkillName">스킬</span><small id="tSkillCd"></small></div>
+</div>
+
+<script src="client.js"></script>
+</body>
+</html>

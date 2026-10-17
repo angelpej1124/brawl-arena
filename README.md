@@ -1,0 +1,91 @@
+# 난투 아레나 — 온라인 버전
+
+누구나 사이트 주소만 알면 들어와서 플레이할 수 있는 횡스크롤 실시간 난투 게임이에요.
+
+- 회원가입 / 로그인 (닉네임 + 비밀번호) · 게스트 플레이
+- 전적(승리·판수·KO)과 랭킹 — **서버가 직접 기록**해서 조작할 수 없어요
+- Q 스킬: 둔화 / 점멸
+- 방 코드로 친구와 같은 방, 봇 추가
+- PC 키보드 · 모바일 터치 모두 지원
+
+---
+
+## 1. 내 컴퓨터에서 먼저 해보기
+
+1. https://nodejs.org 에서 **LTS** 버전 설치
+2. 이 폴더(`brawl-online`)에서 터미널 열기
+   - Windows: 폴더 주소창에 `cmd` 입력 후 Enter
+   - Mac: 폴더 우클릭 → "폴더에서 새로운 터미널"
+3. 실행
+   ```
+   node server.js
+   ```
+4. 브라우저에서 **http://localhost:3000** 열기
+   창을 두 개 띄워서 각각 가입하고 같은 방 코드로 들어가면 대전 테스트가 돼요.
+
+> 내 컴퓨터에서는 계정이 `data/accounts.json` 파일에 저장돼요.
+
+---
+
+## 2. 인터넷에 올리기 (무료로 시작하는 방법)
+
+준비물: **GitHub**, **Neon**(계정 저장용 데이터베이스), **Render**(게임 서버) 계정 3개. 모두 무료 요금제로 시작할 수 있어요.
+
+### ① GitHub에 코드 올리기
+1. https://github.com 가입 → 오른쪽 위 **+** → **New repository**
+2. 이름: `brawl-arena` → **Create repository**
+3. 생성된 페이지에서 **uploading an existing file** 클릭
+4. 이 폴더 안의 파일과 `public` 폴더를 전부 끌어다 놓기 (`data` 폴더는 빼세요) → **Commit changes**
+
+### ② Neon에서 데이터베이스 만들기 (계정이 영구 저장되는 곳)
+1. https://neon.com 가입 → 새 프로젝트 만들기 (지역은 아시아 쪽 선택)
+2. 대시보드의 **Connection string**(연결 문자열)을 복사
+   `postgresql://...` 로 시작하는 긴 주소예요. **비밀번호가 들어 있으니 아무에게도 보여주지 마세요.**
+
+### ③ Render에서 게임 서버 만들기
+1. https://render.com 가입 (GitHub 계정으로 로그인하면 편해요)
+2. **New +** → **Web Service** → ①에서 만든 `brawl-arena` 저장소 선택
+3. 설정
+   | 항목 | 값 |
+   |---|---|
+   | Runtime | Node |
+   | Region | Singapore (한국에서 가장 가까움) |
+   | Build Command | `npm install` |
+   | Start Command | `node server.js` |
+   | Instance Type | Free |
+4. **Environment Variables**(환경 변수)에 추가
+   - Key: `DATABASE_URL`
+   - Value: ②에서 복사한 연결 문자열
+5. **Create Web Service** → 몇 분 기다리면 `https://brawl-arena-xxxx.onrender.com` 같은 주소가 생겨요.
+6. 이 주소를 친구들에게 보내면 끝!
+
+배포 로그에 `계정 저장 위치: Postgres 데이터베이스` 가 보이면 계정이 제대로 영구 저장되는 상태예요.
+`!!! 데이터베이스에 연결하지 못했어요` 가 보이면 `DATABASE_URL` 값을 다시 확인해 주세요.
+
+### 알아두기
+- **무료 서버는 15분 동안 아무도 안 들어오면 잠들어요.** 다음 사람이 들어올 때 깨어나는 데 1분 정도 걸려요. 계속 켜 두려면 Render 유료 요금제로 바꾸면 돼요.
+- **데이터베이스 없이** 올리면 서버가 잠들거나 재시작될 때마다 가입한 계정이 사라져요. 꼭 ②를 해 주세요.
+- 코드를 고친 뒤 GitHub에 다시 올리면 Render가 자동으로 새 버전을 배포해요.
+- 나만의 주소(`mygame.com`)를 쓰고 싶으면 도메인을 산 뒤 Render의 **Settings → Custom Domains**에서 연결하면 돼요.
+
+---
+
+## 3. 파일 구조
+
+```
+brawl-online/
+├─ server.js      서버 시작 · 웹사이트 · 회원 API · 게임 방
+├─ game.js        게임 규칙 (물리, 공격, 스킬, 봇)   ← 밸런스 조절은 여기!
+├─ accounts.js    회원가입 · 로그인 · 전적 저장
+├─ ws.js          실시간 통신(WebSocket) 처리
+├─ package.json
+└─ public/
+   ├─ index.html  로비 · 화면 디자인
+   └─ client.js   그리기 · 키보드/터치 입력
+```
+
+## 4. 보안 관련
+- 비밀번호는 원문을 저장하지 않고 scrypt 해시로만 저장해요.
+- 로그인·가입 시도 횟수를 IP별로 제한해요.
+- 승패와 기록은 서버가 판정하고 저장해서 브라우저에서 조작할 수 없어요.
+- `DATABASE_URL` 연결 문자열은 절대 GitHub 코드에 넣지 말고 Render 환경 변수에만 넣으세요.
