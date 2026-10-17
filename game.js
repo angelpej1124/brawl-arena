@@ -26,7 +26,7 @@ const SKILLS = {
   freeze:   { name: '정지', cd: 8, duration: 1 },
   rock:     { name: '바위', cd: 10, duration: 6, moveMul: 0.32, jumpMul: 0.7 },
   magnet:   { name: '자석', cd: 9, cd2: 9, radius: 330, power: 720 },     // Q 끌어당김, E 밀어냄
-  empower:  { name: '강화', charge: 10, duration: 5, kbMul: 0.35, reachMul: 1.3, speedMul: 1.35, jumpMul: 1.2 },
+  empower:  { name: '강화', charge: 8, duration: 6, kbMul: 0.35, reachMul: 1.3, speedMul: 1.35, jumpMul: 1.2 },
   parasite: { name: '기생', hitsNeeded: 3, duration: 7 },
 };
 const SKILL_IDS = Object.keys(SKILLS);
