@@ -1,6 +1,6 @@
 // =====================================================================
 //  맵 목록 — 서버(게임 판정)와 브라우저(그리기)가 같이 씀
-//  월드 크기는 1280 x 720. 숫자를 바꾸면 맵 모양이 바뀌어요.
+//  월드 크기는 1280 x 720 (큰 맵은 width/height로 따로 지정). 숫자를 바꾸면 맵 모양이 바뀌어요.
 //   solids    : 단단한 땅 (옆·아래에서 못 지나감)
 //   platforms : 위에서만 올라설 수 있는 얇은 발판 (↓로 내려가기)
 //   spawns    : 라운드 시작 위치 (발 위치)
@@ -65,11 +65,30 @@
       respawn: { x: 640, y: 120 },
       theme: { sky: ['#2a1a12', '#5a3420', '#a4643a'], hill: '#3a2418', grass: '#a79a86', grassHi: '#d8cdb8', dirt: '#5b4c3e', plat: '#c9a978', platHi: '#f1dfbd', orb: 'rgba(255,200,140,', stars: false },
     },
+    // ---- 큰 맵 (월드 1600 x 900, 화면은 살짝 멀리서 보여줌) ----
+    {
+      id: 'temple', name: '고대 신전', width: 1600, height: 900,
+      solids: [{ x: 230, y: 660, w: 1140, h: 80 }, { x: 420, y: 590, w: 130, h: 70 }, { x: 1050, y: 590, w: 130, h: 70 }],
+      platforms: [{ x: 280, y: 490, w: 200 }, { x: 1120, y: 490, w: 200 }, { x: 590, y: 400, w: 180 }, { x: 830, y: 400, w: 180 }, { x: 700, y: 270, w: 200 }, { x: 330, y: 300, w: 150 }, { x: 1120, y: 300, w: 150 }],
+      spawns: [{ x: 330, y: 660 }, { x: 1270, y: 660 }, { x: 800, y: 660 }, { x: 680, y: 400 }, { x: 920, y: 400 }, { x: 800, y: 270 }],
+      respawn: { x: 800, y: 140 },
+      theme: { sky: ['#0f2a22', '#1f5145', '#6aa37f'], hill: '#163a2e', grass: '#7fbf5a', grassHi: '#b9e68f', dirt: '#6d5c3c', plat: '#e2c879', platHi: '#fff1c4', orb: 'rgba(255,230,150,', stars: false },
+    },
+    {
+      id: 'canyon', name: '거대한 협곡', width: 1600, height: 900,
+      solids: [{ x: 170, y: 640, w: 520, h: 90 }, { x: 910, y: 640, w: 520, h: 90 }],
+      platforms: [{ x: 650, y: 540, w: 300 }, { x: 250, y: 490, w: 180 }, { x: 1170, y: 490, w: 180 }, { x: 480, y: 370, w: 180 }, { x: 940, y: 370, w: 180 }, { x: 710, y: 240, w: 180 }],
+      spawns: [{ x: 300, y: 640 }, { x: 1300, y: 640 }, { x: 800, y: 540 }, { x: 560, y: 640 }, { x: 1040, y: 640 }, { x: 800, y: 240 }],
+      respawn: { x: 800, y: 130 },
+      theme: { sky: ['#3b1d1a', '#8a3f2a', '#e59a5c'], hill: '#5a2a1e', grass: '#d58a4a', grassHi: '#f5bb7a', dirt: '#7a3e26', plat: '#f0b07a', platHi: '#ffe0c0', orb: 'rgba(255,190,120,', stars: false },
+    },
   ];
   // 계산해 두는 값 (봇·분신이 땅 끝을 알기 위해)
   for (const m of MAPS) {
-    m.width = 1280; m.height = 720;
-    m.blast = { left: -260, right: 1540, top: -520, bottom: 980 };
+    m.width = m.width || 1280; m.height = m.height || 720;
+    m.zoom = 1280 / m.width;   // 큰 맵은 화면에 맞게 작게 그림
+    const pad = m.width > 1280 ? 320 : 260;
+    m.blast = { left: -pad, right: m.width + pad, top: -(m.height * 0.72), bottom: m.height + pad };
     m.left = Math.min(...m.solids.map((s) => s.x), ...m.platforms.map((p) => p.x));
     m.right = Math.max(...m.solids.map((s) => s.x + s.w), ...m.platforms.map((p) => p.x + p.w));
     m.floor = Math.max(...m.solids.map((s) => s.y), ...m.platforms.map((p) => p.y));
