@@ -113,7 +113,7 @@ function loginWith(token, profile) {
 }
 $('logoutBtn').addEventListener('click', () => {
   api('/api/logout', {}).catch(() => {});
-  account.token = null; account.profile = null;
+  account.token = null; account.profile = null; adminLoaded = false; adminSel = null; $('admEdit').hidden = true;
   try { localStorage.removeItem('brawl_token'); } catch (e) {}
   setTab('login');
   loadRanking();
@@ -130,10 +130,105 @@ function renderAccount() {
   $('stKos').textContent = p ? p.kos : '-';
   $('acctDot').className = 'dot' + (loggedIn ? ' ok' : '');
   $('acctText').textContent = loggedIn ? '로그인됨 · 판이 끝날 때마다 서버에 기록돼요'
-    : authTab === 'guest' ? '게스트는 기록이 저장되지 않아요'
-    : '로그인하면 기록이 저장되고 랭킹에 올라가요';
+    : authTab === 'guest' ? '게스트는 기록이 저장되지 않고 둔화·점멸만 쓸 수 있어요'
+    : '로그인하면 기록이 저장되고 보석으로 스킬을 뽑을 수 있어요';
+  // 보석
+  $('gemCount').textContent = p ? p.gems : '-';
+  $('gachaBtn').disabled = !p || p.gems < GACHA_COST;
+  if (!p) $('gachaMsg').textContent = '가입하면 보석을 모아 은신·분신을 뽑을 수 있어요.';
+  else if ($('gachaMsg').dataset.keep !== '1') $('gachaMsg').textContent = p.gems < GACHA_COST ? `뽑기까지 보석 ${GACHA_COST - p.gems}개 더 필요해요.` : '';
+  // 스킬 잠금
+  const owned = p ? p.owned : BASE_SKILLS;
+  document.querySelectorAll('.skill').forEach((b) => {
+    const locked = !owned.includes(b.dataset.skill);
+    b.classList.toggle('locked', locked);
+    b.disabled = locked;
+    b.title = locked ? (p ? '스킬 뽑기로 얻을 수 있어요' : '가입하고 뽑기로 얻을 수 있어요') : '';
+  });
+  if (!owned.includes(account.skill)) account.skill = 'slow';
   selectSkill(account.skill, false);
+  // 관리자
+  $('adminCard').hidden = !(p && p.admin);
+  if (p && p.admin && !adminLoaded) { adminLoaded = true; adminSearch(); }
 }
+
+// ---------------- 스킬 뽑기 ----------------
+const GACHA_COST = 100;
+const BASE_SKILLS = ['slow', 'blink'];
+$('gachaBtn').addEventListener('click', async () => {
+  const btn = $('gachaBtn');
+  btn.disabled = true;
+  const msg = $('gachaMsg');
+  msg.dataset.keep = '1';
+  msg.style.color = 'var(--muted)';
+  msg.textContent = '뽑는 중…';
+  try {
+    const r = await api('/api/gacha', {});
+    account.profile = r.profile;
+    const name = SKILLS[r.skill].name;
+    msg.style.color = r.dup ? 'var(--muted)' : SKILL_COLOR[r.skill];
+    msg.textContent = r.dup ? `${name}! 이미 가진 스킬이라 보석 ${r.refund}개를 돌려받았어요.` : `새 스킬 ${name} 획득! 스킬 선택에서 골라 보세요.`;
+    if (!r.dup) selectSkill(r.skill, true);
+  } catch (err) {
+    msg.style.color = 'var(--danger)';
+    msg.textContent = err.message;
+  }
+  renderAccount();
+  setTimeout(() => { msg.dataset.keep = ''; }, 4000);
+});
+
+// ---------------- 관리자 ----------------
+let adminLoaded = false, adminSel = null;
+async function adminSearch() {
+  try {
+    const r = await api('/api/admin/users?q=' + encodeURIComponent($('admQ').value.trim()));
+    const ul = $('admList');
+    ul.textContent = '';
+    for (const u of r.users) {
+      const li = document.createElement('li');
+      if (adminSel && adminSel.nick === u.nick) li.className = 'sel';
+      const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = u.nick + (u.admin ? ' (관리자)' : '');
+      const sc = document.createElement('span'); sc.className = 'sc';
+      sc.textContent = `보석 ${u.gems} · ${u.owned.map((k) => SKILLS[k] ? SKILLS[k].name : k).join('·')}`;
+      li.style.gridTemplateColumns = 'minmax(0,1fr) auto';
+      li.append(nm, sc);
+      li.addEventListener('click', () => adminPick(u));
+      ul.append(li);
+    }
+    if (!r.users.length) { const li = document.createElement('li'); li.textContent = '찾는 계정이 없어요.'; ul.append(li); }
+  } catch (e) {
+    $('admMsg').textContent = e.message;
+  }
+}
+function adminPick(u) {
+  adminSel = u;
+  $('admEdit').hidden = false;
+  $('admName').textContent = `${u.nick} 관리 중`;
+  $('admGems').value = u.gems;
+  for (const k of ['stealth', 'clone']) $('admSk' + k).checked = u.owned.includes(k);
+  $('admMsg').textContent = '';
+  document.querySelectorAll('#admList li').forEach((li) => li.classList.toggle('sel', li.firstChild && li.firstChild.textContent.startsWith(u.nick)));
+}
+let admTimer = null;
+$('admQ').addEventListener('input', () => { clearTimeout(admTimer); admTimer = setTimeout(adminSearch, 300); });
+$('admSave').addEventListener('click', async () => {
+  if (!adminSel) return;
+  const owned = [...document.querySelectorAll('.adm-skills input')].filter((c) => c.checked).map((c) => c.dataset.skill);
+  $('admSave').disabled = true;
+  try {
+    const r = await api('/api/admin/user', { nick: adminSel.nick, gems: Number($('admGems').value), owned });
+    adminSel = r.profile;
+    $('admMsg').style.color = 'var(--ok)';
+    $('admMsg').textContent = `${r.profile.nick} 저장했어요 · 보석 ${r.profile.gems}`;
+    if (account.profile && r.profile.nick === account.profile.nick) { account.profile = r.profile; renderAccount(); }
+    adminSearch();
+  } catch (e) {
+    $('admMsg').style.color = 'var(--danger)';
+    $('admMsg').textContent = e.message;
+  } finally {
+    $('admSave').disabled = false;
+  }
+});
 
 function renderRanking(rows) {
   const ol = $('rank');
@@ -290,6 +385,7 @@ function onMessage(m) {
   } else if (m.t === 'profile') {
     account.profile = m.profile;
     renderAccount();
+    if (m.gained) banners.push({ text: `보석 +${m.gained}`, life: 2.2, max: 2.2, small: true, color: '#5ef2ff' });
   } else if (m.t === 's') {
     m.time = performance.now();
     snapshots.push(m);

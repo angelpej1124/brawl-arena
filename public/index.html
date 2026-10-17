@@ -22,6 +22,7 @@
     --blink: #c77dff;
     --stealth: #7fe0c8;
     --clone: #ff9ecf;
+    --gem: #5ef2ff;
     --danger: #ff7b7b;
     --ok: #6fe39a;
     --display: 'Black Han Sans', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
@@ -74,6 +75,24 @@
   .room-btn .t { font-weight: 700; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .room-btn .c { font-size: 13px; color: var(--accent); font-variant-numeric: tabular-nums; }
   .room-btn .s { grid-column: 1 / -1; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .gem-box { margin-top: 12px; background: #15122a; border-radius: 12px; padding: 12px; }
+  .gem-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .gem { display: inline-flex; align-items: baseline; gap: 6px; }
+  .gem b { font-family: var(--display); font-weight: 400; font-size: 26px; color: var(--gem); font-variant-numeric: tabular-nums; }
+  .gem small { font-size: 12px; color: var(--muted); }
+  .gem-ico { width: 14px; height: 14px; background: var(--gem); transform: rotate(45deg); border-radius: 3px; display: inline-block; align-self: center; box-shadow: 0 0 10px var(--gem); }
+  .gacha-btn { width: auto; margin-top: 0; padding: 9px 14px; font-size: 14px; border-color: var(--gem); color: var(--gem); }
+  .gacha-btn:disabled { opacity: .45; cursor: not-allowed; }
+  #gachaMsg { font-weight: 700; }
+  .skill.locked { opacity: .45; cursor: not-allowed; }
+  .skill.locked b::after { content: '잠김'; margin-left: auto; font-size: 11px; font-weight: 700; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; }
+  .adm-list { max-height: 200px; overflow-y: auto; margin-top: 8px; }
+  .adm-list li { cursor: pointer; }
+  .adm-list li:hover, .adm-list li.sel { outline: 1px solid var(--accent); }
+  .adm-name { margin-top: 12px; font-weight: 700; font-size: 16px; }
+  .adm-skills { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .chk { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; color: var(--text); background: #15122a; border-radius: 8px; padding: 8px 10px; }
+  .chk input { width: auto; }
   .skills { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .skill { text-align: left; border: 1.5px solid var(--line); background: #15122a; color: var(--text); border-radius: 12px;
     padding: 10px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 3px; min-width: 0; touch-action: manipulation; }
@@ -251,10 +270,39 @@
         <div class="stat"><strong id="stGames">-</strong><small>판수</small></div>
         <div class="stat"><strong id="stKos">-</strong><small>KO</small></div>
       </div>
+      <div class="gem-box">
+        <div class="gem-row">
+          <span class="gem"><i class="gem-ico" aria-hidden="true"></i><b id="gemCount">-</b><small>보석</small></span>
+          <button class="sub-btn gacha-btn" id="gachaBtn" type="button">스킬 뽑기 · 보석 100</button>
+        </div>
+        <p class="hint" id="gachaMsg" role="status"></p>
+        <p class="hint" id="gemHelp">판 참가 +10 · 우승 +15 · 처치 +5 &nbsp;|&nbsp; 봇전: 판 +3 · 봇 처치 +2</p>
+      </div>
       <span class="lbl">랭킹 (승리 순)</span>
       <ol class="rank" id="rank"></ol>
       <div class="empty" id="rankEmpty">아직 기록이 없어요. 가입하고 친구와 한 판 붙어서 첫 기록을 남겨 보세요.</div>
-      <div class="empty">친구와 2명 이상 싸운 판만 기록돼요. 봇전은 연습으로 쳐요.</div>
+      <div class="empty">친구와 2명 이상 싸운 판만 전적에 기록돼요. 봇전은 보석만 조금 받아요.</div>
+    </div>
+
+    <div class="card" id="adminCard" hidden>
+      <h2>관리자</h2>
+      <label for="admQ">닉네임 검색 (비우면 최근 가입자)</label>
+      <input id="admQ" maxlength="12" placeholder="닉네임" autocomplete="off">
+      <ul class="rank adm-list" id="admList"></ul>
+      <div id="admEdit" hidden>
+        <div class="adm-name" id="admName"></div>
+        <label for="admGems">보석</label>
+        <input id="admGems" type="number" min="0" max="1000000" step="1" inputmode="numeric">
+        <span class="lbl">가진 스킬</span>
+        <div class="adm-skills">
+          <label class="chk"><input type="checkbox" id="admSkslow" data-skill="slow" checked disabled> 둔화 (기본)</label>
+          <label class="chk"><input type="checkbox" id="admSkblink" data-skill="blink" checked disabled> 점멸 (기본)</label>
+          <label class="chk"><input type="checkbox" id="admSkstealth" data-skill="stealth"> 은신</label>
+          <label class="chk"><input type="checkbox" id="admSkclone" data-skill="clone"> 분신</label>
+        </div>
+        <button class="sub-btn" id="admSave" type="button">저장</button>
+        <p class="hint" id="admMsg" role="status"></p>
+      </div>
     </div>
   </div>
 </div>

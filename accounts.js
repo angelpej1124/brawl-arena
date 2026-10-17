@@ -25,6 +25,10 @@ function normalize() {
 }
 
 async function init() {
+  await initStore();
+  upgradeAll();
+}
+async function initStore() {
   if (process.env.DATABASE_URL) {
     try {
       const { Pool } = require('pg');
@@ -98,8 +102,57 @@ function scrypt(pw, salt) {
   });
 }
 
+// =====================================================================
+//  보석 · 스킬 뽑기 · 관리자
+//  숫자를 바꾸면 보석 획득량과 뽑기 확률이 바뀌어요.
+// =====================================================================
+const ALL_SKILLS = ['slow', 'blink', 'stealth', 'clone'];
+const BASE_SKILLS = ['slow', 'blink'];          // 게스트·새 계정 기본 스킬
+const GEMS = {
+  START: 50,          // 가입 선물
+  PLAY: 10,           // 사람 2명 이상인 판에 참가
+  PLAY_BOT: 3,        // 봇이랑만 한 판
+  WIN: 15,            // 사람 2명 이상인 판에서 우승
+  KILL: 5,            // 사람을 장외로 보냄
+  KILL_BOT: 2,        // 봇을 장외로 보냄
+};
+const GACHA = {
+  COST: 100,          // 뽑기 1회 가격
+  DUP_REFUND: 40,     // 이미 가진 스킬이 나오면 돌려주는 보석
+  // 뽑기 확률 (가중치)
+  POOL: [
+    { skill: 'stealth', weight: 30 },
+    { skill: 'clone', weight: 30 },
+    { skill: 'slow', weight: 20 },
+    { skill: 'blink', weight: 20 },
+  ],
+};
+// 관리자 닉네임 (환경 변수 ADMIN_NICKS, 쉼표로 여러 명). 이미 가입된 계정에만 적용돼요.
+const ADMIN_NICKS = String(process.env.ADMIN_NICKS || '').split(',').map((n) => n.trim().toLowerCase()).filter(Boolean);
+
+// 예전 계정에 새 항목 채워 넣기
+function upgrade(a, key) {
+  let changed = false;
+  if (!Number.isFinite(a.gems)) { a.gems = GEMS.START; changed = true; }
+  if (!Array.isArray(a.owned)) { a.owned = [...BASE_SKILLS]; changed = true; }
+  for (const b of BASE_SKILLS) if (!a.owned.includes(b)) { a.owned.push(b); changed = true; }
+  a.owned = a.owned.filter((k) => ALL_SKILLS.includes(k));
+  if (!a.owned.includes(a.skill)) { a.skill = 'slow'; changed = true; }
+  const shouldAdmin = ADMIN_NICKS.includes(key);
+  if (shouldAdmin && !a.admin) { a.admin = true; changed = true; }
+  return changed;
+}
+function upgradeAll() {
+  let changed = false;
+  for (const [key, a] of Object.entries(store.accounts)) if (upgrade(a, key)) changed = true;
+  if (changed) save();
+}
+
 function publicProfile(a) {
-  return { nick: a.nick, wins: a.wins, games: a.games, kos: a.kos, skill: a.skill };
+  return {
+    nick: a.nick, wins: a.wins, games: a.games, kos: a.kos, skill: a.skill,
+    gems: a.gems, owned: [...a.owned], admin: !!a.admin,
+  };
 }
 
 function newSession(key) {
@@ -121,6 +174,7 @@ async function signup(nickRaw, pw) {
   store.accounts[key] = {
     nick, salt: salt.toString('hex'), hash: hash.toString('hex'),
     wins: 0, games: 0, kos: 0, skill: 'slow', createdAt: Date.now(),
+    gems: GEMS.START, owned: [...BASE_SKILLS], admin: false,
   };
   save();
   return { token: newSession(key), profile: publicProfile(store.accounts[key]) };
@@ -162,17 +216,79 @@ function isTaken(nick) {
   return !!store.accounts[keyOf(nick)];
 }
 
+function owns(key, skill) {
+  const a = store.accounts[key];
+  return !!a && a.owned.includes(skill);
+}
 function setSkill(key, skill) {
   const a = store.accounts[key];
-  if (a && a.skill !== skill) { a.skill = skill; save(); }
+  if (a && a.skill !== skill && a.owned.includes(skill)) { a.skill = skill; save(); }
 }
 
-function record(key, { win, kos }) {
+// 판이 끝날 때 서버가 호출 (counted = 사람 2명 이상인 판이라 전적에 기록)
+function record(key, { counted, win, kills, botKills }) {
   const a = store.accounts[key];
   if (!a) return null;
-  a.games += 1;
-  if (win) a.wins += 1;
-  a.kos += Math.max(0, kos | 0);
+  let gems = 0;
+  if (counted) {
+    a.games += 1;
+    if (win) a.wins += 1;
+    a.kos += Math.max(0, kills | 0);
+    gems += GEMS.PLAY + (win ? GEMS.WIN : 0);
+  } else {
+    gems += GEMS.PLAY_BOT;
+  }
+  gems += GEMS.KILL * Math.max(0, kills | 0) + GEMS.KILL_BOT * Math.max(0, botKills | 0);
+  a.gems += gems;
+  save();
+  return { profile: publicProfile(a), gained: gems };
+}
+
+function gacha(key) {
+  const a = store.accounts[key];
+  if (!a) throw new Error('로그인이 필요해요.');
+  if (a.gems < GACHA.COST) throw new Error(`보석이 모자라요. 뽑기는 ${GACHA.COST}개가 필요해요.`);
+  a.gems -= GACHA.COST;
+  const total = GACHA.POOL.reduce((n, x) => n + x.weight, 0);
+  let r = crypto.randomInt(total);
+  let skill = GACHA.POOL[0].skill;
+  for (const x of GACHA.POOL) { if (r < x.weight) { skill = x.skill; break; } r -= x.weight; }
+  const dup = a.owned.includes(skill);
+  if (dup) a.gems += GACHA.DUP_REFUND;
+  else a.owned.push(skill);
+  save();
+  return { skill, dup, refund: dup ? GACHA.DUP_REFUND : 0, profile: publicProfile(a) };
+}
+
+// ---------- 관리자 ----------
+function isAdmin(key) {
+  const a = store.accounts[key];
+  return !!(a && a.admin);
+}
+function adminList(q) {
+  const query = cleanNick(q).toLowerCase();
+  return Object.entries(store.accounts)
+    .filter(([k]) => !query || k.includes(query))
+    .sort((x, y) => (y[1].createdAt || 0) - (x[1].createdAt || 0))
+    .slice(0, 50)
+    .map(([, a]) => publicProfile(a));
+}
+function adminUpdate(targetNick, { gems, owned }) {
+  const key = keyOf(targetNick);
+  const a = store.accounts[key];
+  if (!a) throw new Error('그런 닉네임의 계정이 없어요.');
+  if (gems !== undefined) {
+    const n = Math.floor(Number(gems));
+    if (!Number.isFinite(n) || n < 0 || n > 1000000) throw new Error('보석은 0 ~ 1,000,000 사이 숫자로 써 주세요.');
+    a.gems = n;
+  }
+  if (owned !== undefined) {
+    if (!Array.isArray(owned)) throw new Error('스킬 목록이 잘못됐어요.');
+    const set = new Set(owned.filter((k) => ALL_SKILLS.includes(k)));
+    for (const b of BASE_SKILLS) set.add(b);       // 기본 스킬은 항상 유지
+    a.owned = ALL_SKILLS.filter((k) => set.has(k));
+    if (!a.owned.includes(a.skill)) a.skill = 'slow';
+  }
   save();
   return publicProfile(a);
 }
@@ -193,4 +309,8 @@ setInterval(() => {
   if (changed) save();
 }, 3600000).unref();
 
-module.exports = { init, storage: () => storageName, signup, login, logout, fromToken, profileOf, nickOf, isTaken, setSkill, record, ranking, cleanNick };
+module.exports = {
+  init, storage: () => storageName, signup, login, logout, fromToken, profileOf, nickOf, isTaken,
+  owns, setSkill, record, ranking, cleanNick, gacha, isAdmin, adminList, adminUpdate,
+  GEMS, GACHA, BASE_SKILLS, ALL_SKILLS,
+};

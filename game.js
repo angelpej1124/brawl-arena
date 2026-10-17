@@ -98,7 +98,7 @@ class Sim {
     this.clones.clear();
     this.list().forEach((p, i) => {
       const s = STAGE.spawns[i % STAGE.spawns.length];
-      p.reset(s.x, s.y); p.stocks = CONFIG.STOCKS; p.kos = 0; p.inMatch = true;
+      p.reset(s.x, s.y); p.stocks = CONFIG.STOCKS; p.kos = 0; p.botKos = 0; p.inMatch = true;
     });
     this.ev({ k: 'start' });
   }
@@ -336,7 +336,7 @@ class Sim {
     this.ev({ k: 'ko', x: Math.round(clamp(p.x, 0, STAGE.width)), y: Math.round(clamp(p.y, 0, STAGE.height)), n: p.name });
     if (p.lastHitBy && this.tickCount - p.lastHitAt < CONFIG.TICK_RATE * 5 && this.phase === 'playing') {
       const killer = this.players.get(p.lastHitBy);
-      if (killer) killer.kos++;
+      if (killer) { if (p.bot) killer.botKos = (killer.botKos || 0) + 1; else killer.kos++; }
     }
     if (this.phase !== 'playing' || !p.inMatch) {
       p.reset(640, 120); p.invincible = CONFIG.RESPAWN_INVINCIBLE; return;

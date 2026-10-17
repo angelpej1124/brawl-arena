@@ -67,6 +67,31 @@ async function api(req, res, urlPath) {
       if (!key) return sendJson(res, 401, { error: '로그인이 필요해요.' });
       return sendJson(res, 200, { profile: accounts.profileOf(key) });
     }
+    if (req.method === 'POST' && urlPath === '/api/gacha') {
+      const key = accounts.fromToken(bearer(req));
+      if (!key) return sendJson(res, 401, { error: '로그인이 필요해요.' });
+      if (limited(ip, 'gacha', 60, 60000)) return sendJson(res, 429, { error: '너무 빨리 뽑고 있어요. 잠시 후 다시 해 주세요.' });
+      return sendJson(res, 200, accounts.gacha(key));
+    }
+    if (urlPath.startsWith('/api/admin/')) {
+      const key = accounts.fromToken(bearer(req));
+      if (!key || !accounts.isAdmin(key)) return sendJson(res, 403, { error: '관리자만 쓸 수 있어요.' });
+      if (req.method === 'GET' && urlPath === '/api/admin/users') {
+        const q = new URL(req.url, 'http://x').searchParams.get('q') || '';
+        return sendJson(res, 200, { users: accounts.adminList(q) });
+      }
+      if (req.method === 'POST' && urlPath === '/api/admin/user') {
+        const b = await readBody(req);
+        const profile = accounts.adminUpdate(b.nick, { gems: b.gems, owned: b.owned });
+        console.log(`[관리자] ${accounts.nickOf(key)} → ${profile.nick}: 보석 ${profile.gems}, 스킬 ${profile.owned.join(',')}`);
+        // 접속 중이면 바로 알려줌
+        for (const r of rooms.values()) for (const c of r.clients.values()) {
+          if (c.accountKey && accounts.nickOf(c.accountKey) === profile.nick) c.socket.send(JSON.stringify({ t: 'profile', profile }));
+        }
+        return sendJson(res, 200, { profile });
+      }
+      return sendJson(res, 404, { error: '없는 주소예요.' });
+    }
     if (req.method === 'GET' && urlPath === '/api/rooms') {
       return sendJson(res, 200, { rooms: publicRooms(), online: onlineCount() });
     }
@@ -149,14 +174,17 @@ class GameRoom {
     }
   }
   // 사람이 2명 이상 참가한 판만 서버가 직접 기록 (조작 불가)
+  // 사람 2명 이상인 판은 전적에도 기록, 봇이랑만 한 판은 보석만 조금
   recordRound() {
     const parts = this.sim.list().filter((p) => p.inMatch && !p.bot);
-    if (parts.length < 2) return;
+    const counted = parts.length >= 2;
     for (const p of parts) {
       const c = this.clients.get(p.id);
       if (!c || !c.accountKey) continue;
-      const profile = accounts.record(c.accountKey, { win: p.id === this.sim.winnerId, kos: p.kos });
-      if (profile) c.socket.send(JSON.stringify({ t: 'profile', profile }));
+      const r = accounts.record(c.accountKey, {
+        counted, win: counted && p.id === this.sim.winnerId, kills: p.kos, botKills: p.botKos || 0,
+      });
+      if (r) c.socket.send(JSON.stringify({ t: 'profile', profile: r.profile, gained: r.gained }));
     }
   }
   join(id, socket, name, accountKey, skill) {
@@ -231,8 +259,10 @@ server.on('upgrade', (req, sock) => {
           accountKey = accounts.fromToken(m.token);
           if (!accountKey) return fail('로그인이 만료됐어요. 다시 로그인해 주세요.');
           name = accounts.nickOf(accountKey);
+          if (!accounts.owns(accountKey, skill)) return fail('아직 뽑지 않은 스킬이에요. 다른 스킬을 골라 주세요.');
           accounts.setSkill(accountKey, skill);
         } else {
+          if (!accounts.BASE_SKILLS.includes(skill)) return fail('게스트는 둔화와 점멸만 쓸 수 있어요. 가입하고 보석으로 뽑아 보세요.');
           name = accounts.cleanNick(m.guest);
           if (name.length < 2) return fail('닉네임은 2~12자로 써 주세요.');
           if (accounts.isTaken(name)) return fail('가입된 닉네임이에요. 로그인하거나 다른 닉네임을 써 주세요.');
