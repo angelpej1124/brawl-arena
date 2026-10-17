@@ -38,6 +38,8 @@ const SKILLS = {
   hulk:     { name: '헐크', desc: '퍼센트가 오를수록 몸·사거리·힘↑, 속도·받는 넉백↓. 퍼센트가 내려가면 다시 작아짐 (패시브)', cd: '패시브' },
   fire:     { name: '화염', desc: '공격에 불이 붙어 맞은 상대가 2번 더 밀림. Q는 불태우며 돌진 (맞으면 4번 더 밀림)', cd: '쿨 9초' },
   ice:      { name: '얼음', desc: '때리면 상대 얼음 게이지가 참. 가득 차면 2초 얼어붙음. Q는 5초 눈보라 (모두의 게이지가 계속 참)', cd: '쿨 11초' },
+  error:    { name: '에러', desc: '나를 뺀 모두의 화면이 5초간 끊기고 조작이 제멋대로 됨', cd: '쿨 10초' },
+  sun:      { name: '태양', desc: '6초간 태양의 힘: 빨라지고, 평타에 불이 붙고, 넉백이 세짐', cd: '쿨 11초' },
   turret:   { name: '터렛', desc: '적을 자동으로 쏘는 터렛 설치 (최대 3개, 4번 맞으면 부서짐)', cd: '쿨 12초' },
 };
 const SKILL_COLOR = {
@@ -45,7 +47,7 @@ const SKILL_COLOR = {
   explode: '#ff8a3d', freeze: '#d5ecff', rock: '#b5aca2', magnet: '#ff5d73', empower: '#4f8bff', parasite: '#7be36f',
   quake: '#d6a45c', giant: '#ff6b4a', rubber: '#ff9ff3', engine: '#ffb000',
   sword: '#cfe3ff', blackflash: '#c0263a', lightning: '#ffe94a', undying: '#ffd27a',
-  hulk: '#5fd35a', fire: '#ff5a1f', ice: '#8fdcff', turret: '#a7b2c4',
+  hulk: '#5fd35a', fire: '#ff5a1f', ice: '#8fdcff', turret: '#a7b2c4', error: '#39ff88', sun: '#ffc21a',
 };
 const SKILL_IDS = Object.keys(SKILLS);
 const MAPS = window.BRAWL_MAPS;   // maps.js (서버와 같은 맵 정보)
@@ -685,6 +687,14 @@ function onEvent(ev) {
       const a = Math.random() * Math.PI * 2, sp = 100 + Math.random() * 360;
       particles.push({ x: ev.x, y: ev.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 100, life: 0.6, max: 0.6, c: i % 2 ? '#7d8796' : '#ffb02e', r: 5 });
     }
+  } else if (ev.k === 'error') {
+    if (ev.by !== myId) banners.push({ text: `${ev.n}: 시스템 에러!`, life: 1.4, max: 1.4, small: true, color: '#39ff88' });
+  } else if (ev.k === 'sun') {
+    particles.push({ ring: true, fill: true, x: ev.x, y: ev.y, life: 0.6, max: 0.6, r: 140, c: '255,200,40', grow: true });
+    for (let i = 0; i < 24; i++) {
+      const a = (i / 24) * Math.PI * 2;
+      particles.push({ x: ev.x + Math.cos(a) * 30, y: ev.y + Math.sin(a) * 30, vx: Math.cos(a) * 300, vy: Math.sin(a) * 300, life: 0.5, max: 0.5, c: i % 2 ? '#fff3a0' : '#ffb21a', r: 5, nograv: true });
+    }
   } else if (ev.k === 'map') {
     banners.push({ text: `맵: ${ev.n}`, life: 2.5, max: 2.5, small: true, color: '#ffcf3f' });
   } else if (ev.k === 'host') {
@@ -856,6 +866,16 @@ function drawPlayer(p, time) {
       ctx.beginPath(); ctx.ellipse(sd * 16, 0, 18, 8, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
     }
   }
+  if (p.sun) {
+    // 태양: 뒤에서 빛나는 햇살
+    ctx.save(); ctx.translate(0, -PH / 2); ctx.rotate(time / 900);
+    ctx.fillStyle = 'rgba(255,200,40,0.35)';
+    for (let i = 0; i < 10; i++) { ctx.rotate(Math.PI / 5); ctx.beginPath(); ctx.moveTo(-6, 30); ctx.lineTo(0, 54 + Math.sin(time / 120 + i) * 6); ctx.lineTo(6, 30); ctx.fill(); }
+    const sg = ctx.createRadialGradient(0, 0, 10, 0, 0, 44);
+    sg.addColorStop(0, 'rgba(255,230,120,0.55)'); sg.addColorStop(1, 'rgba(255,170,30,0)');
+    ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(0, 0, 44, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
   if (p.fd) {
     // 화염 돌진: 뒤로 긴 불꽃
     const g3 = ctx.createLinearGradient(0, 0, -f * 120, 0);
@@ -937,12 +957,13 @@ function drawPlayer(p, time) {
     ctx.lineWidth = p.at === 2 ? 10 : 6; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(f * PW / 2, fy); ctx.lineTo(fx, fy); ctx.stroke();
   }
-  if (p.sk === 'fire' || p.sk === 'ice') {
+  if (p.sk === 'fire' || p.sk === 'ice' || p.sun) {
     // 주먹에 불꽃 / 냉기
     const fr = (p.at === 2 ? 20 : 16) + Math.sin(time / 60) * 3;
     const gl = ctx.createRadialGradient(fx, fy, 2, fx, fy, fr);
-    gl.addColorStop(0, p.sk === 'fire' ? 'rgba(255,220,90,0.95)' : 'rgba(235,250,255,0.95)');
-    gl.addColorStop(1, p.sk === 'fire' ? 'rgba(255,60,20,0)' : 'rgba(120,200,255,0)');
+    const hot = p.sk === 'fire' || p.sun;
+    gl.addColorStop(0, hot ? 'rgba(255,220,90,0.95)' : 'rgba(235,250,255,0.95)');
+    gl.addColorStop(1, hot ? 'rgba(255,60,20,0)' : 'rgba(120,200,255,0)');
     ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(fx, fy, fr, 0, Math.PI * 2); ctx.fill();
   }
   ctx.fillStyle = p.c; ctx.strokeStyle = '#1a1030'; ctx.lineWidth = 3;
@@ -1175,7 +1196,19 @@ function drawSmoke(list, time) {
     }
   }
 }
-let freezeFlash = 0, lightFlash = 0;
+let freezeFlash = 0, lightFlash = 0, errHold = 0;
+function drawGlitch() {
+  // 화면 위에 어긋난 색 띠와 노이즈
+  for (let i = 0; i < 6; i++) {
+    const y = Math.random() * H, h = 4 + Math.random() * 30;
+    ctx.fillStyle = ['rgba(57,255,136,0.25)', 'rgba(255,40,120,0.22)', 'rgba(40,160,255,0.22)'][i % 3];
+    ctx.fillRect((Math.random() - 0.5) * 60, y, W, h);
+  }
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  for (let i = 0; i < 40; i++) ctx.fillRect(Math.random() * W, Math.random() * H, 2 + Math.random() * 40, 2);
+  ctx.font = '700 20px monospace'; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(57,255,136,0.85)';
+  if (Math.random() < 0.5) ctx.fillText('ERR0R: INPUT_STREAM CORRUPTED', W / 2 + (Math.random() - 0.5) * 20, 160);
+}
 // 터렛 + 총알
 function drawTurrets(state, now) {
   for (const t of state.tr || []) {
@@ -1334,6 +1367,12 @@ function frame(now) {
     $('net').textContent = `같은 방 ${people}명${pingMs != null ? ` · 핑 ${pingMs}ms` : ''}`;
   }
 
+  // 에러: 내 화면이 끊김 (가끔 그리기를 멈추고, 깨진 줄무늬가 지나감)
+  const meE = latest && latest.p.find((p) => p.id === myId);
+  if (meE && meE.er && !reduceMotion) {
+    if (errHold > 0) { errHold -= dt; requestAnimationFrame(frame); return; }
+    if (Math.random() < 0.06) errHold = 0.08 + Math.random() * 0.35;
+  } else errHold = 0;
   drawBackground(now);
   if (latest) {
     const players = interpolatedPlayers();
@@ -1363,6 +1402,7 @@ function frame(now) {
     if (lightFlash > 0) { ctx.fillStyle = `rgba(255,250,200,${Math.min(0.3, lightFlash)})`; ctx.fillRect(-400, -400, STAGE.width + 800, STAGE.height + 800); lightFlash -= dt; }
     ctx.restore();
     ctx.save(); ctx.translate(offX, offY); ctx.scale(scale, scale);
+    if (meE && meE.er) drawGlitch();
     drawHUD(latest, players);
     drawPhase(latest, players, dt);
     ctx.restore();

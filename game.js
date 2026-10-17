@@ -46,6 +46,10 @@ const SKILLS = {
   // 얼음: 때리면 상대 얼음 게이지가 참. 100이 되면 2초 얼어붙음 (얼어도 공격은 맞음). Q는 5초 눈보라
   ice:      { name: '얼음', cd: 11, blizzard: 5, fillLight: 20, fillHeavy: 34, blizRate: 24, freeze: 2, decay: 6 },
   // 터렛: 최대 3개. 가까운 적에게 총알 발사, 4번 맞으면 부서짐
+  // 에러: 나를 뺀 모두의 화면이 끊기고 조작이 제멋대로 (5초)
+  error:    { name: '에러', cd: 10, duration: 5 },
+  // 태양: 6초간 빨라지고, 평타에 불이 붙고(화염처럼 2번 더 밀림), 넉백이 세짐
+  sun:      { name: '태양', cd: 11, duration: 6, speedMul: 1.35, kbMul: 1.3, burnHits: 2 },
   turret:   { name: '터렛', cd: 12, max: 3, hp: 4, range: 560, fireEvery: 0.9, bulletSpeed: 820, bulletLife: 0.9, dmg: 3, baseKB: 210, growthKB: 5 },
 };
 const SKILL_IDS = Object.keys(SKILLS);
@@ -92,6 +96,7 @@ class Player {
     this.stunT = 0; this.quakeT = 0; this.bfAt = -999;
     this.burnN = 0; this.burnT = 0; this.burnDir = 1; this.burnBy = null; this.fdashT = 0; this.fdashHit = null;
     this.iceG = 0; this.iceT = 0; this.iceHitAt = -999;
+    this.errT = 0; this.sunT = 0;
     this.stillT = 0; this.charged = false;
     this.parHits = {};            // 기생: 내가 때린 횟수 (상대 id -> 횟수)
     this.parHost = null;          // 기생 중인 숙주 id
@@ -157,7 +162,7 @@ class Sim {
     if (p.parHost) this.endParasite(p, true);
     p.skill = validSkill(skill);
     p.skillCd = 0; p.skillCd2 = 0; p.charged = false; p.stillT = 0; p.parHits = {};
-    p.flyT = 0; p.rockT = 0; p.buffT = 0; p.stealth = 0; p.giantT = 0; p.rubberT = 0; p.engineT = 0; p.stunT = 0; p.hulkS = 1;
+    p.flyT = 0; p.rockT = 0; p.buffT = 0; p.stealth = 0; p.giantT = 0; p.rubberT = 0; p.engineT = 0; p.stunT = 0; p.hulkS = 1; p.sunT = 0;
     this.clones.delete(id);
     this.removeTurrets(id);
     return null;
@@ -286,6 +291,20 @@ class Sim {
       p.input = { ...c.input, s: 0, e: 0 };
       p.lastHitBy = c.id; p.lastHitAt = this.tickCount; // 조종해서 떨어뜨리면 기생자 킬
     }
+    // 에러: 입력이 제멋대로 (좌우 반대 / 멈춤 / 안 먹힘 / 아무 키)
+    for (const p of list) {
+      if (!(p.errT > 0)) continue;
+      if (!p.errModeT || p.errModeT <= 0) {
+        p.errMode = Math.floor(Math.random() * 5); p.errModeT = 8 + Math.floor(Math.random() * 22);
+        p.errHold = { ...p.input };
+      }
+      p.errModeT--;
+      const i = p.input;
+      if (p.errMode === 1) p.input = { ...i, l: i.r, r: i.l };                 // 좌우 반대
+      else if (p.errMode === 2) p.input = { ...p.errHold };                    // 예전 입력에 멈춤
+      else if (p.errMode === 3) p.input = EMPTY_INPUT();                       // 안 먹힘
+      else if (p.errMode === 4) p.input = { ...i, l: Math.random() < 0.5 ? 1 : 0, r: Math.random() < 0.5 ? 1 : 0, u: Math.random() < 0.06 ? 1 : 0, a: Math.random() < 0.05 ? 1 : 0 };
+    }
     for (const p of [...list, ...this.clones.values()]) if (p.alive && !p.inside) this.updateElements(p, dt);
     for (const p of list) {
       if (!p.alive) continue;
@@ -339,6 +358,8 @@ class Sim {
     if (p.stunT > 0) p.stunT = Math.max(0, p.stunT - dt);
     if (p.quakeT > 0) p.quakeT = Math.max(0, p.quakeT - dt);
     if (p.iceT > 0) p.iceT = Math.max(0, p.iceT - dt);
+    if (p.errT > 0) p.errT = Math.max(0, p.errT - dt);
+    if (p.sunT > 0) p.sunT = Math.max(0, p.sunT - dt);
     // 헐크: 퍼센트에 따라 몸 크기가 서서히 변함
     if (p.skill === 'hulk') {
       const h = SKILLS.hulk;
@@ -362,6 +383,7 @@ class Sim {
     if (p.rubberT > 0) jumpMul *= SKILLS.rubber.jumpMul;
     if (p.engineT > 0) moveMul *= SKILLS.engine.speedMul;
     if (p.skill === 'hulk') moveMul *= 1 - SKILLS.hulk.slow * hulkF(p);
+    if (p.sunT > 0) moveMul *= SKILLS.sun.speedMul;
     const canFight = this.phase === 'playing' || this.phase === 'waiting';
     const flying = p.flyT > 0;
 
@@ -605,6 +627,15 @@ class Sim {
       this.turrets.push(t);
       p.skillCd = s.cd;
       this.ev({ k: 'turret', x: r0(t.x), y: r0(t.y), pid: p.id });
+    } else if (k === 'error') {
+      const s = SKILLS.error;
+      for (const o of this.players.values()) if (o !== p && o.alive) { o.errT = s.duration; o.errModeT = 0; }
+      p.skillCd = s.cd;
+      this.ev({ k: 'error', by: p.id, d: s.duration, n: p.name });
+    } else if (k === 'sun') {
+      const s = SKILLS.sun;
+      p.sunT = s.duration; p.skillCd = s.cd;
+      this.ev({ k: 'sun', x: r0(p.x), y: r0(cy), pid: p.id });
     } else if (k === 'hulk') {
       return this.deny(p, '헐크는 퍼센트가 오를수록 커지는 패시브 스킬이에요');
     } else if (k === 'undying') {
@@ -798,6 +829,7 @@ class Sim {
   elementHit(a, t, type, dir) {
     if (a.clone) return;
     if (a.skill === 'fire') this.ignite(t, a, SKILLS.fire.burnHits, dir);
+    if (a.sunT > 0) this.ignite(t, a, SKILLS.sun.burnHits, dir);
     if (a.skill === 'ice') this.chill(t, type === 'heavy' ? SKILLS.ice.fillHeavy : SKILLS.ice.fillLight);
   }
   ignite(t, a, n, dir) {
@@ -954,7 +986,8 @@ class Sim {
     const kdef = black ? ATTACKS.heavy : def;
     let kb = (kdef.baseKB + kdef.growthKB * t.damage) * (t.buffT > 0 ? SKILLS.empower.kbMul : 1);
     if (black && type === 'heavy') kb *= SKILLS.blackflash.heavyKbMul;
-    if (a.skill === 'hulk') kb *= 1 + SKILLS.hulk.power * hulkF(a);          // 헐크: 세게 침
+    if (a.skill === 'hulk') kb *= 1 + SKILLS.hulk.power * hulkF(a);
+    if (a.sunT > 0 && !opt.small) kb *= SKILLS.sun.kbMul;                      // 태양: 세게 침          // 헐크: 세게 침
     if (t.skill === 'hulk') kb *= 1 - SKILLS.hulk.tough * hulkF(t);          // 헐크: 덜 날아감
     if (t.giantT > 0) kb *= SKILLS.giant.kbMul;                       // 거인은 덜 날아감
     if (a.engineT > 0) {                                               // 엔진: 빠를수록 세게
@@ -1038,6 +1071,7 @@ class Sim {
       stn: p.stunT > 0 ? 1 : 0, qk: p.quakeT > 0 ? 1 : 0,
       sz: Math.round(sizeOf(p) * 100) / 100, ig: Math.round(p.iceG || 0), icd: p.iceT > 0 ? 1 : 0,
       brn: p.burnN > 0 ? 1 : 0, fd: p.fdashT > 0 ? 1 : 0,
+      er: p.errT > 0 ? 1 : 0, sun: p.sunT > 0 ? 1 : 0,
       smk: this.inSmoke(p) ? 1 : 0,
     });
     return {
@@ -1163,6 +1197,8 @@ function botThink(sim, b) {
       if (sk === 'lightning' && ready && best < 380 && R < 0.04) inp.s = 1;
       if (sk === 'fire' && ready && Math.abs(dy) < 50 && b.facing === side && Math.abs(dx) < 300 && R < 0.05) inp.s = 1;
       if (sk === 'ice' && ready && best < 500 && R < 0.02) inp.s = 1;
+      if (sk === 'error' && ready && best < 450 && R < 0.02) inp.s = 1;
+      if (sk === 'sun' && ready && best < 280 && R < 0.04) inp.s = 1;
       if (sk === 'turret' && ready && b.grounded && best < 520 && R < 0.03) inp.s = 1;
       if (sk === 'blackflash' && ready && b.attack && !b.attack.black) {
         // 봇은 가끔 타이밍을 맞춤
