@@ -16,11 +16,11 @@ const ATTACKS = {
 // 스킬 정보 (실제 판정은 서버의 game.js가 함)
 const SKILLS = {
   slow:     { name: '둔화', desc: '주변 적의 이동·공격 속도를 5초간 절반으로', cd: '쿨 6초' },
-  blink:    { name: '점멸', desc: '누른 방향으로 순간이동. 떨어질 때 복귀용', cd: '쿨 10초' },
+  blink:    { name: '점멸', desc: '누른 방향으로 순간이동. 떨어질 때 복귀용', cd: '쿨 9초' },
   stealth:  { name: '은신', desc: '5초간 상대 화면에서 사라짐. 맞히면 맞음', cd: '쿨 11초' },
-  clone:    { name: '분신', desc: '나와 똑같은 분신이 곁에서 지켜줌. 4대 맞으면 사라짐', cd: '쿨 10초' },
-  swap:     { name: '전환', desc: '랜덤한 상대와 위치를 바꿈. 강공격 맞고 1초간 불가', cd: '쿨 15초' },
-  fly:      { name: '비행', desc: '6초간 비행. 점프 키 누르면 올라가고 떼면 내려감', cd: '쿨 14초' },
+  clone:    { name: '분신', desc: '나와 똑같은 분신이 곁에서 지켜줌. 5대 맞으면 사라짐', cd: '쿨 10초' },
+  swap:     { name: '전환', desc: '랜덤한 상대와 위치를 바꿈. 강공격 맞고 1초간 불가', cd: '쿨 17초' },
+  fly:      { name: '비행', desc: '5초간 비행. 점프 키 누르면 올라가고 떼면 내려감', cd: '쿨 15초' },
   explode:  { name: '폭파', desc: '주변을 폭파해 넉백 + 0.5초 스턴. 3초간 짙은 연기로 가려짐. 공중이면 3단 점프', cd: '쿨 9초' },
   freeze:   { name: '정지', desc: '나 빼고 모두 1초 정지. 정지 중엔 공격이 안 맞음', cd: '쿨 8초' },
   rock:     { name: '바위', desc: '6초간 넉백 없음. 대신 아주 느려지고 점프도 낮아짐', cd: '쿨 10초' },
@@ -35,12 +35,17 @@ const SKILLS = {
   blackflash: { name: '흑섬', desc: '공격이 맞는 순간에 맞춰 Q를 누르면 넉백↑ (강공격은 0.7초 스턴까지). 타이밍이 틀리면 아무 일도 없음', cd: '쿨 3초' },
   lightning: { name: '번개', desc: '가까운 적 3명에게 번개를 내리쳐 3초 스턴', cd: '쿨 11초' },
   undying:  { name: '불사', desc: '목숨이 5개가 됨 (패시브)', cd: '패시브' },
+  hulk:     { name: '헐크', desc: '퍼센트가 오를수록 몸·사거리·힘↑, 속도·받는 넉백↓. 퍼센트가 내려가면 다시 작아짐 (패시브)', cd: '패시브' },
+  fire:     { name: '화염', desc: '공격에 불이 붙어 맞은 상대가 2번 더 밀림. Q는 불태우며 돌진 (맞으면 4번 더 밀림)', cd: '쿨 9초' },
+  ice:      { name: '얼음', desc: '때리면 상대 얼음 게이지가 참. 가득 차면 2초 얼어붙음. Q는 5초 눈보라 (모두의 게이지가 계속 참)', cd: '쿨 11초' },
+  turret:   { name: '터렛', desc: '적을 자동으로 쏘는 터렛 설치 (최대 3개, 4번 맞으면 부서짐)', cd: '쿨 12초' },
 };
 const SKILL_COLOR = {
   slow: '#7fb8ff', blink: '#c77dff', stealth: '#7fe0c8', clone: '#ff9ecf', swap: '#b48cff', fly: '#9ad7ff',
   explode: '#ff8a3d', freeze: '#d5ecff', rock: '#b5aca2', magnet: '#ff5d73', empower: '#4f8bff', parasite: '#7be36f',
   quake: '#d6a45c', giant: '#ff6b4a', rubber: '#ff9ff3', engine: '#ffb000',
   sword: '#cfe3ff', blackflash: '#c0263a', lightning: '#ffe94a', undying: '#ffd27a',
+  hulk: '#5fd35a', fire: '#ff5a1f', ice: '#8fdcff', turret: '#a7b2c4',
 };
 const SKILL_IDS = Object.keys(SKILLS);
 const MAPS = window.BRAWL_MAPS;   // maps.js (서버와 같은 맵 정보)
@@ -531,7 +536,7 @@ let particles = [], shake = 0, banners = [];
 
 function onEvent(ev) {
   if (ev.k === 'hit') {
-    const n = ev.p === 2 ? 22 : 12;
+    const n = ev.p === 2 ? 22 : ev.p === 0 ? 6 : 12;
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2, s = 150 + Math.random() * (ev.p === 2 ? 520 : 320);
       particles.push({ x: ev.x, y: ev.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 0.35, max: 0.35, c: ev.p === 2 ? '#ffcf3f' : '#ffffff', r: ev.p === 2 ? 5 : 3.5 });
@@ -661,6 +666,25 @@ function onEvent(ev) {
     if (ev.h > 0) banners.push({ text: `번개! ${ev.h}명 스턴`, life: 1.2, max: 1.2, small: true, color: '#ffe94a' });
   } else if (ev.k === 'slash') {
     for (let i = 0; i < 8; i++) particles.push({ x: ev.x, y: ev.y + (Math.random() - 0.5) * 50, vx: ev.f * (200 + Math.random() * 200), vy: (Math.random() - 0.5) * 80, life: 0.3, max: 0.3, c: '#e6f1ff', r: 4, nograv: true });
+  } else if (ev.k === 'fdash') {
+    particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.3, max: 0.3, r: 60, c: '255,120,40' });
+  } else if (ev.k === 'burn') {
+    for (let i = 0; i < 8; i++) particles.push({ x: ev.x + (Math.random() - 0.5) * 30, y: ev.y + (Math.random() - 0.5) * 30, vx: (Math.random() - 0.5) * 120, vy: -120 - Math.random() * 160, life: 0.4, max: 0.4, c: i % 2 ? '#ffb02e' : '#ff4d1a', r: 5, nograv: true });
+  } else if (ev.k === 'iced') {
+    for (let i = 0; i < 18; i++) {
+      const a = Math.random() * Math.PI * 2, sp = 80 + Math.random() * 240;
+      particles.push({ x: ev.x, y: ev.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.5, max: 0.5, c: i % 2 ? '#e8f8ff' : '#8fdcff', r: 5, nograv: true });
+    }
+    particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.35, max: 0.35, r: 70, c: '170,225,255' });
+  } else if (ev.k === 'blizzard') {
+    banners.push({ text: `${ev.n}의 눈보라!`, life: 1.4, max: 1.4, small: true, color: '#bfeaff' });
+  } else if (ev.k === 'turret') {
+    for (let i = 0; i < 10; i++) particles.push({ x: ev.x + (Math.random() - 0.5) * 30, y: ev.y - 10, vx: (Math.random() - 0.5) * 200, vy: -Math.random() * 200, life: 0.4, max: 0.4, c: '#c8d0dc', r: 4 });
+  } else if (ev.k === 'tbreak') {
+    for (let i = 0; i < 22; i++) {
+      const a = Math.random() * Math.PI * 2, sp = 100 + Math.random() * 360;
+      particles.push({ x: ev.x, y: ev.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 100, life: 0.6, max: 0.6, c: i % 2 ? '#7d8796' : '#ffb02e', r: 5 });
+    }
   } else if (ev.k === 'map') {
     banners.push({ text: `맵: ${ev.n}`, life: 2.5, max: 2.5, small: true, color: '#ffcf3f' });
   } else if (ev.k === 'host') {
@@ -786,7 +810,7 @@ function drawPlayer(p, time) {
   ctx.globalAlpha = baseAlpha * (p.inv && Math.floor(time / 80) % 2 === 0 ? 0.45 : 1);
   const x = p.x, y = p.y, f = p.f || 1;
   ctx.fillStyle = 'rgba(0,0,0,0.25)';
-  const G = p.gt ? 2 : 1;
+  const G = p.sz || (p.gt ? 2 : 1);
   ctx.beginPath(); ctx.ellipse(x, y + 2, 22 * G, 5 * G, 0, 0, Math.PI * 2); ctx.fill();
   // 둔화 상태: 발밑에 파란 고리
   if (p.sl) {
@@ -832,8 +856,21 @@ function drawPlayer(p, time) {
       ctx.beginPath(); ctx.ellipse(sd * 16, 0, 18, 8, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
     }
   }
+  if (p.fd) {
+    // 화염 돌진: 뒤로 긴 불꽃
+    const g3 = ctx.createLinearGradient(0, 0, -f * 120, 0);
+    g3.addColorStop(0, 'rgba(255,200,60,0.9)'); g3.addColorStop(1, 'rgba(255,60,20,0)');
+    ctx.fillStyle = g3; ctx.beginPath(); ctx.ellipse(-f * 50, -PH / 2, 80, 30, 0, 0, Math.PI * 2); ctx.fill();
+  }
   ctx.fillStyle = p.hs ? '#ffffff' : p.c;
   roundRect(-PW / 2, -PH, PW, PH, 12); ctx.fill();
+  if (p.sk === 'hulk' && G > 1.02) {
+    // 헐크: 커질수록 초록빛 + 근육 줄
+    const hf = (G - 1) / 0.9;
+    ctx.fillStyle = `rgba(80,200,70,${0.15 + hf * 0.4})`; roundRect(-PW / 2, -PH, PW, PH, 12); ctx.fill();
+    ctx.strokeStyle = `rgba(20,60,20,${0.2 + hf * 0.4})`; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(-10, -PH + 30); ctx.quadraticCurveTo(0, -PH + 36, 10, -PH + 30); ctx.stroke();
+  }
   if (p.c === '#26252e' || p.c === '#f4f4f6') { ctx.strokeStyle = p.c === '#26252e' ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.35)'; ctx.lineWidth = 2; ctx.stroke(); }
   if (p.rk) {
     // 바위: 딱딱한 돌 모양
@@ -842,6 +879,21 @@ function drawPlayer(p, time) {
     ctx.lineTo(PW / 2 + 2, -4); ctx.lineTo(4, 2); ctx.lineTo(-PW / 2 - 2, -2); ctx.closePath(); ctx.fill();
     ctx.strokeStyle = 'rgba(60,56,52,0.9)'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(-10, -PH + 6); ctx.lineTo(-2, -PH / 2); ctx.lineTo(-12, -14); ctx.moveTo(8, -PH + 14); ctx.lineTo(12, -24); ctx.stroke();
+  }
+  if (p.brn) {
+    // 불붙음: 몸 위로 흔들리는 불꽃
+    for (let i = 0; i < 3; i++) {
+      const fx2 = -12 + i * 12, h2 = 16 + Math.sin(time / 50 + i * 2) * 6;
+      ctx.fillStyle = i % 2 ? 'rgba(255,180,40,0.85)' : 'rgba(255,80,20,0.85)';
+      ctx.beginPath(); ctx.moveTo(fx2 - 7, -PH + 10); ctx.quadraticCurveTo(fx2, -PH - h2, fx2 + 7, -PH + 10); ctx.fill();
+    }
+  }
+  if (p.icd) {
+    // 얼음에 갇힘
+    ctx.fillStyle = 'rgba(150,215,255,0.6)'; ctx.beginPath();
+    ctx.moveTo(-PW / 2 - 8, -4); ctx.lineTo(-PW / 2 - 10, -PH + 6); ctx.lineTo(-6, -PH - 10); ctx.lineTo(PW / 2 + 9, -PH - 2); ctx.lineTo(PW / 2 + 8, 2); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(235,250,255,0.95)'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-10, -PH + 2); ctx.lineTo(-4, -PH / 2); ctx.moveTo(8, -PH + 8); ctx.lineTo(14, -20); ctx.stroke();
   }
   if (p.frz) {
     ctx.fillStyle = 'rgba(214,238,255,0.55)'; roundRect(-PW / 2 - 4, -PH - 4, PW + 8, PH + 8, 14); ctx.fill();
@@ -864,7 +916,8 @@ function drawPlayer(p, time) {
   let reach = 0;
   if (p.at) {
     // 사거리 늘어나는 스킬은 팔도 길어짐 (거인은 몸이 2배라 그만큼 나눔)
-    const mult = (p.rb ? 2 : 1) * (p.gt ? 1.6 / 2 : 1) * (p.bf ? 1.3 : 1);
+    const hf = p.sk === 'hulk' && G > 1 ? (G - 1) / 0.9 : 0;
+    const mult = (p.rb ? 2 : 1) * (p.gt ? 1.6 / 2 : 1) * (p.bf ? 1.3 : 1) * (hf ? (1 + 0.6 * hf) / G : 1);
     const full = (p.at === 2 ? 60 : 46) * mult + (p.rb ? 40 : 0);
     reach = p.ap === 1 ? -6 : p.ap === 2 ? full : full * 0.4;
   }
@@ -883,6 +936,14 @@ function drawPlayer(p, time) {
     ctx.strokeStyle = p.at === 2 ? 'rgba(255,207,63,0.8)' : 'rgba(255,255,255,0.6)';
     ctx.lineWidth = p.at === 2 ? 10 : 6; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(f * PW / 2, fy); ctx.lineTo(fx, fy); ctx.stroke();
+  }
+  if (p.sk === 'fire' || p.sk === 'ice') {
+    // 주먹에 불꽃 / 냉기
+    const fr = (p.at === 2 ? 20 : 16) + Math.sin(time / 60) * 3;
+    const gl = ctx.createRadialGradient(fx, fy, 2, fx, fy, fr);
+    gl.addColorStop(0, p.sk === 'fire' ? 'rgba(255,220,90,0.95)' : 'rgba(235,250,255,0.95)');
+    gl.addColorStop(1, p.sk === 'fire' ? 'rgba(255,60,20,0)' : 'rgba(120,200,255,0)');
+    ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(fx, fy, fr, 0, Math.PI * 2); ctx.fill();
   }
   ctx.fillStyle = p.c; ctx.strokeStyle = '#1a1030'; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.arc(fx, fy, p.at === 2 ? 13 : 10, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
@@ -923,6 +984,12 @@ function drawSword(p, f, time) {
   ctx.beginPath(); ctx.arc(hx, hy, 9, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
 }
 function finishPlayer(p, x, y, G, light, ownerId, baseAlpha, isClone, time) {
+  if (p.ig > 0 && !p.icd) {
+    // 얼음 게이지
+    const bw2 = 46, bx = x - bw2 / 2, by2 = y - PH * G - 42 - (p.b ? 12 : 0);
+    ctx.fillStyle = 'rgba(10,20,40,0.7)'; roundRect(bx - 2, by2 - 2, bw2 + 4, 10, 4); ctx.fill();
+    ctx.fillStyle = '#8fdcff'; roundRect(bx, by2, bw2 * Math.min(1, p.ig / 100), 6, 3); ctx.fill();
+  }
   if (p.stn) {
     // 스턴: 머리 위에 빙글빙글 별
     for (let i = 0; i < 3; i++) {
@@ -997,7 +1064,7 @@ function skillStatus(p) {
   const t = (v) => (v > 0 ? v.toFixed(1) + 's' : '준비');
   if (k === 'magnet') return { ready: !(p.cd > 0) || !(p.cd2 > 0), text: `Q ${t(p.cd)} E ${t(p.cd2)}` };
   if (k === 'empower') return p.bf ? { ready: true, text: `강화 중 ${p.bt}s` } : { ready: p.chg >= 100, text: p.chg >= 100 ? '충전 완료!' : `충전 ${p.chg || 0}%` };
-  if (k === 'undying') return { ready: true, text: '패시브' };
+  if (k === 'undying' || k === 'hulk') return { ready: true, text: '패시브' };
   if (k === 'parasite') return p.ins ? { ready: true, text: `기생 중 ${p.pt}s` } : { ready: p.pr > 0, text: p.pr > 0 ? `가능 ${p.pr}명` : '3번 때리기' };
   return { ready: !(p.cd > 0), text: t(p.cd) };
 }
@@ -1109,6 +1176,47 @@ function drawSmoke(list, time) {
   }
 }
 let freezeFlash = 0, lightFlash = 0;
+// 터렛 + 총알
+function drawTurrets(state, now) {
+  for (const t of state.tr || []) {
+    const x = t.x, y = t.y;
+    ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(x, y + 2, 24, 5, 0, 0, Math.PI * 2); ctx.fill();
+    // 다리
+    ctx.strokeStyle = '#4b5361'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(x - 16, y); ctx.lineTo(x - 6, y - 18); ctx.moveTo(x + 16, y); ctx.lineTo(x + 6, y - 18); ctx.stroke();
+    // 몸통 (주인 색 띠)
+    ctx.fillStyle = '#8994a6'; ctx.beginPath(); ctx.arc(x, y - 30, 17, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = t.c; ctx.fillRect(x - 17, y - 32, 34, 5);
+    // 포신
+    ctx.save(); ctx.translate(x, y - 30); ctx.rotate(t.a);
+    ctx.fillStyle = '#3c4350'; ctx.fillRect(4, -5, 26, 10); ctx.fillStyle = '#ffb02e'; ctx.fillRect(28, -3, 4, 6);
+    ctx.restore();
+    ctx.fillStyle = '#c8d0dc'; ctx.beginPath(); ctx.arc(x, y - 30, 7, 0, Math.PI * 2); ctx.fill();
+    // 체력
+    for (let i = 0; i < 4; i++) { ctx.fillStyle = i < t.hp ? '#6fe39a' : 'rgba(255,255,255,0.2)'; ctx.fillRect(x - 17 + i * 9, y - 56, 7, 4); }
+  }
+  const age = Math.max(-0.07, (now - state.time - INTERP_DELAY) / 1000);
+  for (const b of state.bl || []) {
+    const x = b.x + b.vx * age, y = b.y + b.vy * age;
+    ctx.strokeStyle = 'rgba(255,200,80,0.6)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - b.vx * 0.025, y - b.vy * 0.025); ctx.stroke();
+    ctx.fillStyle = '#fff2b0'; ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill();
+  }
+}
+// 눈보라: 화면 가득 눈이 옆으로 날림
+let snow = [];
+function drawBlizzard(state, dt, now) {
+  const on = state.bz > 0;
+  if (on && snow.length < 160) for (let i = 0; i < 8; i++) snow.push({ x: Math.random() * (STAGE.width + 400) - 300, y: -20 - Math.random() * 100, vx: 260 + Math.random() * 200, vy: 160 + Math.random() * 140, r: 2 + Math.random() * 3 });
+  if (!snow.length) return;
+  if (on) { ctx.fillStyle = 'rgba(200,230,255,0.12)'; ctx.fillRect(-400, -400, STAGE.width + 800, STAGE.height + 800); }
+  ctx.fillStyle = 'rgba(245,250,255,0.9)';
+  for (const f of snow) {
+    f.x += f.vx * dt; f.y += f.vy * dt;
+    ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2); ctx.fill();
+  }
+  snow = snow.filter((f) => f.y < STAGE.height + 40 && f.x < STAGE.width + 60 && (on || Math.random() > 0.002));
+}
 // 검사 참격: 초승달 모양으로 날아감
 function drawSlashes(state, now) {
   const age = (now - state.time - INTERP_DELAY) / 1000;
@@ -1214,7 +1322,7 @@ function frame(now) {
       let ready = !(meS.cd > 0), txt = meS.cd > 0 ? meS.cd.toFixed(1) : 'Q';
       if (k === 'empower') { ready = meS.chg >= 100 || meS.bf; txt = meS.bf ? '강화' : `${meS.chg || 0}%`; }
       if (k === 'parasite') { ready = meS.pr > 0 || meS.ins; txt = meS.ins ? '나가기' : `${meS.pr || 0}명`; }
-      if (k === 'undying') { ready = true; txt = '불사'; }
+      if (k === 'undying' || k === 'hulk') { ready = true; txt = SKILLS[k].name; }
       $('tSkillCd').textContent = txt;
       $('tSkill').classList.toggle('cool', !ready);
       $('tSkill2Cd').textContent = meS.cd2 > 0 ? meS.cd2.toFixed(1) : 'E';
@@ -1244,11 +1352,13 @@ function frame(now) {
     ctx.scale(scale * STAGE.zoom, scale * STAGE.zoom);
     drawStage();
     drawSlashes(latest, now);
+    drawTurrets(latest, now);
     interpolatedPlayers('cl').forEach((c) => drawPlayer(c, now));
     players.filter((p) => p.id !== myId).forEach((p) => drawPlayer(p, now));
     players.filter((p) => p.id === myId).forEach((p) => drawPlayer(p, now));
     drawParticles(dt);
     drawSmoke(latest.sm || [], now);
+    drawBlizzard(latest, dt, now);
     if (freezeFlash > 0) { ctx.fillStyle = `rgba(210,236,255,${Math.min(0.35, freezeFlash)})`; ctx.fillRect(-400, -400, STAGE.width + 800, STAGE.height + 800); freezeFlash -= dt; }
     if (lightFlash > 0) { ctx.fillStyle = `rgba(255,250,200,${Math.min(0.3, lightFlash)})`; ctx.fillRect(-400, -400, STAGE.width + 800, STAGE.height + 800); lightFlash -= dt; }
     ctx.restore();
