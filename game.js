@@ -18,9 +18,9 @@ const ATTACKS = {
 const SKILLS = {
   slow:     { name: '둔화', cd: 6, radius: 230, duration: 5, moveMul: 0.5, attackMul: 0.5 },
   blink:    { name: '점멸', cd: 9, distance: 230 },
-  stealth:  { name: '은신', cd: 11, duration: 5 },
+  stealth:  { name: '은신', cd: 12, duration: 5 },
   clone:    { name: '분신', cd: 10, hits: 5 },
-  swap:     { name: '전환', cd: 17, heavyLock: 1 },                       // 강공격 맞고 1초 동안은 못 씀
+  swap:     { name: '전환', cd: 19, heavyLock: 1 },                       // 강공격 맞고 1초 동안은 못 씀
   fly:      { name: '비행', cd: 15, duration: 5, up: 380, down: 260, hitDrop: 0.6 },
   explode:  { name: '폭파', cd: 9, radius: 210, power: 640, damage: 6, stun: 0.5, smoke: 3, smokeR: 230 },
   freeze:   { name: '정지', cd: 8, duration: 1 },
@@ -397,6 +397,9 @@ class Sim {
       const owner = this.players.get(c.ownerId);
       if (!owner || !owner.alive) { this.clones.delete(c.ownerId); continue; }
       if (c.frozen > 0) { c.frozen -= dt; continue; }
+      // 분신은 주인과 똑같은 모습 (거인·고무·엔진·비행·바위·강화·태양·헐크 크기). 은신은 제외
+      c.giantT = owner.giantT; c.rubberT = owner.rubberT; c.engineT = owner.engineT; c.flyT = owner.flyT;
+      c.rockT = owner.rockT; c.buffT = owner.buffT; c.sunT = owner.sunT; c.hulkS = owner.hulkS;
       c.input = cloneThink(this, c, owner);
       this.updatePlayer(c, dt);
     }
@@ -443,7 +446,7 @@ class Sim {
     if (p.errT > 0) p.errT = Math.max(0, p.errT - dt);
     if (p.sunT > 0) p.sunT = Math.max(0, p.sunT - dt);
     // 헐크: 퍼센트에 따라 몸 크기가 서서히 변함
-    if (has(p, 'hulk')) {
+    if (p.clone) { /* 분신은 주인 크기를 따라감 */ } else if (has(p, 'hulk')) {
       const h = SKILLS.hulk;
       const target = 1 + h.size * clamp(p.damage / h.maxAt, 0, 1);
       p.hulkS = approach(p.hulkS || 1, target, h.grow * dt);
@@ -927,6 +930,8 @@ class Sim {
     if (has(a, 'ice')) this.chill(t, type === 'heavy' ? SKILLS.ice.fillHeavy : SKILLS.ice.fillLight);
   }
   ignite(t, a, n, dir) {
+    // 화염 + 태양을 같이 쓰는 중이면 불 피해 2배
+    t.burnMul = has(a, 'fire') && a.sunT > 0 ? 2 : 1;
     t.burnN = Math.max(t.burnN || 0, n); t.burnT = SKILLS.fire.burnEvery; t.burnDir = dir || a.facing; t.burnBy = a.id;
   }
   chill(t, amount) {
@@ -944,7 +949,7 @@ class Sim {
       if (p.burnT <= 0) {
         const s = SKILLS.fire;
         p.burnN--; p.burnT = s.burnEvery;
-        p.damage = Math.min(p.damage + s.burnDmg, 999);
+        p.damage = Math.min(p.damage + s.burnDmg * (p.burnMul || 1), 999);
         if (p.burnBy) { p.lastHitBy = p.burnBy; p.lastHitAt = this.tickCount; }
         if (p.rockT <= 0 && !(p.frozen > 0)) {
           const kb = s.burnKB * (p.buffT > 0 ? SKILLS.empower.kbMul : 1) * (1 - SKILLS.hulk.tough * hulkF(p));

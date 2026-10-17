@@ -115,7 +115,7 @@ function scrypt(pw, salt) {
 const ALL_SKILLS = ['slow', 'blink', 'stealth', 'clone', 'swap', 'fly', 'explode', 'freeze', 'rock', 'magnet', 'empower', 'parasite', 'quake', 'giant', 'rubber', 'engine', 'sword', 'blackflash', 'lightning', 'undying', 'hulk', 'fire', 'ice', 'turret', 'error', 'sun'];
 const BASE_SKILLS = ['slow', 'blink'];          // 게스트·새 계정 기본 스킬
 const GEMS = {
-  START: 100,          // 가입 선물
+  START: 200,          // 가입 선물
   PLAY: 25,           // 사람 2명 이상인 판에 참가
   PLAY_BOT: 10,        // 봇이랑만 한 판
   WIN: 40,            // 사람 2명 이상인 판에서 우승
