@@ -31,13 +31,7 @@ const SKILLS = {
 };
 const SKILL_IDS = Object.keys(SKILLS);
 
-const STAGE = {
-  width: 1280, height: 720,
-  solids: [{ x: 240, y: 520, w: 800, h: 70 }],
-  platforms: [{ x: 320, y: 385, w: 200 }, { x: 760, y: 385, w: 200 }, { x: 540, y: 255, w: 200 }],
-  blast: { left: -260, right: 1540, top: -520, bottom: 980 },
-  spawns: [{ x: 340, y: 520 }, { x: 940, y: 520 }, { x: 640, y: 255 }, { x: 420, y: 385 }, { x: 860, y: 385 }, { x: 640, y: 520 }],
-};
+const MAPS = require('./public/maps.js');   // 맵 목록 (판마다 랜덤)
 const COLORS = ['#ff5a5f', '#3fa7ff', '#ffc93c', '#4cd97b', '#c77dff', '#ff8c42'];
 const BOT_NAMES = ['봇 철수', '봇 영희', '봇 바둑이', '봇 민수', '봇 지수'];
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -60,7 +54,7 @@ class Player {
   }
   reset(x, y) {
     this.x = x; this.y = y; this.vx = 0; this.vy = 0;
-    this.facing = x < STAGE.width / 2 ? 1 : -1;
+    this.facing = x < 640 ? 1 : -1;
     this.grounded = false; this.jumpsLeft = CONFIG.EXTRA_JUMPS;
     this.damage = 0; this.hitstun = 0; this.invincible = 0;
     this.attack = null; this.dropThrough = 0; this.alive = true;
@@ -82,6 +76,7 @@ class Sim {
     this.players = new Map();
     this.clones = new Map(); // 주인 id -> 분신
     this.smokes = [];        // 폭파 연기
+    this.stage = MAPS[Math.floor(Math.random() * MAPS.length)];
     this.phase = 'waiting'; this.timer = 0; this.winner = null; this.winnerId = null;
     this.tickCount = 0; this.time = 0; this.evSeq = 0; this.recent = [];
     this.onEvent = () => {};
@@ -117,13 +112,47 @@ class Sim {
     if (this.phase === 'countdown' && this.players.size < 2) this.phase = 'waiting';
   }
   checkStart() {
-    if (this.players.size >= 2) { this.phase = 'countdown'; this.timer = CONFIG.COUNTDOWN; }
+    if (this.players.size >= 2) {
+      this.phase = 'countdown'; this.timer = CONFIG.COUNTDOWN;
+      this.pickMap();
+    }
+  }
+  // 판마다 다른 맵을 랜덤으로 (직전 맵은 제외)
+  pickMap() {
+    const others = MAPS.filter((m) => m !== this.stage);
+    this.stage = others[Math.floor(Math.random() * others.length)] || MAPS[0];
+    this.clones.clear(); this.smokes = [];
+    this.list().forEach((p, i) => {
+      if (p.parHost) this.endParasite(p, true);
+      const sp = this.stage.spawns[i % this.stage.spawns.length];
+      const keep = { wins: p.wins, inMatch: p.inMatch, stocks: p.stocks };
+      p.reset(sp.x, sp.y); Object.assign(p, keep);
+      p.invincible = 0.5;
+    });
+    this.ev({ k: 'map', n: this.stage.name });
+  }
+  // x 위치 아래(또는 같은 높이)에 있는 가장 가까운 땅/발판
+  surfaceBelow(x, y) {
+    let best = null;
+    for (const s of [...this.stage.solids, ...this.stage.platforms]) {
+      if (x >= s.x - 4 && x <= s.x + s.w + 4 && s.y >= y - 4 && (!best || s.y < best.y)) best = s;
+    }
+    return best;
+  }
+  nearestSurfaceX(x) {
+    let best = null, bd = 1e9;
+    for (const s of [...this.stage.solids, ...this.stage.platforms]) {
+      const cx = clamp(x, s.x + 30, s.x + s.w - 30);
+      const d = Math.abs(cx - x) + (this.stage.solids.includes(s) ? 0 : 40);
+      if (d < bd) { bd = d; best = cx; }
+    }
+    return best == null ? 640 : best;
   }
   startRound() {
     this.phase = 'playing'; this.winner = null; this.winnerId = null;
     this.clones.clear(); this.smokes = [];
     this.list().forEach((p, i) => {
-      const s = STAGE.spawns[i % STAGE.spawns.length];
+      const s = this.stage.spawns[i % this.stage.spawns.length];
       p.reset(s.x, s.y); p.stocks = CONFIG.STOCKS; p.kos = 0; p.botKos = 0; p.inMatch = true;
     });
     this.ev({ k: 'start' });
@@ -161,7 +190,7 @@ class Sim {
     const list = this.list();
     list.forEach((p, idx) => {
       if (this.phase !== 'playing' && !p.alive) {
-        const s = STAGE.spawns[idx % STAGE.spawns.length];
+        const s = this.stage.spawns[idx % this.stage.spawns.length];
         p.reset(s.x, s.y);
         if (this.phase !== 'ended') p.inMatch = false;
       }
@@ -475,15 +504,15 @@ class Sim {
 
   insideSolid(x, y) {
     const hw = CONFIG.PLAYER_W / 2, h = CONFIG.PLAYER_H;
-    return STAGE.solids.some((s) => x + hw > s.x && x - hw < s.x + s.w && y > s.y + 1 && y - h < s.y + s.h);
+    return this.stage.solids.some((s) => x + hw > s.x && x - hw < s.x + s.w && y > s.y + 1 && y - h < s.y + s.h);
   }
   onPlatform(p) {
-    return STAGE.platforms.some((pl) => Math.abs(p.y - pl.y) < 1 && p.x > pl.x && p.x < pl.x + pl.w);
+    return this.stage.platforms.some((pl) => Math.abs(p.y - pl.y) < 1 && p.x > pl.x && p.x < pl.x + pl.w);
   }
   moveAndCollide(p, dt) {
     const hw = CONFIG.PLAYER_W / 2, h = CONFIG.PLAYER_H;
     p.x += p.vx * dt;
-    for (const s of STAGE.solids) {
+    for (const s of this.stage.solids) {
       if (p.y > s.y && p.y - h < s.y + s.h && p.x + hw > s.x && p.x - hw < s.x + s.w) {
         if (p.vx > 0 || p.x < s.x + s.w / 2) p.x = s.x - hw; else p.x = s.x + s.w + hw;
         p.vx = 0;
@@ -491,13 +520,13 @@ class Sim {
     }
     const prevY = p.y;
     p.y += p.vy * dt; p.grounded = false;
-    for (const s of STAGE.solids) {
+    for (const s of this.stage.solids) {
       if (p.x + hw <= s.x || p.x - hw >= s.x + s.w) continue;
       if (p.vy >= 0 && prevY <= s.y && p.y >= s.y) { p.y = s.y; p.vy = 0; p.grounded = true; }
       else if (p.vy < 0 && prevY - h >= s.y + s.h && p.y - h < s.y + s.h) { p.y = s.y + s.h + h; p.vy = 0; }
     }
     if (p.dropThrough <= 0 && p.hitstun <= 0.05) {
-      for (const pl of STAGE.platforms) {
+      for (const pl of this.stage.platforms) {
         if (p.x + hw * 0.5 <= pl.x || p.x - hw * 0.5 >= pl.x + pl.w) continue;
         if (p.vy >= 0 && prevY <= pl.y && p.y >= pl.y) { p.y = pl.y; p.vy = 0; p.grounded = true; }
       }
@@ -566,7 +595,7 @@ class Sim {
   }
   // 분신이 무대 밖으로 날아가면 주인 옆으로 돌아옴 (KO 아님)
   checkCloneBounds(c) {
-    const b = STAGE.blast;
+    const b = this.stage.blast;
     if (c.x > b.left && c.x < b.right && c.y > b.top && c.y < b.bottom) return;
     const owner = this.players.get(c.ownerId);
     if (!owner) return;
@@ -575,9 +604,9 @@ class Sim {
     c.x = ox; c.y = oy; c.vx = 0; c.vy = 0; c.hitstun = 0; c.damage = 0;
   }
   checkBlast(p) {
-    const b = STAGE.blast;
+    const b = this.stage.blast;
     if (p.x > b.left && p.x < b.right && p.y > b.top && p.y < b.bottom) return;
-    this.ev({ k: 'ko', x: r0(clamp(p.x, 0, STAGE.width)), y: r0(clamp(p.y, 0, STAGE.height)), n: p.name });
+    this.ev({ k: 'ko', x: r0(clamp(p.x, 0, 1280)), y: r0(clamp(p.y, 0, 720)), n: p.name });
     if (p.controller) { const c = this.players.get(p.controller); if (c) this.endParasite(c); }
     if (p.lastHitBy && this.tickCount - p.lastHitAt < CONFIG.TICK_RATE * 5 && this.phase === 'playing') {
       const killer = this.players.get(p.lastHitBy);
@@ -585,10 +614,10 @@ class Sim {
     }
     const keep = { wins: p.wins, skill: p.skill };
     if (this.phase !== 'playing' || !p.inMatch) {
-      p.reset(640, 120); p.invincible = CONFIG.RESPAWN_INVINCIBLE; return;
+      p.reset(this.stage.respawn.x, this.stage.respawn.y); p.invincible = CONFIG.RESPAWN_INVINCIBLE; return;
     }
     p.stocks--;
-    if (p.stocks > 0) { p.reset(640, 120); Object.assign(p, keep); p.invincible = CONFIG.RESPAWN_INVINCIBLE; }
+    if (p.stocks > 0) { p.reset(this.stage.respawn.x, this.stage.respawn.y); Object.assign(p, keep); p.invincible = CONFIG.RESPAWN_INVINCIBLE; }
     else { p.alive = false; this.clones.delete(p.id); this.checkWinner(); }
   }
 
@@ -609,7 +638,7 @@ class Sim {
       smk: this.inSmoke(p) ? 1 : 0,
     });
     return {
-      ph: this.phase, tm: Math.ceil(this.timer), w: this.winner, wi: this.winnerId, s: this.tickCount,
+      ph: this.phase, tm: Math.ceil(this.timer), w: this.winner, wi: this.winnerId, s: this.tickCount, mp: this.stage.id,
       ev: this.recent.slice(-10),
       sm: this.smokes.map((s) => ({ x: r0(s.x), y: r0(s.y), r: s.r, a: Math.round((s.t / s.max) * 100) / 100 })),
       p: this.list().map((p) => ({
@@ -642,10 +671,21 @@ function botThink(sim, b) {
     return inp;
   }
   let wantJump = false;
-  const offstage = b.x < 250 || b.x > 1030;
+  const st = sim.stage;
+  const offstage = !sim.surfaceBelow(b.x, b.y) || b.y > st.floor + 30;
   const sk = b.skill;
-  if (offstage || b.y > 540) {
-    if (b.x < 640) inp.r = 1; else inp.l = 1;
+  // 땅 끝에서 멈추기 (건너편에 갈 땅이 가까우면 점프)
+  const edgeGuard = () => {
+    if (!b.grounded) return;
+    const dir = inp.r ? 1 : inp.l ? -1 : 0;
+    if (!dir || sim.surfaceBelow(b.x + dir * 34, b.y)) return;
+    const gapLand = [...st.solids, ...st.platforms].some((s) => (dir > 0 ? s.x > b.x && s.x - b.x < 260 : b.x > s.x + s.w && b.x - (s.x + s.w) < 260) && s.y <= b.y + 40);
+    if (gapLand && Math.random() < 0.5) wantJump = true;
+    else { inp.l = 0; inp.r = 0; }
+  };
+  if (offstage) {
+    const home = sim.nearestSurfaceX(b.x);
+    if (home > b.x) inp.r = 1; else inp.l = 1;
     if (b.vy > 100 || b.grounded) wantJump = true;
     if (sk === 'blink' && b.skillCd <= 0 && b.jumpsLeft === 0 && b.vy > 0) { inp.u = 1; inp.s = 1; }
     if (sk === 'fly' && b.skillCd <= 0 && b.jumpsLeft === 0 && b.vy > 0) inp.s = 1;
@@ -664,7 +704,7 @@ function botThink(sim, b) {
     const smoke = sim.smokes.length ? sim.smokes.reduce((m, s) => (Math.abs(s.x - b.x) < Math.abs(m.x - b.x) ? s : m)) : null;
     if (smoke && (!target || Math.abs(smoke.x - b.x) + 60 < best) && Math.random() < 0.985) {
       if (!b.pokeT || b.pokeT <= 0 || !b.pokeX) {
-        b.pokeX = clamp(smoke.x + (Math.random() - 0.5) * smoke.r * 1.4, 270, 1010);
+        b.pokeX = clamp(smoke.x + (Math.random() - 0.5) * smoke.r * 1.4, st.left + 30, st.right - 30);
         b.pokeT = 30 + Math.floor(Math.random() * 40);
       }
       b.pokeT--;
@@ -677,7 +717,7 @@ function botThink(sim, b) {
         b.botCd = 10 + Math.floor(Math.random() * 20);
       }
       if (b.grounded && smoke.y < b.y - 150 && Math.random() < 0.05) wantJump = true;
-      if (b.grounded && ((b.x < 280 && inp.l) || (b.x > 1000 && inp.r))) { inp.l = 0; inp.r = 0; }
+      edgeGuard();
       if (wantJump && !b.prevInput.u) inp.u = 1;
       return inp;
     }
@@ -688,7 +728,7 @@ function botThink(sim, b) {
       else if (b.facing !== side && !b.attack) { if (side > 0) inp.r = 1; else inp.l = 1; }
       if (dy < -90 && b.grounded) wantJump = true;
       if (b.flyT > 0 && dy < -40) inp.u = 1;
-      if (dy > 60 && b.grounded && b.y < 500) inp.d = 1;
+      if (dy > 60 && b.grounded && sim.onPlatform(b)) inp.d = 1;
       if (b.botCd > 0) b.botCd--;
       const R = Math.random();
       const ready = b.skillCd <= 0;
@@ -709,7 +749,10 @@ function botThink(sim, b) {
         b.botCd = 14 + Math.floor(Math.random() * 18);
       }
     }
-    if (b.grounded && ((b.x < 280 && inp.l) || (b.x > 1000 && inp.r))) { inp.l = 0; inp.r = 0; }
+    edgeGuard();
+    // 벽에 막혀 못 가면 점프
+    if (b.grounded && (inp.l || inp.r) && Math.abs(b.vx) < 30) { b.stuckT = (b.stuckT || 0) + 1; if (b.stuckT > 12) { wantJump = true; b.stuckT = 0; } }
+    else b.stuckT = 0;
   }
   if (wantJump && !b.prevInput.u) inp.u = 1;
   if (inp.s && b.prevInput.s) inp.s = 0;
@@ -740,19 +783,21 @@ function cloneThink(sim, c, owner) {
     targetX = ox + c.patrol * 75;
     c.faceTo = owner.facing;
   }
-  targetX = clamp(targetX, 260, 1020);
+  const st = sim.stage;
+  targetX = clamp(targetX, st.left + 20, st.right - 20);
+  if (!sim.surfaceBelow(targetX, c.y)) targetX = sim.nearestSurfaceX(targetX);
   const dx = targetX - c.x;
   if (Math.abs(dx) > 14) { if (dx > 0) inp.r = 1; else inp.l = 1; }
   else if (c.facing !== c.faceTo) { if (c.faceTo > 0) inp.r = 1; else inp.l = 1; }
   const dy = oy - c.y;
   let wantJump = false;
   if (dy < -80 && c.grounded) wantJump = true;
-  if (!c.grounded && c.vy > 200 && (c.x < 250 || c.x > 1030 || c.y > 540)) wantJump = true;
-  if (dy > 60 && c.grounded && c.y < 500) inp.d = 1;
-  if (c.x < 250) { inp.r = 1; inp.l = 0; }
-  if (c.x > 1030) { inp.l = 1; inp.r = 0; }
+  const lost = !sim.surfaceBelow(c.x, c.y) || c.y > st.floor + 30;
+  if (!c.grounded && c.vy > 200 && lost) wantJump = true;
+  if (dy > 60 && c.grounded && sim.onPlatform(c)) inp.d = 1;
+  if (lost) { const home = sim.nearestSurfaceX(c.x); inp.r = home > c.x ? 1 : 0; inp.l = home > c.x ? 0 : 1; }
   if (wantJump && !c.prevInput.u) inp.u = 1;
   return inp;
 }
 
-module.exports = { Sim, CONFIG, SKILLS, SKILL_IDS, BOT_NAMES, validSkill, cleanInput, EMPTY_INPUT };
+module.exports = { Sim, MAPS, CONFIG, SKILLS, SKILL_IDS, BOT_NAMES, validSkill, cleanInput, EMPTY_INPUT };

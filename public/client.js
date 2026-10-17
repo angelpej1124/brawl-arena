@@ -33,13 +33,8 @@ const SKILL_COLOR = {
   explode: '#ff8a3d', freeze: '#d5ecff', rock: '#b5aca2', magnet: '#ff5d73', empower: '#4f8bff', parasite: '#7be36f',
 };
 const SKILL_IDS = Object.keys(SKILLS);
-const STAGE = {
-  width: 1280, height: 720,
-  solids: [{ x: 240, y: 520, w: 800, h: 70 }],
-  platforms: [{ x: 320, y: 385, w: 200 }, { x: 760, y: 385, w: 200 }, { x: 540, y: 255, w: 200 }],
-  blast: { left: -260, right: 1540, top: -520, bottom: 980 },
-  spawns: [{ x: 340, y: 520 }, { x: 940, y: 520 }, { x: 640, y: 255 }, { x: 420, y: 385 }, { x: 860, y: 385 }, { x: 640, y: 520 }],
-};
+const MAPS = window.BRAWL_MAPS;   // maps.js (서버와 같은 맵 정보)
+let STAGE = MAPS[0];               // 지금 판의 맵
 const COLORS = ['#ff5a5f', '#3fa7ff', '#ffc93c', '#4cd97b', '#c77dff', '#ff8c42'];
 const BOT_NAMES = ['봇 철수', '봇 영희', '봇 바둑이', '봇 민수', '봇 지수'];
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -433,6 +428,7 @@ function onMessage(m) {
     snapshots.push(m);
     if (snapshots.length > 30) snapshots.shift();
     latest = m;
+    if (m.mp && m.mp !== STAGE.id) STAGE = MAPS.find((x) => x.id === m.mp) || STAGE;
     // 방장만 봇 추가/빼기 버튼이 보임
     if (m.host !== hostLive || isHost !== (m.host === myId)) {
       hostLive = m.host;
@@ -612,6 +608,8 @@ function onEvent(ev) {
     if (ev.k === 'infest') banners.push({ text: `${ev.n} → ${ev.n2} 기생!`, life: 1.6, max: 1.6, small: true, color: '#7be36f' });
   } else if (ev.k === 'deny') {
     banners.push({ text: ev.msg, life: 1.6, max: 1.6, small: true, color: '#ff9b9b' });
+  } else if (ev.k === 'map') {
+    banners.push({ text: `맵: ${ev.n}`, life: 2.5, max: 2.5, small: true, color: '#ffcf3f' });
   } else if (ev.k === 'host') {
     banners.push({ text: `${ev.n} 님이 새 방장이에요`, life: 2, max: 2, small: true, color: '#ffcf3f' });
   } else if (ev.k === 'start') {
@@ -669,35 +667,58 @@ function roundRect(x, y, w, h, r) {
   ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
 }
 function drawBackground(time) {
+  const th = STAGE.theme;
   ctx.fillStyle = '#0b0a16'; ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.save(); ctx.translate(offX, offY); ctx.scale(scale, scale);
   const g = ctx.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, '#1b1640'); g.addColorStop(0.6, '#3a2560'); g.addColorStop(1, '#6b3459');
+  g.addColorStop(0, th.sky[0]); g.addColorStop(0.6, th.sky[1]); g.addColorStop(1, th.sky[2]);
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-  for (const s of stars) {
-    ctx.globalAlpha = reduceMotion ? 0.5 : 0.35 + 0.35 * Math.sin(time / 700 + s.x);
-    ctx.fillStyle = '#fff'; ctx.fillRect(s.x, s.y, s.r, s.r);
+  if (th.stars) {
+    for (const s of stars) {
+      ctx.globalAlpha = reduceMotion ? 0.5 : 0.35 + 0.35 * Math.sin(time / 700 + s.x);
+      ctx.fillStyle = '#fff'; ctx.fillRect(s.x, s.y, s.r, s.r);
+    }
+    ctx.globalAlpha = 1;
+  } else {
+    // 낮 하늘: 구름
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    for (let i = 0; i < 5; i++) {
+      const cx = ((i * 290 + time / 60) % (W + 300)) - 150, cy = 90 + (i % 3) * 55;
+      ctx.beginPath(); ctx.ellipse(cx, cy, 70, 22, 0, 0, Math.PI * 2); ctx.ellipse(cx + 45, cy - 12, 45, 20, 0, 0, Math.PI * 2); ctx.fill();
+    }
   }
-  ctx.globalAlpha = 1;
-  ctx.fillStyle = 'rgba(255,207,63,0.12)'; ctx.beginPath(); ctx.arc(1040, 150, 110, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = 'rgba(255,220,120,0.22)'; ctx.beginPath(); ctx.arc(1040, 150, 70, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#2a1c48'; ctx.beginPath(); ctx.moveTo(0, H);
-  for (let x = 0; x <= W; x += 80) ctx.lineTo(x, 470 + Math.sin(x * 0.011) * 50 + Math.sin(x * 0.03) * 18);
+  ctx.fillStyle = th.orb + '0.14)'; ctx.beginPath(); ctx.arc(1040, 150, 110, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = th.orb + '0.3)'; ctx.beginPath(); ctx.arc(1040, 150, 70, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = th.hill; ctx.beginPath(); ctx.moveTo(0, H);
+  for (let x = 0; x <= W; x += 80) ctx.lineTo(x, 470 + Math.sin(x * 0.011 + STAGE.left) * 50 + Math.sin(x * 0.03) * 18);
   ctx.lineTo(W, H); ctx.fill();
+  if (th.water) {
+    // 바다
+    ctx.fillStyle = th.water; ctx.fillRect(0, 610, W, H - 610);
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 3;
+    for (let k = 0; k < 3; k++) {
+      ctx.beginPath();
+      for (let x = 0; x <= W; x += 20) ctx.lineTo(x, 625 + k * 30 + Math.sin(x * 0.03 + time / 500 + k) * 5);
+      ctx.stroke();
+    }
+  }
   ctx.restore();
 }
 function drawStage() {
+  const th = STAGE.theme;
   for (const s of STAGE.solids) {
-    ctx.fillStyle = '#4d3b2a'; roundRect(s.x, s.y, s.w, s.h + 40, 14); ctx.fill();
-    ctx.fillStyle = '#5ec46a'; roundRect(s.x - 6, s.y - 4, s.w + 12, 22, 10); ctx.fill();
-    ctx.fillStyle = '#8be38f'; ctx.fillRect(s.x + 4, s.y - 2, s.w - 8, 4);
+    const thin = s.w < 80; // 성벽 기둥
+    ctx.fillStyle = th.dirt; roundRect(s.x, s.y, s.w, s.h + (thin ? 0 : 40), thin ? 6 : 14); ctx.fill();
+    ctx.fillStyle = th.grass; roundRect(s.x - (thin ? 2 : 6), s.y - 4, s.w + (thin ? 4 : 12), thin ? 14 : 22, thin ? 5 : 10); ctx.fill();
+    ctx.fillStyle = th.grassHi; ctx.fillRect(s.x + 4, s.y - 2, s.w - 8, 4);
     ctx.fillStyle = 'rgba(0,0,0,0.15)';
-    for (let x = s.x + 30; x < s.x + s.w - 20; x += 70) ctx.fillRect(x, s.y + 35, 28, 8);
+    if (thin) { for (let y = s.y + 20; y < s.y + s.h - 8; y += 22) ctx.fillRect(s.x + 6, y, s.w - 12, 6); }
+    else for (let x = s.x + 30; x < s.x + s.w - 20; x += 70) ctx.fillRect(x, s.y + 35, 28, 8);
   }
   for (const p of STAGE.platforms) {
     ctx.fillStyle = 'rgba(0,0,0,0.25)'; roundRect(p.x + 4, p.y + 6, p.w, 14, 7); ctx.fill();
-    ctx.fillStyle = '#c9b6ff'; roundRect(p.x, p.y, p.w, 14, 7); ctx.fill();
-    ctx.fillStyle = '#efe8ff'; ctx.fillRect(p.x + 8, p.y + 2, p.w - 16, 3);
+    ctx.fillStyle = th.plat; roundRect(p.x, p.y, p.w, 14, 7); ctx.fill();
+    ctx.fillStyle = th.platHi; ctx.fillRect(p.x + 8, p.y + 2, p.w - 16, 3);
   }
 }
 function drawPlayer(p, time) {
@@ -876,6 +897,7 @@ function drawPhase(state, players, dt) {
   const ph = state.ph;
   if (ph === 'waiting') {
     bigText('상대를 기다리는 중', 130, 42, '#ffffff');
+    smallText(`맵: ${STAGE.name}`, 200);
     smallText(isHost ? '방장이에요 · 다른 사람이 들어오거나, 오른쪽 위 "봇 추가"로 바로 시작할 수 있어요' : '방장(♛)이 봇을 추가하거나 다른 사람이 들어오면 시작해요', 168);
   } else if (ph === 'countdown') {
     bigText(String(state.tm), 300, 140, '#ffcf3f');
