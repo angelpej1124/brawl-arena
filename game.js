@@ -20,7 +20,7 @@ const SKILLS = {
   blink:    { name: '점멸', cd: 10, distance: 230 },
   stealth:  { name: '은신', cd: 11, duration: 5 },
   clone:    { name: '분신', cd: 10, hits: 4 },
-  swap:     { name: '전환', cd: 12, heavyLock: 1 },                       // 강공격 맞고 1초 동안은 못 씀
+  swap:     { name: '전환', cd: 15, heavyLock: 1 },                       // 강공격 맞고 1초 동안은 못 씀
   fly:      { name: '비행', cd: 14, duration: 6, up: 380, down: 260, hitDrop: 0.6 },
   explode:  { name: '폭파', cd: 9, radius: 210, power: 640, damage: 6, stun: 0.5, smoke: 3, smokeR: 230 },
   freeze:   { name: '정지', cd: 8, duration: 1 },
