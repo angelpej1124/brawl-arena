@@ -574,7 +574,7 @@ class Sim {
       const old = this.clones.get(p.id);
       if (old) this.ev({ k: 'poof', x: r0(old.x), y: r0(old.y - bh(old) / 2) });
       const c = new Player('c-' + p.id + '-' + this.tickCount, p.name, p.color, p.bot, p.skill);
-      c.clone = true; c.ownerId = p.id; c.hitsTaken = 0;
+      c.clone = true; c.ownerId = p.id; c.hitsTaken = 0; c.skill2 = p.skill2;
       let x = p.x - p.facing * 60;
       if (this.insideSolid(x, p.y)) x = p.x;
       c.reset(x, p.y);
@@ -881,7 +881,7 @@ class Sim {
       }
       const hb = this.hitbox(p, def);
       const fan = sword && atk.type === 'heavy';
-      const cx = p.x, cy = p.y - bh(p) / 2, R = SKILLS.sword.fanR * SKILLS.sword.reachMul;
+      const cx = p.x, cy = p.y - bh(p) / 2, R = SKILLS.sword.fanR * SKILLS.sword.reachMul * this.reachBuff(p);
       const overlaps = (o) => {
         const ow = bw(o), oh = bh(o);
         const ox = o.x - ow / 2, oy = o.y - oh;
@@ -1039,14 +1039,19 @@ class Sim {
       this.ev({ k: 'poof', x: r0(o.x), y: r0(o.y - bh(o) / 2) });
     }
   }
+  // 사거리를 늘려 주는 버프들 (강화·거인·고무·헐크) — 검사 검에도 똑같이 적용
+  reachBuff(p) {
+    let m = 1;
+    if (p.buffT > 0) m *= SKILLS.empower.reachMul;
+    if (p.giantT > 0) m *= SKILLS.giant.reachMul;
+    if (p.rubberT > 0) m *= SKILLS.rubber.reachMul;
+    if (has(p, 'hulk')) m *= 1 + SKILLS.hulk.reach * hulkF(p);
+    return m;
+  }
   hitbox(p, def) {
     const hw = bw(p) / 2, size = sizeOf(p);
-    let reach = def.reach;
-    if (p.buffT > 0) reach *= SKILLS.empower.reachMul;
-    if (p.giantT > 0) reach *= SKILLS.giant.reachMul;
-    if (p.rubberT > 0) reach *= SKILLS.rubber.reachMul;
+    let reach = def.reach * this.reachBuff(p);
     if (has(p, 'sword') && !p.clone) reach *= SKILLS.sword.reachMul;
-    if (has(p, 'hulk')) reach *= 1 + SKILLS.hulk.reach * hulkF(p);
     const h = def.height * size;
     const x = p.facing > 0 ? p.x + hw - 6 : p.x - hw + 6 - reach;
     return { x, y: p.y - bh(p) / 2 - h / 2 - 4 * size, w: reach, h };
@@ -1191,7 +1196,7 @@ class Sim {
       cl: [...this.clones.values()].map((c) => ({
         id: c.id, ow: c.ownerId, n: c.name, c: c.color, x: r0(c.x), y: r0(c.y), f: c.facing,
         g: c.grounded ? 1 : 0, vx: r0(c.vx), vy: r0(c.vy), al: 1, at: 0, ap: 0,
-        sk: c.skill, hs: c.hitstun > 0 || c.stunT > 0 ? 1 : 0, b: c.bot ? 1 : 0, inv: 0, ...status(c),
+        sk: c.skill, sk2: c.skill2, hs: c.hitstun > 0 || c.stunT > 0 ? 1 : 0, b: c.bot ? 1 : 0, inv: 0, ...status(c),
       })),
     };
   }

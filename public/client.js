@@ -65,6 +65,7 @@ function slotsOf(p) {
   return { s: p.sk, e: p.sk2, x: null };
 }
 // 그 슬롯 스킬의 남은 쿨타임
+const hasK = (p, k) => p.sk === k || p.sk2 === k;   // 더블 모드면 두 스킬 중 하나라도
 const cdOf = (p, k) => (k === 'magnet2' ? p.cd2 : k === p.sk ? p.cd : p.cdB);
 const cleanInput = (i) => ({ l: i.l ? 1 : 0, r: i.r ? 1 : 0, u: i.u ? 1 : 0, d: i.d ? 1 : 0, a: i.a ? 1 : 0, h: i.h ? 1 : 0, s: i.s ? 1 : 0 });
 const validSkill = (s) => (Object.prototype.hasOwnProperty.call(SKILLS, s) ? s : 'slow');
@@ -898,7 +899,7 @@ function drawPlayer(p, time) {
   }
   ctx.fillStyle = p.hs ? '#ffffff' : p.c;
   roundRect(-PW / 2, -PH, PW, PH, 12); ctx.fill();
-  if (p.sk === 'hulk' && G > 1.02) {
+  if (hasK(p, 'hulk') && G > 1.02) {
     // 헐크: 커질수록 초록빛 + 근육 줄
     const hf = (G - 1) / 0.9;
     ctx.fillStyle = `rgba(80,200,70,${0.15 + hf * 0.4})`; roundRect(-PW / 2, -PH, PW, PH, 12); ctx.fill();
@@ -947,17 +948,19 @@ function drawPlayer(p, time) {
   ctx.fillRect(f * 4 - 2, -PH + 14, 8, 11); ctx.fillRect(f * 4 + 10 * f - 2, -PH + 14, 8, 11);
   ctx.fillStyle = '#1a1030';
   ctx.fillRect(f * 4 + f * 2, -PH + 17, 4, 6); ctx.fillRect(f * 4 + 10 * f + f * 2, -PH + 17, 4, 6);
+  // 사거리 버프 (몸 크기 기준): 거인은 몸이 2배라 1.6/2, 헐크도 몸 크기로 나눔
+  const hf = hasK(p, 'hulk') && G > 1 ? (G - 1) / 0.9 : 0;
+  const otherM = (p.gt ? 1.6 / 2 : 1) * (p.bf ? 1.3 : 1) * (hf ? (1 + 0.6 * hf) / G : 1);
   let reach = 0;
   if (p.at) {
     // 사거리 늘어나는 스킬은 팔도 길어짐 (거인은 몸이 2배라 그만큼 나눔)
-    const hf = p.sk === 'hulk' && G > 1 ? (G - 1) / 0.9 : 0;
-    const mult = (p.rb ? 2 : 1) * (p.gt ? 1.6 / 2 : 1) * (p.bf ? 1.3 : 1) * (hf ? (1 + 0.6 * hf) / G : 1);
+    const mult = (p.rb ? 2 : 1) * otherM;
     const full = (p.at === 2 ? 60 : 46) * mult + (p.rb ? 40 : 0);
     reach = p.ap === 1 ? -6 : p.ap === 2 ? full : full * 0.4;
   }
   const fx = f * (PW / 2 + 4 + reach), fy = -PH / 2 - 2;
-  if (p.sk === 'sword') {
-    drawSword(p, f, time);
+  if (hasK(p, 'sword')) {
+    drawSword(p, f, time, p.rb ? 2 : 1, otherM);
     ctx.restore();
     finishPlayer(p, x, y, G, light, ownerId, baseAlpha, isClone, time);
     return;
@@ -971,11 +974,11 @@ function drawPlayer(p, time) {
     ctx.lineWidth = p.at === 2 ? 10 : 6; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(f * PW / 2, fy); ctx.lineTo(fx, fy); ctx.stroke();
   }
-  if (p.sk === 'fire' || p.sk === 'ice' || p.sun) {
+  if (hasK(p, 'fire') || hasK(p, 'ice') || p.sun) {
     // 주먹에 불꽃 / 냉기
     const fr = (p.at === 2 ? 20 : 16) + Math.sin(time / 60) * 3;
     const gl = ctx.createRadialGradient(fx, fy, 2, fx, fy, fr);
-    const hot = p.sk === 'fire' || p.sun;
+    const hot = hasK(p, 'fire') || p.sun;
     gl.addColorStop(0, hot ? 'rgba(255,220,90,0.95)' : 'rgba(235,250,255,0.95)');
     gl.addColorStop(1, hot ? 'rgba(255,60,20,0)' : 'rgba(120,200,255,0)');
     ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(fx, fy, fr, 0, Math.PI * 2); ctx.fill();
@@ -987,31 +990,60 @@ function drawPlayer(p, time) {
   finishPlayer(p, x, y, G, light, ownerId, baseAlpha, isClone, time);
 }
 // 검사: 손에 든 검 + 베기 궤적 (몸 좌표계 안에서 그림)
-function drawSword(p, f, time) {
-  const hx = f * (PW / 2 + 2), hy = -PH / 2 - 2;
+//  rubM: 고무(팔이 늘어남), otherM: 강화·거인·헐크 (검이 길어짐)
+function drawSword(p, f, time, rubM = 1, otherM = 1) {
+  const swinging = p.at && p.ap !== 1;
+  // 고무: 휘두를 때 팔이 쭉 늘어나고 그 끝에서 검을 휘두름
+  const ext = swinging && rubM > 1 && !(p.at === 2 && p.ap === 2) ? 72 * otherM * (rubM - 1) + 40 : 0;
+  const hx = f * (PW / 2 + 2 + ext), hy = -PH / 2 - 2;
+  if (ext) {
+    ctx.strokeStyle = p.c; ctx.lineWidth = 7; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(f * PW / 2, hy); ctx.lineTo(hx, hy); ctx.stroke();
+  }
   let ang;                         // 0 = 앞으로 수평
-  const L = 64;                    // 검 길이 (사거리 1.25배 느낌)
+  const L = 64 * otherM;           // 검 길이 (사거리 버프만큼 길어짐)
   if (p.at === 1) ang = p.ap === 1 ? -1.3 : p.ap === 2 ? 0.15 : 0.6;
   else if (p.at === 2) ang = p.ap === 1 ? -2.4 : p.ap === 2 ? (time / 40) % (Math.PI * 2) : 0.9;
   else ang = -0.9 + Math.sin(time / 400) * 0.05;
+  // 불(화염·태양) / 얼음이면 검날이 빛남
+  const hot = hasK(p, 'fire') || p.sun, cold = hasK(p, 'ice');
+  const glow = hot ? 'rgba(255,120,30,0.95)' : cold ? 'rgba(140,220,255,0.95)' : null;
   // 베기 궤적
   if (p.ap === 2 && p.at === 1) {
-    ctx.fillStyle = 'rgba(220,235,255,0.45)';
+    ctx.fillStyle = hot ? 'rgba(255,170,80,0.45)' : cold ? 'rgba(170,230,255,0.45)' : 'rgba(220,235,255,0.45)';
     ctx.beginPath(); ctx.moveTo(hx, hy); ctx.arc(hx, hy, L + 18, f > 0 ? -1.2 : Math.PI - 0.3, f > 0 ? 0.3 : Math.PI + 1.2); ctx.closePath(); ctx.fill();
   }
   if (p.ap === 2 && p.at === 2) {
-    // 부채꼴: 머리 위로 크게 반원
-    const R = 125 * 1.25;
+    // 부채꼴: 머리 위로 크게 반원 (사거리 버프만큼 커짐)
+    const R = 125 * 1.25 * otherM * rubM;
     const g = ctx.createRadialGradient(0, -PH / 2, 20, 0, -PH / 2, R);
-    g.addColorStop(0, 'rgba(220,235,255,0)'); g.addColorStop(0.75, 'rgba(220,235,255,0.25)'); g.addColorStop(1, 'rgba(240,248,255,0.75)');
+    g.addColorStop(0, 'rgba(220,235,255,0)');
+    g.addColorStop(0.75, hot ? 'rgba(255,170,80,0.25)' : cold ? 'rgba(170,230,255,0.25)' : 'rgba(220,235,255,0.25)');
+    g.addColorStop(1, hot ? 'rgba(255,200,120,0.75)' : cold ? 'rgba(200,240,255,0.75)' : 'rgba(240,248,255,0.75)');
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.moveTo(0, -PH / 2); ctx.arc(0, -PH / 2, R, Math.PI + 0.05, -0.05 + Math.PI * 2); ctx.closePath(); ctx.fill();
     ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.arc(0, -PH / 2, R, Math.PI + 0.05, Math.PI * 2 - 0.05); ctx.stroke();
+    if (rubM > 1) {
+      // 고무: 늘어난 팔 끝의 검이 반원을 따라 돎
+      const a2 = Math.PI + ((time / 60) % Math.PI), r2 = Math.max(20, R - L - 16);
+      const ex = Math.cos(a2) * r2, ey = -PH / 2 + Math.sin(a2) * r2;
+      ctx.strokeStyle = p.c; ctx.lineWidth = 7; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(0, -PH / 2); ctx.lineTo(ex, ey); ctx.stroke();
+      ctx.save(); ctx.translate(ex, ey); ctx.rotate(a2);
+      if (glow) { ctx.shadowColor = glow; ctx.shadowBlur = 16; }
+      ctx.fillStyle = hot ? '#ffe2b0' : cold ? '#dff5ff' : '#e8f0ff'; ctx.strokeStyle = '#5a6a88'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(6, -4); ctx.lineTo(6 + L, -2); ctx.lineTo(12 + L, 0); ctx.lineTo(6 + L, 3); ctx.lineTo(6, 4); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.restore();
+      ctx.fillStyle = p.c; ctx.beginPath(); ctx.arc(ex, ey, 9, 0, Math.PI * 2); ctx.fill();
+      return;
+    }
   }
   ctx.save(); ctx.translate(hx, hy); ctx.scale(f, 1); ctx.rotate(ang);
-  ctx.fillStyle = '#e8f0ff'; ctx.strokeStyle = '#5a6a88'; ctx.lineWidth = 2;
+  if (glow) { ctx.shadowColor = glow; ctx.shadowBlur = 16; }
+  ctx.fillStyle = hot ? '#ffe2b0' : cold ? '#dff5ff' : '#e8f0ff'; ctx.strokeStyle = '#5a6a88'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(10, -4); ctx.lineTo(10 + L, -2); ctx.lineTo(16 + L, 0); ctx.lineTo(10 + L, 3); ctx.lineTo(10, 4); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.shadowBlur = 0;
   ctx.fillStyle = '#c9a24a'; ctx.fillRect(6, -10, 5, 20);         // 코등이
   ctx.fillStyle = '#4a2f1e'; ctx.fillRect(-6, -3, 12, 6);         // 손잡이
   ctx.restore();
