@@ -87,7 +87,7 @@ const TIME_SKIP = new Set(['id', 'name', 'color', 'bot', 'dummy', 'team', 'skins
 const SKIN_DB = require('./public/skins.js').SKINS;
 const activeSkins = (p) => [p.skill, p.skill2].map((k) => k && p.skins && p.skins[k]).filter(Boolean);
 const skinOn = (p, id) => activeSkins(p).includes(id);
-const iceSkin = (p) => (skinOn(p, 'sand') ? 'sand' : skinOn(p, 'aurora') ? 'aurora' : null);
+const iceSkin = (p) => (skinOn(p, 'sand') ? 'sand' : skinOn(p, 'aurora') ? 'aurora' : skinOn(p, 'shadowice') ? 'shadow' : null);
 const skinFx = (p) => { for (const id of activeSkins(p)) if (SKIN_DB[id] && SKIN_DB[id].fx) return SKIN_DB[id].fx; return undefined; };
 // 더블 모드에서 같이 쓸 수 없는 조합 (둘 다 무기를 바꾸는 스킬)
 const CONFLICTS = [['sword', 'archer']];
@@ -804,7 +804,7 @@ class Sim {
       const s = SKILLS.ice;
       this.blizzards.push({ by: p.id, t: s.blizzard, sand: skinOn(p, 'sand'), skin: iceSkin(p) });
       p.skillCd = s.cd;
-      this.ev({ k: 'blizzard', x: r0(p.x), y: r0(cy), d: s.blizzard, n: p.name, sand: skinOn(p, 'sand') ? 1 : 0, au: skinOn(p, 'aurora') ? 1 : 0 });
+      this.ev({ k: 'blizzard', x: r0(p.x), y: r0(cy), d: s.blizzard, n: p.name, sand: skinOn(p, 'sand') ? 1 : 0, au: skinOn(p, 'aurora') ? 1 : 0, dk: skinOn(p, 'shadowice') ? 1 : 0 });
     } else if (k === 'turret') {
       const s = SKILLS.turret;
       const mine = this.turrets.filter((t) => t.owner === p.id);
@@ -938,7 +938,7 @@ class Sim {
     }
     // 화살 겉모습: 화염·태양(불화살, 스킨이면 파랑), 얼음(얼음 화살), 바람·스킨 이펙트
     const el = (has(p, 'fire') || p.sunT > 0) ? ((has(p, 'fire') ? skinOn(p, 'bluefire') : skinOn(p, 'supernova')) ? 'blue' : 'fire') : has(p, 'ice') ? (skinOn(p, 'sand') ? 'sand' : 'ice') : skinFx(p) || (has(p, 'wind') ? 'wind' : '');
-    this.arrows.push({ id: ++this.evSeq, owner: p.id, x, y, vx, vy, c, homing, t: homing ? s.homingLife : 2, el, big: sizeOf(p), de: skinOn(p, 'darkelf') });
+    this.arrows.push({ id: ++this.evSeq, owner: p.id, x, y, vx, vy, c, homing, t: homing ? s.homingLife : 2, el, big: sizeOf(p), de: skinOn(p, 'darkelf'), lf: skinOn(p, 'elf') });
     this.ev({ k: 'shoot', x: r0(p.x), y: r0(y), pid: p.id });
   }
   // 유도 화살: 목표 방향(want)에서 앞이 땅으로 막혀 있으면 조금씩 돌려서 빈 방향을 찾음
@@ -1079,7 +1079,7 @@ class Sim {
       o.lastHitBy = p.id; o.lastHitAt = this.tickCount;
       if (!o.clone) hits++;
     }
-    this.ev({ k: sign > 0 ? 'pull' : 'push', x: r0(cx), y: r0(cy), r: s.radius, h: hits });
+    this.ev({ k: sign > 0 ? 'pull' : 'push', x: r0(cx), y: r0(cy), r: s.radius, h: hits, tj: skinOn(p, 'taiji') ? 1 : 0 });
   }
   useEmpower(p) {
     if (p.buffT > 0) return;
@@ -1249,9 +1249,10 @@ class Sim {
     t.iceG = (t.iceG || 0) + amount; t.iceHitAt = this.time;
     t.iceSand = sand === 'sand' || sand === true;           // 모래 스킨이면 모래 게이지·모래에 갇힘
     t.iceAur = sand === 'aurora';                           // 오로라 스킨이면 오로라 게이지
+    t.iceDark = sand === 'shadow';                          // 어둠 스킨이면 검은 게이지·어둠에 잠식
     if (t.iceG >= 100) {
       t.iceG = 0; t.iceT = SKILLS.ice.freeze; t.attack = null;
-      this.ev({ k: 'iced', x: r0(t.x), y: r0(t.y - bh(t) / 2), sand: t.iceSand ? 1 : 0 });
+      this.ev({ k: 'iced', x: r0(t.x), y: r0(t.y - bh(t) / 2), sand: t.iceSand ? 1 : 0, dk: t.iceDark ? 1 : 0 });
     }
   }
   // 불 붙은 상태(조금씩 밀림) · 얼음 게이지 (눈보라면 계속 참, 아니면 서서히 줄어듦)
@@ -1531,14 +1532,15 @@ class Sim {
       ph: this.phase, tm: Math.ceil(this.timer), w: this.winner, wi: this.winnerId, wt: this.winTeam,
       md: [this.teamMode ? 1 : 0, this.doubleMode ? 1 : 0], s: this.tickCount, mp: this.stage.id,
       ev: this.recent.slice(-10),
-      ar: this.arrows.map((a) => ({ x: r0(a.x), y: r0(a.y), vx: r0(a.vx), vy: r0(a.vy), h: a.homing ? 1 : 0, de: a.de ? 1 : undefined, el: a.el || undefined, s: a.big > 1 ? Math.round(a.big * 10) / 10 : undefined })),
+      ar: this.arrows.map((a) => ({ x: r0(a.x), y: r0(a.y), vx: r0(a.vx), vy: r0(a.vy), h: a.homing ? 1 : 0, de: a.de ? 1 : undefined, lf: a.lf ? 1 : undefined, el: a.el || undefined, s: a.big > 1 ? Math.round(a.big * 10) / 10 : undefined })),
       wd: this.winds.map((w) => { const o = this.players.get(w.owner); return { i: w.id, x: r0(w.x), y: r0(w.y), vx: w.vx, r: o && skinOn(o, 'firetornado') ? 1 : 0 }; }),
       tr: this.turrets.map((t) => { const o = this.players.get(t.owner); return { i: t.id, x: r0(t.x), y: r0(t.y), a: Math.round(t.aim * 100) / 100, hp: t.hp, c: t.color, o: t.owner, fg: o && skinOn(o, 'frog') ? 1 : 0 }; }),
       bl: this.bullets.map((b) => (b.tg ? { tg: 1, ox: r0(b.ox), oy: r0(b.oy), x: r0(b.x), y: r0(b.y), vx: 0, vy: 0 } : { x: r0(b.x), y: r0(b.y), vx: r0(b.vx), vy: r0(b.vy) })),
       bz: this.blizzards.length ? Math.ceil(Math.max(...this.blizzards.map((b) => b.t)) * 10) / 10 : 0,
       bzs: this.blizzards.some((b) => b.sand) ? 1 : 0,
       bza: this.blizzards.some((b) => b.skin === 'aurora') ? 1 : 0,
-      pj: this.slashes.map((sl) => { const o = this.players.get(sl.owner); return { i: sl.id, x: r0(sl.x), y: r0(sl.y), vx: sl.vx, o: sl.owner, d: o && skinOn(o, 'darkness') ? 1 : 0 }; }),
+      bzd: this.blizzards.some((b) => b.skin === 'shadow') ? 1 : 0,
+      pj: this.slashes.map((sl) => { const o = this.players.get(sl.owner); return { i: sl.id, x: r0(sl.x), y: r0(sl.y), vx: sl.vx, o: sl.owner, d: o && skinOn(o, 'darkness') ? 1 : 0, ho: o && skinOn(o, 'holyknight') ? 1 : 0 }; }),
       sm: this.smokes.map((s) => ({ x: r0(s.x), y: r0(s.y), r: s.r, a: Math.round((s.t / s.max) * 100) / 100 })),
       p: this.list().map((p) => ({
         id: p.id, n: p.name, c: p.color, x: r0(p.x), y: r0(p.y), f: p.facing,
@@ -1550,7 +1552,7 @@ class Sim {
         ft: ten(p.flyT), rt: ten(p.rockT), bt: ten(p.buffT),
         chg: has(p, 'empower') ? (p.charged ? 100 : Math.floor((p.stillT / SKILLS.empower.charge) * 100)) : 0,
         pr: has(p, 'parasite') ? Object.values(p.parHits).filter((n) => n >= SKILLS.parasite.hitsNeeded).length : 0,
-        isd: p.iceSand ? 1 : 0, iau: p.iceAur ? 1 : 0, slm: p.slow > 0 && p.slowMud ? 1 : 0, sn: activeSkins(p), bb: p.burnN > 0 && p.burnBlue ? 1 : 0,
+        isd: p.iceSand ? 1 : 0, iau: p.iceAur ? 1 : 0, idk: p.iceDark ? 1 : 0, slm: p.slow > 0 && p.slowMud ? 1 : 0, sn: activeSkins(p), bb: p.burnN > 0 && p.burnBlue ? 1 : 0,
         ins: p.inside ? 1 : 0, phost: p.parHost, pt: ten(p.parT), ctl: p.controller, rd: p.ready ? 1 : 0,
       })),
       cl: [...this.clones.values()].map((c) => ({

@@ -25,6 +25,11 @@
     timestone:   { skill: 'time', name: '타임 스톤', desc: '시간 저장·되돌리기 이펙트가 초록색', color: '#2fe07a' },
     aurora:      { skill: 'ice', name: '오로라', desc: '눈보라 대신 하늘에 오로라가 일렁이고, 얼음 게이지도 오로라빛', color: '#5af0c0' },
     frog:        { skill: 'turret', name: '개구리', desc: '터렛이 개구리로! 총알 대신 혀를 쭉 내밀었다가 감아 들임 (혀 끝만 맞음)', color: '#5cc84a' },
+    elf:         { skill: 'archer', name: '엘프', desc: '덩굴과 잎이 감긴 초록·갈색 활, 초록빛 화살', color: '#4caf50' },
+    holyknight:  { skill: 'sword', name: '빛의 기사', desc: '검이 신성한 빛의 검으로, 휘두르면 금빛 궤적', color: '#ffe680' },
+    tree:        { skill: 'rock', name: '나무', desc: '바위 대신 나무 몸 (나무껍질 + 머리 위 잎사귀)', color: '#8a5a2b' },
+    taiji:       { skill: 'magnet', name: '태극', desc: '당기기·밀기 때 커다란 태극 무늬가 돎', color: '#d8323c' },
+    shadowice:   { skill: 'ice', name: '어둠', desc: '눈보라 대신 어둠이 깔리고, 검은 게이지가 차면 어둠에 잠식됨', color: '#2a2238' },
     steel:       { skill: 'rock', name: '강철', desc: '바위 대신 반짝이는 강철 몸', color: '#9fb0c4' },
   };
   const PRICE = 50;
