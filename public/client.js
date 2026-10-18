@@ -764,8 +764,8 @@ function onEvent(ev) {
     for (let i = 0; i < 14; i++) particles.push({ x: ev.x + (Math.random() - 0.5) * 40, y: ev.y, vx: (Math.random() - 0.5) * 300, vy: -Math.random() * 300, life: 0.5, max: 0.5, c: '#9b938a', r: 6 });
   } else if ((ev.k === 'pull' || ev.k === 'push') && ev.tj) {
     // 태극: 커다란 태극 무늬가 돌며 퍼지거나 모임
-    particles.push({ taiji: true, x: ev.x, y: ev.y, life: 0.7, max: 0.7, r: ev.r * 0.55, dir: ev.k === 'pull' ? -1 : 1 });
-    particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.5, max: 0.5, r: ev.r, c: ev.k === 'pull' ? '216,50,60' : '40,80,200', grow: ev.k === 'push', shrink: ev.k === 'pull' });
+    particles.push({ taiji: true, yy: ev.tj === 2, x: ev.x, y: ev.y, life: 0.7, max: 0.7, r: ev.r * 0.55, dir: ev.k === 'pull' ? -1 : 1 });
+    particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.5, max: 0.5, r: ev.r, c: ev.tj === 2 ? (ev.k === 'pull' ? '30,30,30' : '245,245,245') : ev.k === 'pull' ? '216,50,60' : '40,80,200', grow: ev.k === 'push', shrink: ev.k === 'pull' });
   } else if (ev.k === 'pull' || ev.k === 'push') {
     const c = ev.k === 'pull' ? '255,93,115' : '90,150,255';
     particles.push({ ring: true, fill: true, x: ev.x, y: ev.y, life: 0.5, max: 0.5, r: ev.r, c, grow: ev.k === 'push', shrink: ev.k === 'pull' });
@@ -1178,6 +1178,18 @@ function drawPlayer(p, time) {
     const tw = (Math.sin(time / 150) + 1) / 2;
     ctx.fillStyle = `rgba(255,255,255,${0.4 + tw * 0.6})`;
     for (const [sx2, sy2] of [[-8, -PH + 4], [10, -PH / 2], [-4, -14]]) { ctx.beginPath(); ctx.moveTo(sx2, sy2 - 5); ctx.lineTo(sx2 + 2, sy2); ctx.lineTo(sx2, sy2 + 5); ctx.lineTo(sx2 - 2, sy2); ctx.fill(); }
+  } else if (p.rk && skinOn(p, 'gold')) {
+    // 골드: 번쩍이는 금덩어리 몸
+    const gg = ctx.createLinearGradient(-PW / 2, -PH, PW / 2, 0);
+    gg.addColorStop(0, '#fff3b0'); gg.addColorStop(0.35, '#ffd43a'); gg.addColorStop(0.7, '#d99a10'); gg.addColorStop(1, '#a86e05');
+    ctx.fillStyle = gg; roundRect(-PW / 2 - 3, -PH - 3, PW + 6, PH + 5, 8); ctx.fill();
+    ctx.strokeStyle = '#8a5a00'; ctx.lineWidth = 2; roundRect(-PW / 2 - 3, -PH - 3, PW + 6, PH + 5, 8); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,250,210,0.8)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-PW / 2 + 2, -PH + 4); ctx.lineTo(-PW / 2 + 2, -8); ctx.stroke();
+    const gs = 22 + ((time / 5) % 110);
+    if (gs < PH + 4) { ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(-PW / 2, -PH + gs); ctx.lineTo(PW / 2, -PH + gs - 18); ctx.stroke(); }
+    const tw = (Math.sin(time / 130) + 1) / 2;
+    ctx.fillStyle = `rgba(255,255,255,${0.35 + tw * 0.65})`;
+    for (const [sx2, sy2, sz] of [[-10, -PH + 6, 5], [12, -PH / 2 + 4, 4], [-2, -12, 3.5], [PW / 2 + 6, -PH + 2, 4]]) { ctx.beginPath(); ctx.moveTo(sx2, sy2 - sz); ctx.lineTo(sx2 + sz * 0.35, sy2); ctx.lineTo(sx2, sy2 + sz); ctx.lineTo(sx2 - sz * 0.35, sy2); ctx.closePath(); ctx.fill(); ctx.beginPath(); ctx.moveTo(sx2 - sz, sy2); ctx.lineTo(sx2, sy2 + sz * 0.35); ctx.lineTo(sx2 + sz, sy2); ctx.lineTo(sx2, sy2 - sz * 0.35); ctx.closePath(); ctx.fill(); }
   } else if (p.rk && skinOn(p, 'steel')) {
     // 강철: 반짝이는 금속판 + 리벳
     const sg = ctx.createLinearGradient(-PW / 2, -PH, PW / 2, 0);
@@ -1506,7 +1518,7 @@ function finishPlayer(p, x, y, G, light, ownerId, baseAlpha, isClone, time) {
     }
   }
   ctx.globalAlpha = baseAlpha;
-  const HAT_H = { bunny: 34, tophat: 30, cowboy: 18, horns: 20, brain: 14, cap: 12, straw: 14 };
+  const HAT_H = { bunny: 34, tophat: 30, cowboy: 18, horns: 34, brain: 14, cap: 12, straw: 14 };
   const lift = (p.b ? 12 : 0) + PH * (G - 1) + (p.cs && p.cs[0] ? (HAT_H[p.cs[0]] || 0) * G : 0);
   ctx.font = '700 15px "Noto Sans KR", sans-serif'; ctx.textAlign = 'center';
   const isMe = p.id === myId || p.ctl === myId;
@@ -1533,16 +1545,17 @@ function drawParticles(dt) {
     } else if (p.taiji) {
       // 태극 무늬 (빨강·파랑, 회전)
       const R = p.r * (p.dir > 0 ? 0.5 + (1 - a) * 0.6 : 0.6 + a * 0.5), rot = (1 - a) * Math.PI * 2 * p.dir;
+      const cA = p.yy ? '#111' : '#2350b8', cB = p.yy ? '#f4f4f4' : '#d8323c';
       ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(rot); ctx.globalAlpha = Math.min(1, a * 1.6) * 0.55;
-      ctx.fillStyle = '#2350b8'; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#d8323c'; ctx.beginPath();
+      ctx.fillStyle = cA; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = cB; ctx.beginPath();
       ctx.arc(0, 0, R, -Math.PI / 2, Math.PI / 2, false);          // 오른쪽 반원
       ctx.arc(0, R / 2, R / 2, Math.PI / 2, Math.PI * 1.5, false); // 아래 작은 원 (왼쪽으로 볼록)
       ctx.arc(0, -R / 2, R / 2, Math.PI / 2, -Math.PI / 2, true);  // 위 작은 원 (오른쪽으로 오목)
       ctx.fill();
-      ctx.fillStyle = '#2350b8'; ctx.beginPath(); ctx.arc(0, R / 2, R / 7, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#d8323c'; ctx.beginPath(); ctx.arc(0, -R / 2, R / 7, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = cA; ctx.beginPath(); ctx.arc(0, R / 2, R / 7, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = cB; ctx.beginPath(); ctx.arc(0, -R / 2, R / 7, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = p.yy ? 'rgba(120,120,120,0.9)' : 'rgba(255,255,255,0.85)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.stroke();
       ctx.restore(); ctx.globalAlpha = 1;
     } else if (p.bolt) {
       // 짧은 지그재그 번개 줄기
@@ -1715,8 +1728,11 @@ function drawOutfit(g, id, f, time) {
   g.restore();
   if (id === 'baby') {
     // 쪽쪽이는 몸 밖으로 살짝 나와도 됨
-    g.fillStyle = '#7fd0ff'; g.beginPath(); g.arc(f * 7, -PH + 29, 4, 0, Math.PI * 2); g.fill();
-    g.strokeStyle = '#ffd23f'; g.lineWidth = 2; g.beginPath(); g.arc(f * 7, -PH + 29, 6, 0, Math.PI * 2); g.stroke();
+    // 눈이 보는 방향 쪽으로 치우쳐 있으니 쪽쪽이도 두 눈 사이 아래(보는 방향 쪽)에 붙임
+    const px = f * 11, py = -PH + 31;
+    g.fillStyle = '#7fd0ff'; g.beginPath(); g.ellipse(px, py, 6.5, 4.5, 0, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = '#4aa8e0'; g.lineWidth = 1; g.stroke();
+    g.strokeStyle = '#ffd23f'; g.lineWidth = 2; g.beginPath(); g.arc(px, py + 1, 3.5, 0, Math.PI); g.stroke();
   }
 }
 function drawOutfitInner(g, id, f, time) {
@@ -1775,8 +1791,17 @@ function drawHat(g, id, f, time) {
     g.beginPath(); g.moveTo(-14, t); g.quadraticCurveTo(-14, t - 22, -4, t - 18); g.quadraticCurveTo(0, t - 14, 4, t - 18); g.quadraticCurveTo(14, t - 22, 14, t); g.closePath(); g.fill();
     g.fillStyle = '#5a3a18'; g.fillRect(-14, t - 6, 28, 4);
   } else if (id === 'horns') {
-    g.fillStyle = '#efe6d2'; g.strokeStyle = '#b8a888'; g.lineWidth = 1.5;
-    for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(sd * 8, t + 3); g.quadraticCurveTo(sd * 22, t - 2, sd * 20, t - 20); g.quadraticCurveTo(sd * 16, t - 8, sd * 15, t + 4); g.closePath(); g.fill(); g.stroke(); }
+    // 유니콘 뿔: 이마 위에 솟은 반짝이는 나선형 뿔 하나 (보는 방향으로 살짝 기울어짐)
+    g.save(); g.translate(f * 6, t + 3); g.rotate(f * 0.22);
+    const hg = g.createLinearGradient(-6, 0, 6, -30);
+    hg.addColorStop(0, '#ffd6f0'); hg.addColorStop(0.5, '#fff6c8'); hg.addColorStop(1, '#c8e8ff');
+    g.fillStyle = hg; g.beginPath(); g.moveTo(-6, 0); g.lineTo(0, -30); g.lineTo(6, 0); g.quadraticCurveTo(0, 3, -6, 0); g.fill();
+    g.strokeStyle = '#d8a8e0'; g.lineWidth = 1.2; g.stroke();
+    g.strokeStyle = 'rgba(200,140,210,0.9)'; g.lineWidth = 1.4;
+    for (let k = 0; k < 4; k++) { const y = -4 - k * 6.5, w = 5.4 * (1 + y / 30); g.beginPath(); g.moveTo(-w, y + 1.5); g.lineTo(w, y - 2); g.stroke(); }
+    const tw = (Math.sin(time / 180) + 1) / 2;
+    g.fillStyle = `rgba(255,255,255,${0.5 + tw * 0.5})`; g.beginPath(); g.moveTo(0, -36); g.lineTo(1.6, -32); g.lineTo(0, -28); g.lineTo(-1.6, -32); g.fill();
+    g.restore();
   } else if (id === 'brain') {
     // 머리 윗부분에 딱 붙어 튀어나온 뇌 (머리 모서리 곡선에 맞춤)
     g.fillStyle = '#f29ab8'; g.beginPath(); g.ellipse(0, t + 6, 17, 15, 0, Math.PI, Math.PI * 2); g.closePath(); g.fill();

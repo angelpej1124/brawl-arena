@@ -31,6 +31,8 @@
     taiji:       { skill: 'magnet', name: '태극', desc: '당기기·밀기 때 커다란 태극 무늬가 돎', color: '#d8323c' },
     shadowice:   { skill: 'ice', name: '어둠', desc: '눈보라 대신 어둠이 깔리고, 검은 게이지가 차면 어둠에 잠식됨', color: '#2a2238' },
     steel:       { skill: 'rock', name: '강철', desc: '바위 대신 반짝이는 강철 몸', color: '#9fb0c4' },
+    yinyang:     { skill: 'magnet', name: '음양', desc: '당기기·밀기 때 커다란 흑백 음양 무늬가 돎', color: '#1a1a1a' },
+    gold:        { skill: 'rock', name: '골드', desc: '바위 대신 번쩍이는 금덩어리 몸', color: '#ffc928' },
   };
   const PRICE = 50;
   const api = { SKINS, PRICE };

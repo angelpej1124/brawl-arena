@@ -1177,7 +1177,7 @@ class Sim {
       o.lastHitBy = p.id; o.lastHitAt = this.tickCount;
       if (!o.clone) hits++;
     }
-    this.ev({ k: sign > 0 ? 'pull' : 'push', x: r0(cx), y: r0(cy), r: s.radius, h: hits, tj: skinOn(p, 'taiji') ? 1 : 0 });
+    this.ev({ k: sign > 0 ? 'pull' : 'push', x: r0(cx), y: r0(cy), r: s.radius, h: hits, tj: skinOn(p, 'taiji') ? 1 : skinOn(p, 'yinyang') ? 2 : 0 });
   }
   useEmpower(p) {
     if (p.buffT > 0) return;

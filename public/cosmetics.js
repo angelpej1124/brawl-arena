@@ -10,7 +10,7 @@
         bunny:   { name: '토끼 귀' },
         tophat:  { name: '신사 모자' },
         cowboy:  { name: '카우보이 모자' },
-        horns:   { name: '뿔' },
+        horns:   { name: '유니콘 뿔' },
         brain:   { name: '뇌' },
         cap:     { name: '야구 모자' },
         straw:   { name: '밀짚모자' },
