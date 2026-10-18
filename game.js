@@ -1457,9 +1457,11 @@ class Sim {
       if (killer && killer !== p) { if (p.dummy) { /* 더미는 보석 없음 */ } else if (p.bot) killer.botKos = (killer.botKos || 0) + 1; else killer.kos++; }
     }
     const keep = { wins: p.wins, skill: p.skill };
-    // 전환: 죽어도 쿨타임이 초기화되지 않음
-    if (p.skill === 'swap') keep.skillCd = p.skillCd;
-    if (p.skill2 === 'swap') keep.skillCdB = p.skillCdB;
+    // 전환·시간: 죽어도 쿨타임이 초기화되지 않음
+    if (p.skill === 'swap' || p.skill === 'time') keep.skillCd = p.skillCd;
+    if (p.skill2 === 'swap' || p.skill2 === 'time') keep.skillCdB = p.skillCdB;
+    // 콤보: 죽어도 콤보 수 유지
+    if (has(p, 'combo')) keep.combo = p.combo || 0;
     if (this.phase !== 'playing' || !p.inMatch) {
       p.reset(this.stage.respawn.x, this.stage.respawn.y); p.invincible = CONFIG.RESPAWN_INVINCIBLE; return;
     }
