@@ -2184,6 +2184,36 @@ function botThink(sim, b) {
   }
   const offstage = !sim.surfaceBelow(b.x, b.y) || b.y > st.floor + 30;
   const sk = b.skill;
+  const react = (BOT_DIFF[b.diff] || BOT_DIFF.mid).react;   // 위험을 알아채는 정도 (난이도별)
+  // ---- 귀신이 된 상대가 있으면 도망침 (귀신은 때려도 소용없음) ----
+  if (!offstage) {
+    let ghost = null, gd = 1e9;
+    for (const o of sim.players.values()) { if (o.ghostT > 0 && sim.foe(b, o)) { const d = Math.hypot(o.x - b.x, o.y - b.y); if (d < gd) { gd = d; ghost = o; } } }
+    const marked = ghost && (ghost.gMarks[b.id] || 0);
+    if (ghost && gd < 700 && (Math.random() < 0.9 || marked)) {
+      const away = b.x >= ghost.x ? 1 : -1;
+      let dir = away;
+      // 귀신이 더 빠르니, 가까이 오면 사람처럼 머리 위로 뛰어넘어 반대로 빠져나감 (멀면 그냥 도망)
+      if (gd < 170 && !b.jukeT) { b.jukeT = 26 + Math.floor(Math.random() * 14); b.jukeDir = -away; }
+      if (b.jukeT > 0) {
+        b.jukeT--; dir = b.jukeDir;
+        if (b.jukeT > 18 && (b.grounded || (b.jumpsLeft > 0 && b.vy > -100))) wantJump = true;
+        if (b.jukeT === 0) b.jukeT = -40;      // 한 번 넘은 뒤 잠깐은 다시 도망
+      } else if (b.jukeT < 0) b.jukeT++;
+      // 무대 끝이면 반대로 꺾음
+      if (!sim.surfaceBelow(b.x + dir * 90, b.y) && b.grounded) dir = -dir;
+      if (dir > 0) inp.r = 1; else inp.l = 1;
+      // 도망용 스킬
+      const use0 = (k) => { const sl = slotsOf(b); const key = ['s', 'e', 'x'].find((q) => sl[q] === k); if (key && !b.prevInput[key]) inp[key] = 1; };
+      for (const [k, rd] of [[b.skill, b.skillCd <= 0], [b.skill2, b.skillCdB <= 0]]) {
+        if (!k || !rd || gd > 230) continue;
+        if (k === 'blink' || k === 'ninja' || k === 'stealth' || k === 'freeze' || k === 'fly' || k === 'explode' || k === 'swap') use0(k);
+      }
+      if (b.flyT > 0 && ghost.y > b.y - 40) inp.u = 1;
+      if (wantJump && !b.prevInput.u) inp.u = 1;
+      return inp;
+    }
+  }
   // 스킬을 쓰고 싶으면 그 스킬이 배치된 키(Q/E/R)를 누름
   const use = (k) => { const sl = slotsOf(b); const key = ['s', 'e', 'x'].find((q) => sl[q] === k); if (key) inp[key] = 1; };
   const skillList = [[b.skill, b.skillCd <= 0]];
@@ -2215,7 +2245,10 @@ function botThink(sim, b) {
       if (o.stealth > 0) continue;
       // 연기 속에 있는 상대는 봇도 볼 수 없음
       if (sim.smokes.some((s) => Math.hypot(o.x - s.x, o.y - bh(o) / 2 - s.y) < s.r * 0.75)) continue;
-      const d = Math.abs(o.x - b.x) + Math.abs(o.y - b.y);
+      let d = Math.abs(o.x - b.x) + Math.abs(o.y - b.y);
+      // 사람처럼: 바위(넉백 없음)·촉수로 땅 짚은 상대는 때려도 잘 안 날아가니 다른 상대를 먼저
+      if (o.rockT > 0) d += 380;
+      if (o.anchorT > 0) d += 260;
       if (d < best) { best = d; target = o; }
     }
     // 연기가 있으면 그 안에 누가 있는지 모른 채 아무 데나 때려 봄
@@ -2246,6 +2279,14 @@ function botThink(sim, b) {
       else if (b.facing !== side && !b.attack) { if (side > 0) inp.r = 1; else inp.l = 1; }
       if (dy < -90 && b.grounded) wantJump = true;
       if (b.flyT > 0 && dy < -40) inp.u = 1;
+      // 상대가 방패로 막고 있으면 정면으로 때리지 않고 잠깐 기다리거나 뒤로 넘어감
+      const blocking = target.blockT > 0 && target.facing === -side && Math.abs(dx) < 140;
+      if (blocking) { b.waitHit = 8; if (Math.random() < 0.12 && b.grounded) wantJump = true; }
+      // 바위 상태 상대: 굳이 붙지 않고 거리를 둠
+      if (target.rockT > 0 && Math.abs(dx) < 120) { inp.l = side > 0 ? 1 : 0; inp.r = side > 0 ? 0 : 1; b.waitHit = 6; }
+      // 많이 맞은 상태에서 상대가 강해져 있으면(태양·강화·거인·헐크) 잠깐 거리를 벌림
+      const strong = target.sunT > 0 || target.buffT > 0 || target.giantT > 0 || (has(target, 'hulk') && target.hulkS > 1.4);
+      if (strong && b.damage > 90 && Math.abs(dx) < 200 && Math.random() < 0.6) { inp.l = side > 0 ? 1 : 0; inp.r = side > 0 ? 0 : 1; }
       if (dy > 60 && b.grounded && sim.onPlatform(b)) inp.d = 1;
       if (b.botCd > 0) b.botCd--;
       const R = Math.random();
@@ -2310,10 +2351,25 @@ function botThink(sim, b) {
         const mine = sim.shields.find((q) => q.owner === b.id && q.ground);
         if (mine && sim.surfaceBelow(mine.x, mine.y)) { inp.l = mine.x < b.x - 10 ? 1 : 0; inp.r = mine.x > b.x + 10 ? 1 : 0; if (mine.y < b.y - 60) wantJump = true; }
       }
-      if (b.archHold > 0) { /* 시위 당기는 중 */ } else if (Math.abs(dx) < 80 && Math.abs(dy) < 50 && b.facing === side && !b.attack && b.botCd <= 0) {
+      if (b.waitHit > 0) { b.waitHit--; } else if (b.archHold > 0) { /* 시위 당기는 중 */ } else if (Math.abs(dx) < 80 && Math.abs(dy) < 50 && b.facing === side && !b.attack && b.botCd <= 0) {
         if (target.damage > 70 && Math.random() < 0.5) inp.h = 1; else inp.a = 1;
         b.botCd = 14 + Math.floor(Math.random() * 18);
       }
+    }
+    // ---- 위험 피하기 (사람처럼) ----
+    if (Math.random() < react) {
+      const mv = inp.r ? 1 : inp.l ? -1 : 0;
+      // 적 지뢰를 밟을 것 같으면 뛰어넘음
+      if (b.grounded && mv && sim.mines.some((m) => m.arm <= 0 && sim.foe(m, b) && (m.x - b.x) * mv > 10 && Math.abs(m.x - b.x) < 95 && Math.abs(m.y - b.y) < 12)) wantJump = true;
+      // 날아오는 화살·쿠나이·참격·총알·방패: 뛰어서 피함
+      const inc = [...sim.arrows, ...sim.slashes, ...sim.bullets, ...sim.shields.filter((q) => !q.ground && !q.bounced)].some((q) => sim.foe(q, b) && Math.sign(b.x - q.x) === Math.sign(q.vx || 0) && Math.abs(b.x - q.x) < 230 && Math.abs((q.y || 0) - (b.y - bh(b) / 2)) < 55);
+      if (inc && b.grounded) wantJump = true;
+      // 떨어지는 별비 아래에 있으면 옆으로 빠짐
+      const star = sim.starBits.find((q) => sim.foe(q, b) && q.y < b.y && Math.abs(q.x + q.vx * ((b.y - q.y) / Math.max(1, q.vy)) - b.x) < 70);
+      if (star) { const away = b.x >= star.x ? 1 : -1; inp.r = away > 0 ? 1 : 0; inp.l = away > 0 ? 0 : 1; }
+      // 다가오는 바람 소용돌이: 반대로 뛰어 피함
+      const wnd = sim.winds.find((w) => sim.foe(w, b) && Math.sign(b.x - w.x) === Math.sign(w.vx) && Math.abs(b.x - w.x) < 260);
+      if (wnd) { const away = Math.sign(wnd.vx); inp.r = away > 0 ? 1 : 0; inp.l = away > 0 ? 0 : 1; if (Math.abs(b.x - wnd.x) < 150 && b.grounded) wantJump = true; }
     }
     edgeGuard();
     // 벽에 막혀 못 가면 점프
@@ -2331,9 +2387,9 @@ function botThink(sim, b) {
 // ---------------- 봇 난이도 ----------------
 // 하드 = 원래 봇 그대로. 미들·이지는 반응이 늦고, 공격·스킬을 덜 쓰고, 가끔 멍하니 있음
 const BOT_DIFF = {
-  hard: { delay: 0, atk: 1, skill: 1, idle: 0 },
-  mid:  { delay: 9, atk: 0.55, skill: 0.45, idle: 0.004 },
-  easy: { delay: 18, atk: 0.28, skill: 0.18, idle: 0.012 },
+  hard: { delay: 0, atk: 1, skill: 1, idle: 0, react: 0.5 },
+  mid:  { delay: 6, atk: 0.72, skill: 0.62, idle: 0.002, react: 0.32 },
+  easy: { delay: 12, atk: 0.45, skill: 0.36, idle: 0.006, react: 0.18 },
 };
 function botInput(sim, b) {
   const D = BOT_DIFF[b.diff] || BOT_DIFF.mid;
