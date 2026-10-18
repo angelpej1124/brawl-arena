@@ -1102,13 +1102,15 @@ function drawPlayer(p, time) {
         }
         ctx.restore();
       }
-      if (angel) {
-        ctx.strokeStyle = 'rgba(255,225,90,0.95)'; ctx.lineWidth = 4;
-        ctx.beginPath(); ctx.ellipse(0, -PH - 14 + Math.sin(time / 200) * 2, 15, 5, 0, 0, Math.PI * 2); ctx.stroke();
-      } else {
-        ctx.fillStyle = '#8b1030';
-        ctx.beginPath(); ctx.moveTo(-14, -PH + 4); ctx.quadraticCurveTo(-20, -PH - 10, -12, -PH - 18); ctx.lineTo(-7, -PH + 2); ctx.fill();
-        ctx.beginPath(); ctx.moveTo(14, -PH + 4); ctx.quadraticCurveTo(20, -PH - 10, 12, -PH - 18); ctx.lineTo(7, -PH + 2); ctx.fill();
+      if (!angel) {
+        // 악마 뿔: 모자를 쓰고 있으면 모자 양옆으로 비스듬히 삐져나옴 (모자가 뿔 뿌리를 덮음)
+        const hw = p.cs && p.cs[0] ? HAT_W[p.cs[0]] || 14 : 0;
+        ctx.fillStyle = '#8b1030'; ctx.strokeStyle = '#4a0018'; ctx.lineWidth = 1.2;
+        for (const sd of [-1, 1]) {
+          ctx.save(); ctx.translate(sd * (hw ? Math.max(12, hw - 2) : 10), -PH + 3); if (hw) ctx.rotate(sd * 0.55);
+          ctx.beginPath(); ctx.moveTo(sd * 4, 1); ctx.quadraticCurveTo(sd * 10, -12, sd * 2, -21); ctx.lineTo(-sd * 3, -1); ctx.closePath(); ctx.fill(); ctx.stroke();
+          ctx.restore();
+        }
       }
     } else {
       // 비행: 날개
@@ -1150,7 +1152,10 @@ function drawPlayer(p, time) {
     ctx.fillStyle = '#f2ead8'; ctx.fillRect(-11, -PH + 28, 22, 5);   // 이빨
     ctx.strokeStyle = '#5a1a14'; ctx.lineWidth = 1; for (let i = 0; i < 6; i++) { ctx.beginPath(); ctx.moveTo(-11 + i * 4.4, -PH + 28); ctx.lineTo(-11 + i * 4.4, -PH + 33); ctx.stroke(); }
   }
-  if (p.cs && p.cs[1] && !p.vnm) drawOutfit(ctx, p.cs[1], f, time);   // 치장품: 옷
+  const cosMat = cosmMatOf(p, light);
+  const hatId = p.cs && p.cs[0], hatH = hatId ? HAT_H[hatId] || 0 : 0;
+  const leafUp = p.rk && skinOn(p, 'tree') ? 18 : 0;   // 나무: 잎사귀 위에 모자를 얹음
+  if (p.cs && p.cs[1] && !p.rk && !p.vnm) drawCosm(ctx, 'outfit', p.cs[1], f, time, cosMat === 'light' ? null : cosMat, 0);   // 치장품: 옷
   if (hasK(p, 'hulk') && G > 1.02) {
     // 헐크: 커질수록 초록빛 + 근육 줄
     const hf = (G - 1) / 0.9;
@@ -1208,6 +1213,8 @@ function drawPlayer(p, time) {
     ctx.strokeStyle = 'rgba(60,56,52,0.9)'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(-10, -PH + 6); ctx.lineTo(-2, -PH / 2); ctx.lineTo(-12, -14); ctx.moveTo(8, -PH + 14); ctx.lineTo(12, -24); ctx.stroke();
   }
+  // 바위로 변신하면 옷도 같은 재질(돌·금·강철·나무·크리스탈)로 바뀜
+  if (p.cs && p.cs[1] && p.rk) drawCosm(ctx, 'outfit', p.cs[1], f, time, cosMat, 0);
   if (p.brn) {
     // 불붙음: 몸 위로 흔들리는 불꽃
     for (let i = 0; i < 3; i++) {
@@ -1258,15 +1265,18 @@ function drawPlayer(p, time) {
     // 베놈(검정)·카니지(빨강): 머리 위 표시 + 몸을 덮은 끈적한 무늬
     const carn = p.vnm === 2;
     ctx.fillStyle = carn ? 'rgba(190,18,28,0.95)' : 'rgba(15,12,20,0.95)';
-    ctx.beginPath(); ctx.arc(0, -PH - 14, 8, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.moveTo(-4, -PH - 16); ctx.lineTo(4, -PH - 14); ctx.lineTo(-4, -PH - 12); ctx.fill();
+    const mU = hatH + leafUp;
+    ctx.beginPath(); ctx.arc(0, -PH - 14 - mU, 8, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.moveTo(-4, -PH - 16 - mU); ctx.lineTo(4, -PH - 14 - mU); ctx.lineTo(-4, -PH - 12 - mU); ctx.fill();
     ctx.strokeStyle = carn ? 'rgba(80,0,8,0.85)' : 'rgba(70,64,90,0.8)'; ctx.lineWidth = 2;
+    if (p.cs && p.cs[1]) drawCosm(ctx, 'outfit', p.cs[1], f, time, cosMat, 0);   // 옷도 공생체에 뒤덮임
     for (let i = 0; i < 4; i++) { const yy = -PH + 30 + i * 8, ph = time / 200 + i; ctx.beginPath(); ctx.moveTo(-PW / 2 + 2, yy); ctx.quadraticCurveTo(0, yy + Math.sin(ph) * 6, PW / 2 - 2, yy - 2); ctx.stroke(); }
   } else if (p.ctl) {
     // 기생당함: 초록 눈
     ctx.fillStyle = 'rgba(123,227,111,0.9)';
-    ctx.beginPath(); ctx.arc(0, -PH - 14, 7, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#163a12'; ctx.beginPath(); ctx.arc(0, -PH - 14, 3, 0, Math.PI * 2); ctx.fill();
+    const mU = hatH + leafUp;
+    ctx.beginPath(); ctx.arc(0, -PH - 14 - mU, 7, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#163a12'; ctx.beginPath(); ctx.arc(0, -PH - 14 - mU, 3, 0, Math.PI * 2); ctx.fill();
   }
   if (light) { ctx.fillStyle = 'rgba(255,255,255,0.5)'; roundRect(-PW / 2, -PH, PW, PH, 12); ctx.fill(); }
   if (p.sl && p.slm) {
@@ -1281,7 +1291,7 @@ function drawPlayer(p, time) {
   if (p.dm) {
     // 더미: 몸에 과녁
     for (const [r, c] of [[13, '#ffffff'], [9, '#ff4d4d'], [5, '#ffffff'], [2, '#ff4d4d']]) { ctx.fillStyle = c; ctx.beginPath(); ctx.arc(0, -PH * 0.42, r, 0, Math.PI * 2); ctx.fill(); }
-  } else if (p.b) { ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(-2, -PH - 10, 4, 10); ctx.beginPath(); ctx.arc(0, -PH - 12, 4, 0, Math.PI * 2); ctx.fill(); }
+  } else if (p.b) { const aU = hatH + leafUp; ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(-2, -PH - 10 - aU, 4, 10); ctx.beginPath(); ctx.arc(0, -PH - 12 - aU, 4, 0, Math.PI * 2); ctx.fill(); }
   if (p.vnm) {
     // 원래 눈 대신 크고 찢어진 흰 눈만
     ctx.fillStyle = '#ffffff';
@@ -1293,7 +1303,12 @@ function drawPlayer(p, time) {
     ctx.fillStyle = '#1a1030';
     ctx.fillRect(f * 4 + f * 2, -PH + 17, 4, 6); ctx.fillRect(f * 4 + 10 * f + f * 2, -PH + 17, 4, 6);
   }
-  if (p.cs && p.cs[0] && !(p.fly && (skinOn(p, 'angel') || skinOn(p, 'demon')))) drawHat(ctx, p.cs[0], f, time);   // 치장품: 모자
+  if (hatId) drawCosm(ctx, 'hat', hatId, f, time, cosMat, -leafUp);   // 치장품: 모자 (변신·얼음·공생체면 같은 재질로)
+  if (p.fly && skinOn(p, 'angel')) {
+    // 천사 고리: 모자가 있으면 모자 위에 뜸
+    ctx.strokeStyle = 'rgba(255,225,90,0.95)'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.ellipse(0, -PH - 14 - hatH - leafUp + Math.sin(time / 200) * 2, 15, 5, 0, 0, Math.PI * 2); ctx.stroke();
+  }
   // 사거리 버프 (몸 크기 기준): 거인은 몸이 2배라 1.6/2, 헐크도 몸 크기로 나눔
   const hf = hasK(p, 'hulk') && G > 1 ? (G - 1) / 0.9 : 0;
   const otherM = (p.gt ? 1.6 / 2 : 1) * (p.bf ? 1.3 : 1) * (hf ? (1 + 0.6 * hf) / G : 1);
@@ -1429,6 +1444,7 @@ function drawSword(p, f, time, rubM = 1, otherM = 1) {
   ctx.beginPath(); ctx.arc(hx, hy, 9, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
 }
 function finishPlayer(p, x, y, G, light, ownerId, baseAlpha, isClone, time) {
+  const up = headUp(p) * G;   // 모자·잎사귀·천사 고리만큼 머리 위 표시들을 올림
   if (p.el && !isClone) {
     // 원자: 링(무해) + 도는 전자 — 서버와 같은 식 (화면 지연만큼 각도를 앞당김)
     const [n, ph0, boost] = p.el, R = 62 * G, cx = x, cy = y - PH * G / 2;
@@ -1455,7 +1471,7 @@ function finishPlayer(p, x, y, G, light, ownerId, baseAlpha, isClone, time) {
     ctx.fillStyle = '#39ff88';
     for (let i = 0; i < 5; i++) ctx.fillRect(x + (Math.random() - 0.5) * 70 * G, y - Math.random() * PH * G * 1.2, 6 + Math.random() * 18, 3 + Math.random() * 4);
     ctx.font = '700 12px monospace'; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(57,255,136,0.95)';
-    if (Math.floor(time / 120) % 2) ctx.fillText('ERROR', x + jit(), y - PH * G - 30 - (p.b ? 12 : 0));
+    if (Math.floor(time / 120) % 2) ctx.fillText('ERROR', x + jit(), y - PH * G - 30 - (p.b ? 12 : 0) - up);
   }
   if (p.pa && skinOn(p, 'rainbow')) {
     // 무지개 반사: 몸 앞에 세운 무지개 아치
@@ -1478,7 +1494,7 @@ function finishPlayer(p, x, y, G, light, ownerId, baseAlpha, isClone, time) {
   }
   if (p.rv) {
     // 반전: 머리 위 악마 표시 (빨간 얼굴 + 뿔)
-    const dx = x, dy = y - PH * G - 50 - (p.b ? 12 : 0) - (p.cb > 0 ? 22 : 0) + Math.sin(time / 200) * 2;
+    const dx = x, dy = y - PH * G - 50 - (p.b ? 12 : 0) - (p.cb > 0 ? 22 : 0) - up + Math.sin(time / 200) * 2;
     ctx.fillStyle = '#d81b4a';
     ctx.beginPath(); ctx.moveTo(dx - 11, dy - 6); ctx.lineTo(dx - 15, dy - 20); ctx.lineTo(dx - 4, dy - 10); ctx.fill();
     ctx.beginPath(); ctx.moveTo(dx + 11, dy - 6); ctx.lineTo(dx + 15, dy - 20); ctx.lineTo(dx + 4, dy - 10); ctx.fill();
@@ -1491,12 +1507,12 @@ function finishPlayer(p, x, y, G, light, ownerId, baseAlpha, isClone, time) {
   if (p.cb > 0 && !isClone) {
     // 콤보 스택
     ctx.font = '400 20px "Black Han Sans", sans-serif'; ctx.textAlign = 'center';
-    ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillText(`${p.cb} COMBO`, x + 1, y - PH * G - 46 - (p.b ? 12 : 0));
-    ctx.fillStyle = p.cb >= 10 ? '#ff5fa2' : '#ffd0e6'; ctx.fillText(`${p.cb} COMBO`, x, y - PH * G - 47 - (p.b ? 12 : 0));
+    ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillText(`${p.cb} COMBO`, x + 1, y - PH * G - 46 - (p.b ? 12 : 0) - up);
+    ctx.fillStyle = p.cb >= 10 ? '#ff5fa2' : '#ffd0e6'; ctx.fillText(`${p.cb} COMBO`, x, y - PH * G - 47 - (p.b ? 12 : 0) - up);
   }
   if (p.ig > 0 && !p.icd) {
     // 얼음 게이지
-    const bw2 = 46, bx = x - bw2 / 2, by2 = y - PH * G - 42 - (p.b ? 12 : 0);
+    const bw2 = 46, bx = x - bw2 / 2, by2 = y - PH * G - 42 - (p.b ? 12 : 0) - up;
     ctx.fillStyle = 'rgba(10,20,40,0.7)'; roundRect(bx - 2, by2 - 2, bw2 + 4, 10, 4); ctx.fill();
     if (p.idk) ctx.fillStyle = '#1a1424';
     else if (p.iau) {
@@ -1511,15 +1527,14 @@ function finishPlayer(p, x, y, G, light, ownerId, baseAlpha, isClone, time) {
     // 스턴: 머리 위에 빙글빙글 별
     for (let i = 0; i < 3; i++) {
       const a = time / 180 + (i * Math.PI * 2) / 3;
-      const sx = x + Math.cos(a) * 20 * G, sy = y - PH * G - 8 + Math.sin(a) * 6;
+      const sx = x + Math.cos(a) * 20 * G, sy = y - PH * G - 8 - up * 0.6 + Math.sin(a) * 6;
       ctx.fillStyle = '#ffe94a'; ctx.beginPath();
       for (let k = 0; k < 10; k++) { const r = k % 2 ? 3 : 7, t = (k / 10) * Math.PI * 2 - Math.PI / 2; ctx.lineTo(sx + Math.cos(t) * r, sy + Math.sin(t) * r); }
       ctx.closePath(); ctx.fill();
     }
   }
   ctx.globalAlpha = baseAlpha;
-  const HAT_H = { bunny: 34, tophat: 30, cowboy: 18, horns: 34, brain: 14, cap: 12, straw: 14 };
-  const lift = (p.b ? 12 : 0) + PH * (G - 1) + (p.cs && p.cs[0] ? (HAT_H[p.cs[0]] || 0) * G : 0);
+  const lift = (p.b ? 12 : 0) + PH * (G - 1) + up;
   ctx.font = '700 15px "Noto Sans KR", sans-serif'; ctx.textAlign = 'center';
   const isMe = p.id === myId || p.ctl === myId;
   const label = light ? '내 분신' : (isMe ? '▼ ' : '') + (ownerId === hostLive ? '♛ ' : '') + p.n
@@ -1721,6 +1736,77 @@ function drawSmoke(list, time) {
   }
 }
 // ---------------- 치장품 그리기 (몸 좌표계: 발 = (0,0), 머리 꼭대기 = (0,-PH)) ----------------
+const HAT_H = { bunny: 34, tophat: 30, cowboy: 18, horns: 34, brain: 14, cap: 12, straw: 14 };   // 모자 높이
+const HAT_W = { bunny: 15, tophat: 13, cowboy: 14, horns: 8, brain: 17, cap: 18, straw: 15 };    // 모자 몸통 반폭 (뿔이 옆으로 나올 자리)
+// 머리 위로 더 솟은 높이 (모자 + 나무 잎사귀 + 천사 고리) — 이름·콤보 등 머리 위 표시를 그만큼 올림
+function headUp(p) {
+  const hat = p.cs && p.cs[0] ? HAT_H[p.cs[0]] || 0 : 0;
+  const leaf = p.rk && skinOn(p, 'tree') ? 18 : 0;
+  const halo = p.fly && skinOn(p, 'angel') && hat ? 22 : 0;
+  return hat + leaf + halo;
+}
+// 치장품이 어떤 재질로 바뀌는지: 바위 변신(스킨별), 공생체, 얼음·모래·어둠에 갇힘, 내 분신(연하게)
+function cosmMatOf(p, light) {
+  if (p.rk) return skinOn(p, 'tree') ? 'tree' : skinOn(p, 'crystal') ? 'crystal' : skinOn(p, 'gold') ? 'gold' : skinOn(p, 'steel') ? 'steel' : 'stone';
+  if (p.vnm) return p.vnm === 2 ? 'carnage' : 'venom';
+  if (p.icd) return p.idk ? 'shadow' : p.isd ? 'sand' : p.iau ? 'aurora' : 'ice';
+  if (p.frz) return 'ice';
+  if (light) return 'light';
+  return null;
+}
+const cosmCv = typeof document !== 'undefined' ? document.createElement('canvas') : null;
+const cosmCx = cosmCv && cosmCv.getContext('2d');
+// 치장품을 따로 그린 뒤 그 모양 그대로 재질을 입혀서 몸에 붙임
+function drawCosm(g, kind, id, f, time, mat, dy) {
+  const draw = (gg) => (kind === 'hat' ? drawHat(gg, id, f, time) : drawOutfit(gg, id, f, time));
+  if (!mat || !cosmCx) { g.save(); g.translate(0, dy); draw(g); g.restore(); return; }
+  const S = 3, OX = 50, OY = PH + 60, W = 100, H = PH + 80;   // 몸 좌표 x -50..50, y -(PH+60)..20
+  if (cosmCv.width !== W * S || cosmCv.height !== H * S) { cosmCv.width = W * S; cosmCv.height = H * S; }
+  const c = cosmCx;
+  c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1; c.clearRect(0, 0, W * S, H * S);
+  c.setTransform(S, 0, 0, S, OX * S, OY * S);
+  draw(c);
+  c.globalCompositeOperation = 'source-atop';
+  const T = -PH - 50, B = 10;
+  const lg = (stops) => { const gr = c.createLinearGradient(-30, T, 30, B); stops.forEach(([o, col]) => gr.addColorStop(o, col)); return gr; };
+  if (mat === 'stone') {
+    c.fillStyle = 'rgba(128,122,116,0.9)'; c.fillRect(-OX, -OY, W, H);
+    c.strokeStyle = 'rgba(60,56,52,0.85)'; c.lineWidth = 1.5;
+    c.beginPath(); for (let k = 0; k < 6; k++) { const yy = T + k * 16; c.moveTo(-20 + k * 7, yy); c.lineTo(-12 + k * 7, yy + 9); c.lineTo(-17 + k * 7, yy + 15); } c.stroke();
+    c.fillStyle = 'rgba(90,85,80,0.6)'; for (let k = 0; k < 14; k++) c.fillRect(-26 + ((k * 37) % 52), T + ((k * 23) % 110), 2.5, 2.5);
+  } else if (mat === 'tree') {
+    c.fillStyle = 'rgba(122,78,38,0.9)'; c.fillRect(-OX, -OY, W, H);
+    c.strokeStyle = 'rgba(78,48,22,0.9)'; c.lineWidth = 1.5;
+    for (let xx = -28; xx <= 28; xx += 7) { c.beginPath(); c.moveTo(xx, T); c.bezierCurveTo(xx + 3, T + 40, xx - 3, T + 80, xx + 1, B); c.stroke(); }
+  } else if (mat === 'crystal') {
+    c.fillStyle = lg([[0, 'rgba(235,215,255,0.85)'], [0.5, 'rgba(170,120,255,0.8)'], [1, 'rgba(110,200,255,0.85)']]); c.fillRect(-OX, -OY, W, H);
+    c.strokeStyle = 'rgba(255,255,255,0.8)'; c.lineWidth = 1; c.beginPath(); for (let k = -3; k <= 3; k++) { c.moveTo(k * 12 - 20, T); c.lineTo(k * 12 + 20, B); } c.stroke();
+  } else if (mat === 'gold') {
+    c.fillStyle = lg([[0, 'rgba(255,243,176,0.92)'], [0.35, 'rgba(255,212,58,0.92)'], [0.7, 'rgba(217,154,16,0.92)'], [1, 'rgba(168,110,5,0.92)']]); c.fillRect(-OX, -OY, W, H);
+    const gs = T + ((time / 5) % 160); c.strokeStyle = 'rgba(255,255,255,0.85)'; c.lineWidth = 4; c.beginPath(); c.moveTo(-40, gs + 18); c.lineTo(40, gs - 18); c.stroke();
+  } else if (mat === 'steel') {
+    c.fillStyle = lg([[0, 'rgba(225,235,245,0.92)'], [0.5, 'rgba(140,155,175,0.92)'], [1, 'rgba(90,100,118,0.92)']]); c.fillRect(-OX, -OY, W, H);
+    const sh = T + ((time / 6) % 160); c.strokeStyle = 'rgba(255,255,255,0.75)'; c.lineWidth = 3; c.beginPath(); c.moveTo(-40, sh + 18); c.lineTo(40, sh - 18); c.stroke();
+  } else if (mat === 'venom' || mat === 'carnage') {
+    c.fillStyle = mat === 'venom' ? 'rgba(20,16,24,0.9)' : 'rgba(179,18,27,0.9)'; c.fillRect(-OX, -OY, W, H);
+    c.strokeStyle = mat === 'venom' ? 'rgba(70,64,90,0.8)' : 'rgba(80,0,8,0.85)'; c.lineWidth = 1.5;
+    for (let k = 0; k < 8; k++) { const yy = T + k * 14, ph = time / 200 + k; c.beginPath(); c.moveTo(-30, yy); c.quadraticCurveTo(0, yy + Math.sin(ph) * 6, 30, yy - 2); c.stroke(); }
+  } else if (mat === 'ice') {
+    c.fillStyle = 'rgba(170,222,255,0.6)'; c.fillRect(-OX, -OY, W, H);
+    c.strokeStyle = 'rgba(240,252,255,0.9)'; c.lineWidth = 1.2; c.beginPath(); for (let k = -3; k <= 3; k++) { c.moveTo(k * 14 - 10, T); c.lineTo(k * 14 + 6, B); } c.stroke();
+  } else if (mat === 'sand') {
+    c.fillStyle = 'rgba(214,174,100,0.88)'; c.fillRect(-OX, -OY, W, H);
+    c.fillStyle = 'rgba(150,110,55,0.7)'; for (let k = 0; k < 24; k++) c.fillRect(-28 + ((k * 29) % 56), T + ((k * 17) % 120), 2, 2);
+  } else if (mat === 'shadow') {
+    c.fillStyle = 'rgba(12,8,20,0.88)'; c.fillRect(-OX, -OY, W, H);
+  } else if (mat === 'aurora') {
+    c.fillStyle = lg([[0, 'rgba(42,245,152,0.45)'], [0.5, 'rgba(58,224,208,0.45)'], [1, 'rgba(166,107,255,0.45)']]); c.fillRect(-OX, -OY, W, H);
+  } else if (mat === 'light') {
+    c.fillStyle = 'rgba(255,255,255,0.5)'; c.fillRect(-OX, -OY, W, H);
+  }
+  c.globalCompositeOperation = 'source-over';
+  g.drawImage(cosmCv, -OX, -OY + dy, W, H);
+}
 function drawOutfit(g, id, f, time) {
   // 옷이 몸 밖으로 삐져나오지 않게 몸 모양(둥근 모서리)으로 잘라서 그림
   g.save(); roundRect2(g, -PW / 2, -PH, PW, PH, 12); g.clip();
