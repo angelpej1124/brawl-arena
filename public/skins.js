@@ -20,6 +20,11 @@
     supernova:   { skill: 'sun', name: '초신성', desc: '파란 태양 — 햇살과 오라, 평타의 불까지 모두 파란색', color: '#4aa8ff' },
     swamp:       { skill: 'slow', name: '늪', desc: '둔화가 갈색 늪으로 퍼지고, 걸린 사람은 진흙을 뒤집어씀', color: '#7a5a30' },
     darkness:    { skill: 'sword', name: '어둠의 검사', desc: '검이 검은색·보라색으로, 휘두르는 궤적과 참격도 어둠의 보라빛', color: '#5b2a8c' },
+    darkelf:     { skill: 'archer', name: '다크 엘프', desc: '활과 화살이 검은색·보라색으로', color: '#3a1460' },
+    titan:       { skill: 'giant', name: '진격의 거인', desc: '거인이 되면 근육이 드러난 거대한 모습', color: '#b8483a' },
+    timestone:   { skill: 'time', name: '타임 스톤', desc: '시간 저장·되돌리기 이펙트가 초록색', color: '#2fe07a' },
+    aurora:      { skill: 'ice', name: '오로라', desc: '눈보라 대신 하늘에 오로라가 일렁이고, 얼음 게이지도 오로라빛', color: '#5af0c0' },
+    frog:        { skill: 'turret', name: '개구리', desc: '터렛이 개구리로! 총알 대신 혀를 쭉 내밀었다가 감아 들임 (혀 끝만 맞음)', color: '#5cc84a' },
     steel:       { skill: 'rock', name: '강철', desc: '바위 대신 반짝이는 강철 몸', color: '#9fb0c4' },
   };
   const PRICE = 50;

@@ -87,6 +87,7 @@ const TIME_SKIP = new Set(['id', 'name', 'color', 'bot', 'dummy', 'team', 'skins
 const SKIN_DB = require('./public/skins.js').SKINS;
 const activeSkins = (p) => [p.skill, p.skill2].map((k) => k && p.skins && p.skins[k]).filter(Boolean);
 const skinOn = (p, id) => activeSkins(p).includes(id);
+const iceSkin = (p) => (skinOn(p, 'sand') ? 'sand' : skinOn(p, 'aurora') ? 'aurora' : null);
 const skinFx = (p) => { for (const id of activeSkins(p)) if (SKIN_DB[id] && SKIN_DB[id].fx) return SKIN_DB[id].fx; return undefined; };
 // 더블 모드에서 같이 쓸 수 없는 조합 (둘 다 무기를 바꾸는 스킬)
 const CONFLICTS = [['sword', 'archer']];
@@ -801,9 +802,9 @@ class Sim {
       this.ev({ k: 'fdash', x: r0(p.x), y: r0(cy), f: p.facing, pid: p.id, b: skinOn(p, 'bluefire') ? 1 : 0 });
     } else if (k === 'ice') {
       const s = SKILLS.ice;
-      this.blizzards.push({ by: p.id, t: s.blizzard, sand: skinOn(p, 'sand') });
+      this.blizzards.push({ by: p.id, t: s.blizzard, sand: skinOn(p, 'sand'), skin: iceSkin(p) });
       p.skillCd = s.cd;
-      this.ev({ k: 'blizzard', x: r0(p.x), y: r0(cy), d: s.blizzard, n: p.name, sand: skinOn(p, 'sand') ? 1 : 0 });
+      this.ev({ k: 'blizzard', x: r0(p.x), y: r0(cy), d: s.blizzard, n: p.name, sand: skinOn(p, 'sand') ? 1 : 0, au: skinOn(p, 'aurora') ? 1 : 0 });
     } else if (k === 'turret') {
       const s = SKILLS.turret;
       const mine = this.turrets.filter((t) => t.owner === p.id);
@@ -846,13 +847,13 @@ class Sim {
         // 첫 번째: 지금 이 순간을 저장
         this.timeSaves.set(p.id, { snap: this.captureWorld(), x: p.x, y: p.y });
         p.skillCd = 0.5;
-        this.ev({ k: 'tsave', x: r0(p.x), y: r0(cy), n: p.name, pid: p.id });
+        this.ev({ k: 'tsave', x: r0(p.x), y: r0(cy), n: p.name, pid: p.id, g: skinOn(p, 'timestone') ? 1 : 0 });
       } else {
         // 두 번째: 저장한 순간으로 되돌림 (내 쿨타임만 빼고)
         this.timeSaves.delete(p.id);
         this.restoreWorld(saved.snap, p);
         p.skillCd = SKILLS.time.cd;
-        this.ev({ k: 'rewind', n: p.name });
+        this.ev({ k: 'rewind', n: p.name, g: skinOn(p, 'timestone') ? 1 : 0 });
       }
     } else if (k === 'combo') {
       return this.smash(p);
@@ -937,7 +938,7 @@ class Sim {
     }
     // 화살 겉모습: 화염·태양(불화살, 스킨이면 파랑), 얼음(얼음 화살), 바람·스킨 이펙트
     const el = (has(p, 'fire') || p.sunT > 0) ? ((has(p, 'fire') ? skinOn(p, 'bluefire') : skinOn(p, 'supernova')) ? 'blue' : 'fire') : has(p, 'ice') ? (skinOn(p, 'sand') ? 'sand' : 'ice') : skinFx(p) || (has(p, 'wind') ? 'wind' : '');
-    this.arrows.push({ id: ++this.evSeq, owner: p.id, x, y, vx, vy, c, homing, t: homing ? s.homingLife : 2, el, big: sizeOf(p) });
+    this.arrows.push({ id: ++this.evSeq, owner: p.id, x, y, vx, vy, c, homing, t: homing ? s.homingLife : 2, el, big: sizeOf(p), de: skinOn(p, 'darkelf') });
     this.ev({ k: 'shoot', x: r0(p.x), y: r0(y), pid: p.id });
   }
   // 유도 화살: 목표 방향(want)에서 앞이 땅으로 막혀 있으면 조금씩 돌려서 빈 방향을 찾음
@@ -1117,7 +1118,7 @@ class Sim {
     p.attack = null; p.vx = 0; p.vy = 0;
     h.controller = p.id; h.attack = null;
     if (this.clones.has(p.id)) this.clones.delete(p.id);
-    this.ev({ k: 'infest', x: r0(h.x), y: r0(h.y - bh(h) / 2), n: p.name, n2: h.name });
+    this.ev({ k: 'infest', x: r0(h.x), y: r0(h.y - bh(h) / 2), n: p.name, n2: h.name, v: skinOn(p, 'carnage') ? 2 : skinOn(p, 'venom') ? 1 : 0 });
   }
   updateParasite(p, dt) {
     this.tickTimers(p, dt);
@@ -1234,7 +1235,7 @@ class Sim {
     if (a.clone) return;
     if (has(a, 'fire')) this.ignite(t, a, SKILLS.fire.burnHits, dir);
     if (a.sunT > 0) this.ignite(t, a, SKILLS.sun.burnHits, dir);
-    if (has(a, 'ice')) this.chill(t, type === 'heavy' ? SKILLS.ice.fillHeavy : SKILLS.ice.fillLight, skinOn(a, 'sand'));
+    if (has(a, 'ice')) this.chill(t, type === 'heavy' ? SKILLS.ice.fillHeavy : SKILLS.ice.fillLight, iceSkin(a));
   }
   ignite(t, a, n, dir) {
     // 화염 + 태양을 같이 쓰는 중이면 불 피해 2배
@@ -1246,7 +1247,8 @@ class Sim {
   chill(t, amount, sand) {
     if (t.iceT > 0) return;
     t.iceG = (t.iceG || 0) + amount; t.iceHitAt = this.time;
-    t.iceSand = !!sand;                                     // 모래 스킨이면 모래 게이지·모래에 갇힘
+    t.iceSand = sand === 'sand' || sand === true;           // 모래 스킨이면 모래 게이지·모래에 갇힘
+    t.iceAur = sand === 'aurora';                           // 오로라 스킨이면 오로라 게이지
     if (t.iceG >= 100) {
       t.iceG = 0; t.iceT = SKILLS.ice.freeze; t.attack = null;
       this.ev({ k: 'iced', x: r0(t.x), y: r0(t.y - bh(t) / 2), sand: t.iceSand ? 1 : 0 });
@@ -1270,7 +1272,7 @@ class Sim {
       }
     }
     const bz = this.blizzards.find((b) => this.foe({ id: b.by }, p));
-    if (bz && !(p.frozen > 0)) this.chill(p, SKILLS.ice.blizRate * dt, bz.sand);
+    if (bz && !(p.frozen > 0)) this.chill(p, SKILLS.ice.blizRate * dt, bz.skin);
     else if (p.iceG > 0 && this.time - p.iceHitAt > 2) p.iceG = Math.max(0, p.iceG - SKILLS.ice.decay * dt);
   }
   // 화염 돌진: 몸 주변에 닿은 상대를 한 번씩 날리고 불붙임
@@ -1329,12 +1331,26 @@ class Sim {
       t.aim = Math.atan2(target.y - bh(target) / 2 - my, target.x - mx);
       if (t.cd <= 0 && firing) {
         t.cd = s.fireEvery;
-        this.bullets.push({ owner: t.owner, x: mx + Math.cos(t.aim) * 24, y: my + Math.sin(t.aim) * 24, vx: Math.cos(t.aim) * s.bulletSpeed, vy: Math.sin(t.aim) * s.bulletSpeed, t: s.bulletLife });
+        if (skinOn(owner, 'frog')) {
+          // 개구리: 혀를 쭉 내밀었다가 다시 감아 들임 (뻗는 동안 혀 끝만 맞음)
+          const ox = mx + Math.cos(t.aim) * 14, oy = my + Math.sin(t.aim) * 14;
+          this.bullets.push({ owner: t.owner, tg: 1, ox, oy, dx: Math.cos(t.aim), dy: Math.sin(t.aim), len: 0, ext: true, max: s.bulletSpeed * s.bulletLife, x: ox, y: oy, vx: Math.cos(t.aim) * s.bulletSpeed, vy: Math.sin(t.aim) * s.bulletSpeed, t: 3 });
+        } else this.bullets.push({ owner: t.owner, x: mx + Math.cos(t.aim) * 24, y: my + Math.sin(t.aim) * 24, vx: Math.cos(t.aim) * s.bulletSpeed, vy: Math.sin(t.aim) * s.bulletSpeed, t: s.bulletLife });
       }
     }
     const def = { damage: s.dmg, baseKB: s.baseKB, growthKB: s.growthKB, lift: 0.3 };
     for (const b of this.bullets) {
-      b.t -= dt; b.x += b.vx * dt; b.y += b.vy * dt;
+      if (b.tg) {
+        // 혀: 뻗을 때는 앞으로, 다 뻗거나 맞히면 되돌아옴
+        const sp = SKILLS.turret.bulletSpeed;
+        if (b.ext) { b.len += sp * dt; if (b.len >= b.max) b.ext = false; }
+        else { b.len -= sp * 1.4 * dt; if (b.len <= 0) { b.t = 0; continue; } }
+        b.x = b.ox + b.dx * b.len; b.y = b.oy + b.dy * b.len;
+        if (b.ext && this.solidAt(b.x, b.y)) b.ext = false;
+        if (!b.ext) continue;                  // 감아 들일 때는 공격 안 됨
+      } else {
+        b.t -= dt; b.x += b.vx * dt; b.y += b.vy * dt;
+      }
       if (this.stage.solids.some((sf) => b.x > sf.x && b.x < sf.x + sf.w && b.y > sf.y && b.y < sf.y + sf.h)) { b.t = 0; continue; }
       const owner = this.players.get(b.owner);
       if (!owner) { b.t = 0; continue; }
@@ -1342,6 +1358,14 @@ class Sim {
         if (!this.foe(b, o) || !o.alive || o.inside || o.frozen > 0 || o.invincible > 0) continue;
         const ow = bw(o), oh = bh(o);
         if (b.x > o.x - ow / 2 - 6 && b.x < o.x + ow / 2 + 6 && b.y > o.y - oh - 6 && b.y < o.y + 6) {
+          if (b.tg) {
+            // 혀 끝에 맞음 → 혀는 되돌아감 (반사하면 그냥 되돌아감)
+            b.ext = false;
+            if (this.parrying(o)) { this.parried(o, b.x, b.y); break; }
+            this.applyHit(owner, o, def, 'light', { dir: Math.sign(b.dx) || 1, small: true });
+            if (o.clone) this.hitClone(o);
+            break;
+          }
           if (this.parrying(o)) { this.reflectShot(o, b); break; }
           this.applyHit(owner, o, def, 'light', { dir: Math.sign(b.vx) || 1, small: true });
           if (o.clone) this.hitClone(o);
@@ -1507,12 +1531,13 @@ class Sim {
       ph: this.phase, tm: Math.ceil(this.timer), w: this.winner, wi: this.winnerId, wt: this.winTeam,
       md: [this.teamMode ? 1 : 0, this.doubleMode ? 1 : 0], s: this.tickCount, mp: this.stage.id,
       ev: this.recent.slice(-10),
-      ar: this.arrows.map((a) => ({ x: r0(a.x), y: r0(a.y), vx: r0(a.vx), vy: r0(a.vy), h: a.homing ? 1 : 0, el: a.el || undefined, s: a.big > 1 ? Math.round(a.big * 10) / 10 : undefined })),
+      ar: this.arrows.map((a) => ({ x: r0(a.x), y: r0(a.y), vx: r0(a.vx), vy: r0(a.vy), h: a.homing ? 1 : 0, de: a.de ? 1 : undefined, el: a.el || undefined, s: a.big > 1 ? Math.round(a.big * 10) / 10 : undefined })),
       wd: this.winds.map((w) => { const o = this.players.get(w.owner); return { i: w.id, x: r0(w.x), y: r0(w.y), vx: w.vx, r: o && skinOn(o, 'firetornado') ? 1 : 0 }; }),
-      tr: this.turrets.map((t) => ({ i: t.id, x: r0(t.x), y: r0(t.y), a: Math.round(t.aim * 100) / 100, hp: t.hp, c: t.color, o: t.owner })),
-      bl: this.bullets.map((b) => ({ x: r0(b.x), y: r0(b.y), vx: r0(b.vx), vy: r0(b.vy) })),
+      tr: this.turrets.map((t) => { const o = this.players.get(t.owner); return { i: t.id, x: r0(t.x), y: r0(t.y), a: Math.round(t.aim * 100) / 100, hp: t.hp, c: t.color, o: t.owner, fg: o && skinOn(o, 'frog') ? 1 : 0 }; }),
+      bl: this.bullets.map((b) => (b.tg ? { tg: 1, ox: r0(b.ox), oy: r0(b.oy), x: r0(b.x), y: r0(b.y), vx: 0, vy: 0 } : { x: r0(b.x), y: r0(b.y), vx: r0(b.vx), vy: r0(b.vy) })),
       bz: this.blizzards.length ? Math.ceil(Math.max(...this.blizzards.map((b) => b.t)) * 10) / 10 : 0,
       bzs: this.blizzards.some((b) => b.sand) ? 1 : 0,
+      bza: this.blizzards.some((b) => b.skin === 'aurora') ? 1 : 0,
       pj: this.slashes.map((sl) => { const o = this.players.get(sl.owner); return { i: sl.id, x: r0(sl.x), y: r0(sl.y), vx: sl.vx, o: sl.owner, d: o && skinOn(o, 'darkness') ? 1 : 0 }; }),
       sm: this.smokes.map((s) => ({ x: r0(s.x), y: r0(s.y), r: s.r, a: Math.round((s.t / s.max) * 100) / 100 })),
       p: this.list().map((p) => ({
@@ -1525,7 +1550,7 @@ class Sim {
         ft: ten(p.flyT), rt: ten(p.rockT), bt: ten(p.buffT),
         chg: has(p, 'empower') ? (p.charged ? 100 : Math.floor((p.stillT / SKILLS.empower.charge) * 100)) : 0,
         pr: has(p, 'parasite') ? Object.values(p.parHits).filter((n) => n >= SKILLS.parasite.hitsNeeded).length : 0,
-        isd: p.iceSand ? 1 : 0, slm: p.slow > 0 && p.slowMud ? 1 : 0, sn: activeSkins(p), bb: p.burnN > 0 && p.burnBlue ? 1 : 0,
+        isd: p.iceSand ? 1 : 0, iau: p.iceAur ? 1 : 0, slm: p.slow > 0 && p.slowMud ? 1 : 0, sn: activeSkins(p), bb: p.burnN > 0 && p.burnBlue ? 1 : 0,
         ins: p.inside ? 1 : 0, phost: p.parHost, pt: ten(p.parT), ctl: p.controller, rd: p.ready ? 1 : 0,
       })),
       cl: [...this.clones.values()].map((c) => ({
