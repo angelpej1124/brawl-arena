@@ -1463,7 +1463,8 @@ class Sim {
     // 콤보: 죽어도 콤보 수 유지
     if (has(p, 'combo')) keep.combo = p.combo || 0;
     if (this.phase !== 'playing' || !p.inMatch) {
-      p.reset(this.stage.respawn.x, this.stage.respawn.y); p.invincible = CONFIG.RESPAWN_INVINCIBLE; return;
+      // 연습 중(대기실)에 떨어져도 콤보·전환·시간 쿨타임은 그대로
+      p.reset(this.stage.respawn.x, this.stage.respawn.y); Object.assign(p, keep); p.invincible = CONFIG.RESPAWN_INVINCIBLE; return;
     }
     p.stocks--;
     if (p.stocks > 0) { p.reset(this.stage.respawn.x, this.stage.respawn.y); Object.assign(p, keep); p.invincible = CONFIG.RESPAWN_INVINCIBLE; }
