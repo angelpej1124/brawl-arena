@@ -55,7 +55,7 @@ const SKILLS = {
   // 궁수: 강공격을 누르고 있으면 시위를 당김 (full초면 최대), 놓으면 발사. Q는 다음 화살을 유도 화살로
   archer:   { name: '궁수', cd: 13, full: 1, minSpeed: 650, maxSpeed: 1400, gravity: 520, homingSpeed: 760, homingLife: 3, turn: 7 },
   // 시간: 모든 것을 10초 전으로 (시간 스킬 쿨타임은 제외)
-  time:     { name: '시간', cd: 20, back: 10 },
+  time:     { name: '시간', cd: 20 },                                   // 첫 Q 저장, 두 번째 Q 되돌림 → 쿨 20
   // 콤보: 때릴 때마다 스택. Q로 스택만큼 강한 스매시 (범위도 커짐)
   combo:    { name: '콤보', maxStack: 30, baseR: 90, perR: 16, maxR: 520 },
   // 반사: Q를 누르고 window초 안에 들어온 공격을 되돌려 보냄
@@ -80,9 +80,9 @@ const cleanInput = (i) => ({
 // 팀 (팀 모드)
 const TEAMS = [null, { name: '빨강팀', color: '#ff4d4d' }, { name: '파랑팀', color: '#3f8cff' }, { name: '초록팀', color: '#3ccf6e' }, { name: '노랑팀', color: '#ffd23f' }];
 // 시간 되돌리기로 되돌리는 값들
-const TIME_FIELDS = ['x', 'y', 'vx', 'vy', 'facing', 'grounded', 'jumpsLeft', 'damage', 'stocks', 'alive', 'inMatch', 'kos', 'botKos',
-  'skillCd', 'skillCd2', 'skillCdB', 'slow', 'stealth', 'frozen', 'flyT', 'flyDownT', 'rockT', 'buffT', 'giantT', 'rubberT', 'engineT',
-  'stunT', 'quakeT', 'errT', 'sunT', 'invT', 'iceG', 'iceT', 'burnN', 'burnT', 'hulkS', 'hitstun', 'invincible', 'charged', 'stillT', 'combo', 'homingNext'];
+// 시간 되돌리기 때 그대로 두는 것 (나머지 상태는 전부 되돌림)
+const TIME_SKIP = new Set(['id', 'name', 'color', 'bot', 'dummy', 'team', 'skins', 'skill', 'skill2', 'wins', 'ready', 'mapMid',
+  'input', 'prevInput', 'rawInput', 'attack', 'errHold', 'kos', 'botKos']);
 // 스킨: 지금 쓰는 능력에 장착된 스킨만
 const SKIN_DB = require('./public/skins.js').SKINS;
 const activeSkins = (p) => [p.skill, p.skill2].map((k) => k && p.skins && p.skins[k]).filter(Boolean);
@@ -153,7 +153,7 @@ class Sim {
     this.blizzards = [];     // 얼음 눈보라 { by, t }
     this.arrows = [];        // 궁수 화살
     this.winds = [];         // 바람 소용돌이
-    this.history = [];       // 시간 되돌리기용 기록
+    this.timeSaves = new Map(); // 시간: 저장해 둔 순간 (시전자 id -> 상태)
     this.stage = MAPS[Math.floor(Math.random() * MAPS.length)];
     this.phase = 'waiting'; this.timer = 0; this.winner = null; this.winnerId = null;
     this.teamMode = false;   // 팀 모드 (같은 팀끼리는 공격·스킬이 안 통함)
@@ -305,7 +305,7 @@ class Sim {
   }
   clearField() {
     this.clones.clear(); this.smokes = []; this.slashes = [];
-    this.turrets = []; this.bullets = []; this.blizzards = []; this.arrows = []; this.winds = []; this.history = [];
+    this.turrets = []; this.bullets = []; this.blizzards = []; this.arrows = []; this.winds = []; this.timeSaves = new Map();
   }
   removeTurrets(id) {
     this.turrets = this.turrets.filter((t) => t.owner !== id);
@@ -442,46 +442,53 @@ class Sim {
     for (const p of list) if (p.alive && !p.inside) this.checkBlast(p);
     for (const c of this.clones.values()) this.checkCloneBounds(c);
     for (const p of targets) p.prevInput = { ...p.input };
-    if (this.tickCount % 15 === 0) this.record();
   }
 
-  // ---------------- 시간: 0.25초마다 상태를 기록해 둠 ----------------
-  record() {
-    const snap = { time: this.time, players: new Map(), clones: new Map(), turrets: this.turrets.map((t) => ({ ...t })) };
-    for (const p of this.players.values()) {
-      const o = {};
-      for (const f of TIME_FIELDS) o[f] = p[f];
-      snap.players.set(p.id, o);
-    }
-    for (const c of this.clones.values()) snap.clones.set(c.ownerId, { x: c.x, y: c.y, hitsTaken: c.hitsTaken });
-    this.history.push(snap);
-    const keep = Math.ceil((SKILLS.time.back + 1) * 4);
-    if (this.history.length > keep) this.history.shift();
+  // ---------------- 시간: 첫 Q = 지금을 저장, 두 번째 Q = 저장한 순간으로 되돌림 ----------------
+  // 되돌릴 때 모든 것(위치·퍼센트·목숨·쿨타임·맞은 효과·분신·터렛·날아가던 것)을 그때로. 시전자 쿨타임만 그대로
+  captureWorld() {
+    const cp = (o) => {
+      const out = {};
+      for (const [k, v] of Object.entries(o)) if (!TIME_SKIP.has(k)) out[k] = typeof v === 'object' && v !== null ? structuredClone(v) : v;
+      return out;
+    };
+    return {
+      players: new Map([...this.players.values()].map((p) => [p.id, cp(p)])),
+      clones: [...this.clones.values()].map((c) => structuredClone({ ...c, attack: null })),
+      turrets: structuredClone(this.turrets), bullets: structuredClone(this.bullets), slashes: structuredClone(this.slashes),
+      arrows: structuredClone(this.arrows), winds: structuredClone(this.winds), smokes: structuredClone(this.smokes),
+      blizzards: structuredClone(this.blizzards),
+    };
   }
-  rewind(caster) {
-    const want = this.time - SKILLS.time.back;
-    let snap = this.history[0];
-    for (const h of this.history) if (h.time <= want) snap = h;
-    if (!snap) return false;
-    for (const p of this.players.values()) if (p.parHost) this.endParasite(p, true);
+  restoreWorld(snap, caster) {
+    const keepCd = { skillCd: caster.skillCd, skillCd2: caster.skillCd2, skillCdB: caster.skillCdB };
     for (const p of this.players.values()) {
       const o = snap.players.get(p.id);
-      if (!o) continue;                     // 그 뒤에 들어온 사람은 그대로
-      // 시간 스킬 쿨타임은 되돌리지 않음
-      const keepA = p.skill === 'time' ? p.skillCd : null, keepB = p.skill2 === 'time' ? p.skillCdB : null;
-      Object.assign(p, o);
-      if (keepA !== null) p.skillCd = keepA;
-      if (keepB !== null) p.skillCdB = keepB;
-      p.attack = null; p.drawT = 0; p.fdashT = 0; p.prevInput = { ...p.input };
+      if (!o) continue;                     // 저장한 뒤에 들어온 사람은 그대로
+      Object.assign(p, structuredClone(o));
+      p.attack = null; p.prevInput = { ...p.input };
     }
-    for (const [ownerId, c] of [...this.clones]) {
-      const o = snap.clones.get(ownerId);
-      if (!o) this.clones.delete(ownerId); else Object.assign(c, o, { vx: 0, vy: 0 });
+    Object.assign(caster, keepCd);          // 시전자 쿨타임만 지금 그대로
+    // 기생 연결이 깨졌으면 정리
+    for (const p of this.players.values()) {
+      if (p.parHost && !this.players.has(p.parHost)) { p.inside = false; p.parHost = null; }
+      if (p.controller && !this.players.has(p.controller)) p.controller = null;
     }
-    this.turrets = snap.turrets.filter((t) => this.players.has(t.owner)).map((t) => ({ ...t }));
-    this.slashes = []; this.bullets = []; this.arrows = []; this.winds = [];
-    this.history = this.history.filter((h) => h.time <= snap.time);
-    return true;
+    this.clones = new Map();
+    for (const c of snap.clones) {
+      if (!this.players.has(c.ownerId)) continue;
+      const n = new Player(c.id, c.name, c.color, c.bot, c.skill);
+      Object.assign(n, structuredClone(c));
+      this.clones.set(c.ownerId, n);
+    }
+    const alive = (x) => this.players.has(x.owner);
+    this.turrets = structuredClone(snap.turrets).filter(alive);
+    this.bullets = structuredClone(snap.bullets).filter(alive);
+    this.slashes = structuredClone(snap.slashes).filter(alive);
+    this.arrows = structuredClone(snap.arrows).filter(alive);
+    this.winds = structuredClone(snap.winds).filter(alive);
+    this.smokes = structuredClone(snap.smokes);
+    this.blizzards = structuredClone(snap.blizzards).filter((z) => this.players.has(z.by));
   }
 
   tickTimers(p, dt) {
@@ -829,9 +836,19 @@ class Sim {
       p.homingNext = true; p.skillCd = SKILLS.archer.cd;
       this.ev({ k: 'homing', x: r0(p.x), y: r0(cy), pid: p.id });
     } else if (k === 'time') {
-      if (!this.rewind(p)) return;
-      p.skillCd = SKILLS.time.cd;
-      this.ev({ k: 'rewind', n: p.name });
+      const saved = this.timeSaves.get(p.id);
+      if (!saved) {
+        // 첫 번째: 지금 이 순간을 저장
+        this.timeSaves.set(p.id, { snap: this.captureWorld(), x: p.x, y: p.y });
+        p.skillCd = 0.5;
+        this.ev({ k: 'tsave', x: r0(p.x), y: r0(cy), n: p.name, pid: p.id });
+      } else {
+        // 두 번째: 저장한 순간으로 되돌림 (내 쿨타임만 빼고)
+        this.timeSaves.delete(p.id);
+        this.restoreWorld(saved.snap, p);
+        p.skillCd = SKILLS.time.cd;
+        this.ev({ k: 'rewind', n: p.name });
+      }
     } else if (k === 'combo') {
       return this.smash(p);
     } else if (k === 'reflect') {
@@ -1471,6 +1488,7 @@ class Sim {
       brn: p.burnN > 0 ? 1 : 0, fd: p.fdashT > 0 ? 1 : 0,
       er: p.errT > 0 ? 1 : 0, sun: p.sunT > 0 ? 1 : 0,
       rv: p.invT > 0 ? 1 : 0, pa: p.parryT > 0 ? 1 : 0,
+      ts: this.timeSaves.has(p.id) ? [r0(this.timeSaves.get(p.id).x), r0(this.timeSaves.get(p.id).y)] : 0,
       dr: p.drawT > 0 ? Math.round(p.drawT * 100) / 100 : 0, cb: p.combo || 0, hm: p.homingNext ? 1 : 0,
       smk: this.inSmoke(p) ? 1 : 0,
     });
@@ -1625,7 +1643,12 @@ function botThink(sim, b) {
         if (sk === 'turret' && ready && b.grounded && best < 520 && R < 0.03) use(sk);
         if (sk === 'wind' && ready && b.facing === side && Math.abs(dx) < 420 && Math.abs(dy) < 90 && R < 0.04) use(sk);
         if (sk === 'archer' && ready && !b.homingNext && best > 250 && R < 0.03) use(sk);
-        if (sk === 'time' && ready && b.damage > 100 && R < 0.01) use(sk);
+        if (sk === 'time' && ready) {
+          // 봇: 다쳤을 때 저장해 두지 않고, 멀쩡할 때 저장 → 많이 맞으면 되돌림
+          const sv = sim.timeSaves.get(b.id);
+          if (!sv && b.damage < 20 && R < 0.02) use(sk);
+          else if (sv && (b.damage > 90 || b.stocks < sv.snap.players.get(b.id).stocks) && R < 0.05) use(sk);
+        }
         if (sk === 'invert' && ready && best < 500 && R < 0.02) use(sk);
         if (sk === 'reflect' && ready) {
           // 가까운 적이 공격 중이거나 화살·참격·총알이 날아오면 가끔 반사 시도

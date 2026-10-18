@@ -42,7 +42,7 @@ const SKILLS = {
   sun:      { name: '태양', desc: '6초간 태양의 힘: 빨라지고, 평타에 불이 붙고, 넉백이 세짐', cd: '쿨 11초' },
   wind:     { name: '바람', desc: '공격에 바람이 붙어 더 날아감. Q는 앞으로 나아가며 휩쓸어 가는 소용돌이', cd: '쿨 10초' },
   archer:   { name: '궁수', desc: '강공격을 누르고 있으면 시위를 당김(1초면 최대), 놓으면 발사. Q는 다음 화살이 벽을 피해 쫓아가는 유도 화살', cd: '쿨 13초' },
-  time:     { name: '시간', desc: '모든 것을 10초 전으로 되돌림 (위치·쿨타임·목숨 등, 시간 쿨타임은 제외). 탈락하면 못 씀', cd: '쿨 20초' },
+  time:     { name: '시간', desc: '첫 Q로 지금 순간을 저장, 다시 Q를 누르면 모두 그 순간으로 되돌림 (위치·퍼센트·목숨·상대 쿨타임·맞은 효과 등, 내 쿨타임만 그대로). 탈락하면 못 씀', cd: '되돌린 뒤 쿨 20초' },
   combo:    { name: '콤보', desc: '때릴 때마다 콤보가 쌓임. Q는 콤보만큼 강하고 넓은 스매시 (죽으면 초기화)', cd: '콤보 1 이상' },
   reflect:  { name: '반사', desc: '상대 공격이 들어오는 순간에 맞춰 Q를 누르면 반사. 돌진·검 돌진은 반대로 날려 보내고, 화살(유도 포함)·참격·총알·바람은 되돌려 보냄', cd: '쿨 3초' },
   invert:   { name: '반전', desc: '나를 뺀 상대 절반(올림)의 좌우 키가 7초간 반대로. 머리 위에 악마 표시', cd: '쿨 13초' },
@@ -705,7 +705,7 @@ function onEvent(ev) {
   } else if (ev.k === 'deny') {
     banners.push({ text: ev.msg, life: 1.6, max: 1.6, small: true, color: '#ff9b9b' });
   } else if (ev.k === 'quake') {
-    if (ev.by !== myId) { quakeT = ev.d || 3; banners.push({ text: '지진!', life: 1.2, max: 1.2, small: true, color: '#d6a45c' }); }
+    if (ev.by !== myId) banners.push({ text: '지진!', life: 1.2, max: 1.2, small: true, color: '#d6a45c' });
     for (let i = 0; i < 20; i++) particles.push({ x: ev.x + (Math.random() - 0.5) * 120, y: ev.y, vx: (Math.random() - 0.5) * 300, vy: -Math.random() * 400, life: 0.6, max: 0.6, c: '#a3825a', r: 6 });
   } else if (ev.k === 'giant' || ev.k === 'rubber' || ev.k === 'engine') {
     const col = ev.k === 'giant' ? '255,107,74' : ev.k === 'rubber' ? '255,159,243' : '255,176,0';
@@ -797,6 +797,9 @@ function onEvent(ev) {
     particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.35, max: 0.35, r: 55, c: '150,130,255' });
   } else if (ev.k === 'thunk') {
     for (let i = 0; i < 6; i++) particles.push({ x: ev.x, y: ev.y, vx: (Math.random() - 0.5) * 160, vy: -Math.random() * 160, life: 0.3, max: 0.3, c: '#b59a74', r: 3 });
+  } else if (ev.k === 'tsave') {
+    particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.5, max: 0.5, r: 70, c: '124,156,255' });
+    banners.push({ text: `${ev.n}: 시간 저장!`, life: 1.2, max: 1.2, small: true, color: '#aebfff' });
   } else if (ev.k === 'rewind') {
     rewindT = 0.9; banners.push({ text: `${ev.n}: 시간 되돌리기!`, life: 1.6, max: 1.6, small: true, color: '#aebfff' });
   } else if (ev.k === 'smash') {
@@ -1373,6 +1376,7 @@ function skillStatus(p) {
   if (k === 'magnet') return { ready: !(p.cd > 0) || !(p.cd2 > 0), text: `Q ${t(p.cd)} E ${t(p.cd2)}` };
   if (k === 'empower') return p.bf ? { ready: true, text: `강화 중 ${p.bt}s` } : { ready: p.chg >= 100, text: p.chg >= 100 ? '충전 완료!' : `충전 ${p.chg || 0}%` };
   if (k === 'undying' || k === 'hulk') return { ready: true, text: '패시브' };
+  if (k === 'time' && p.ts) return { ready: !(p.cd > 0), text: '저장됨' };
   if (k === 'combo') return { ready: p.cb > 0, text: `콤보 ${p.cb || 0}` };
   if (k === 'archer' && p.hm) return { ready: true, text: '유도 준비' };
   if (k === 'parasite') return p.ins ? { ready: true, text: `기생 중 ${p.pt}s` } : { ready: p.pr > 0, text: p.pr > 0 ? `가능 ${p.pr}명` : '3번 때리기' };
@@ -1782,6 +1786,9 @@ function frame(now) {
     shake *= Math.pow(0.002, dt);
     let sx = (Math.random() - 0.5) * shake * scale, sy = (Math.random() - 0.5) * shake * scale;
     let rot = 0;
+    // 지진: 서버가 알려 주는 내 흔들림 상태를 따름 (시간 되돌리기에도 맞게)
+    const meQ = latest.p.find((q) => q.id === myId);
+    quakeT = meQ && meQ.qk ? Math.max(quakeT, 0.4) : Math.max(0, quakeT - dt * 3);
     if (quakeT > 0) {
       quakeT -= dt;
       const q = reduceMotion ? 6 : 34 * Math.min(1, quakeT + 0.3);
@@ -1794,6 +1801,16 @@ function frame(now) {
     drawStage();
     drawSlashes(latest, now);
     drawTurrets(latest, now);
+    for (const q of latest.p) if (q.ts) {
+      // 시간 저장 위치: 반투명 시계
+      const [tx, ty] = q.ts, cy3 = ty - 34;
+      ctx.globalAlpha = 0.55 + Math.sin(now / 250) * 0.15;
+      ctx.strokeStyle = '#9fb3ff'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(tx, cy3, 22, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(tx, cy3); ctx.lineTo(tx, cy3 - 15); ctx.moveTo(tx, cy3); ctx.lineTo(tx + 10 * Math.cos(now / 400), cy3 + 10 * Math.sin(now / 400)); ctx.stroke();
+      ctx.fillStyle = q.c; ctx.beginPath(); ctx.arc(tx, cy3 + 32, 5, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
     drawArrowsWinds(latest, now);
     interpolatedPlayers('cl').forEach((c) => drawPlayer(c, now));
     players.filter((p) => p.id !== myId).forEach((p) => drawPlayer(p, now));
