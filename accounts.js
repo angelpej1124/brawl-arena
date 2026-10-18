@@ -112,7 +112,7 @@ function scrypt(pw, salt) {
 //  보석 · 스킬 뽑기 · 관리자
 //  숫자를 바꾸면 보석 획득량과 뽑기 확률이 바뀌어요.
 // =====================================================================
-const ALL_SKILLS = ['slow', 'blink', 'stealth', 'clone', 'swap', 'fly', 'explode', 'freeze', 'rock', 'magnet', 'empower', 'parasite', 'quake', 'giant', 'rubber', 'engine', 'sword', 'blackflash', 'lightning', 'undying', 'hulk', 'fire', 'ice', 'turret', 'error', 'sun', 'wind', 'archer', 'time', 'combo', 'reflect', 'invert'];
+const ALL_SKILLS = ['slow', 'blink', 'stealth', 'clone', 'swap', 'fly', 'explode', 'freeze', 'rock', 'magnet', 'empower', 'parasite', 'quake', 'giant', 'rubber', 'engine', 'sword', 'blackflash', 'lightning', 'undying', 'hulk', 'fire', 'ice', 'turret', 'error', 'sun', 'wind', 'archer', 'time', 'combo', 'reflect', 'invert', 'atom', 'mine'];
 const BASE_SKILLS = ['slow', 'blink'];          // 게스트·새 계정 기본 스킬
 const GEMS = {
   START: 200,          // 가입 선물
@@ -127,12 +127,12 @@ const GACHA = {
   DUP_REFUND: 40,     // 이미 가진 스킬이 나오면 돌려주는 보석
   // 뽑기 확률 (가중치)
   POOL: [
-    // 새 스킬 30개는 각 3.25%, 기본 스킬(둔화·점멸)은 각 1.25%  (가중치 합 400)
+    // 새 스킬 32개는 각 3%, 기본 스킬(둔화·점멸)은 각 2%  (가중치 합 400)
     ...['stealth', 'clone', 'swap', 'fly', 'explode', 'freeze', 'rock', 'magnet', 'empower', 'parasite', 'quake', 'giant', 'rubber', 'engine',
-      'sword', 'blackflash', 'lightning', 'undying', 'hulk', 'fire', 'ice', 'turret', 'error', 'sun', 'wind', 'archer', 'time', 'combo', 'reflect', 'invert']
-      .map((skill) => ({ skill, weight: 13 })),
-    { skill: 'slow', weight: 5 },
-    { skill: 'blink', weight: 5 },
+      'sword', 'blackflash', 'lightning', 'undying', 'hulk', 'fire', 'ice', 'turret', 'error', 'sun', 'wind', 'archer', 'time', 'combo', 'reflect', 'invert', 'atom', 'mine']
+      .map((skill) => ({ skill, weight: 12 })),
+    { skill: 'slow', weight: 8 },
+    { skill: 'blink', weight: 8 },
   ],
 };
 // 관리자 닉네임 (환경 변수 ADMIN_NICKS, 쉼표로 여러 명). 이미 가입된 계정에만 적용돼요.
@@ -142,6 +142,8 @@ const ADMIN_NICKS = String(process.env.ADMIN_NICKS || '').split(',').map((n) => 
 function upgrade(a, key) {
   let changed = false;
   if (!Array.isArray(a.skins)) { a.skins = []; changed = true; }          // 산 스킨
+  if (!Array.isArray(a.cosm)) { a.cosm = []; changed = true; }            // 가진 치장품 ('hat:bunny' 형식)
+  if (!a.cosmSel || typeof a.cosmSel !== 'object') { a.cosmSel = {}; changed = true; }   // 카테고리별 장착
   if (!a.skinSel || typeof a.skinSel !== 'object') { a.skinSel = {}; changed = true; }   // 능력별 장착 스킨
   if (!Number.isFinite(a.gems)) { a.gems = GEMS.START; changed = true; }
   if (!Array.isArray(a.owned)) { a.owned = [...BASE_SKILLS]; changed = true; }
@@ -163,6 +165,7 @@ function publicProfile(a) {
     nick: a.nick, wins: a.wins, games: a.games, kos: a.kos, skill: a.skill,
     gems: a.gems, owned: [...a.owned], admin: !!a.admin,
     skins: [...(a.skins || [])], skinSel: { ...(a.skinSel || {}) },
+    cosm: [...(a.cosm || [])], cosmSel: { ...(a.cosmSel || {}) },
   };
 }
 
@@ -283,6 +286,37 @@ function equipSkin(key, skill, id) {
   a.skinSel[skill] = id; save();
   return { profile: publicProfile(a) };
 }
+// ---------- 치장품 (뽑기 70보석, 카테고리별 하나씩 장착) ----------
+const COSM = require('./public/cosmetics.js');
+function cosmGacha(key) {
+  const a = store.accounts[key];
+  if (!a) throw new Error('로그인이 필요해요.');
+  if (a.gems < COSM.COST) throw new Error(`보석이 모자라요. 치장품 뽑기는 ${COSM.COST}개예요.`);
+  a.gems -= COSM.COST;
+  const pick = COSM.ALL[crypto.randomInt(COSM.ALL.length)];
+  const tag = pick.cat + ':' + pick.id;
+  const dup = a.cosm.includes(tag);
+  if (dup) a.gems += COSM.DUP_REFUND; else a.cosm.push(tag);
+  save();
+  return { cat: pick.cat, item: pick.id, dup, refund: dup ? COSM.DUP_REFUND : 0, profile: publicProfile(a) };
+}
+function cosmEquip(key, cat, item) {
+  const a = store.accounts[key];
+  if (!a) throw new Error('로그인이 필요해요.');
+  if (!COSM.COSMETICS[cat]) throw new Error('없는 카테고리예요.');
+  if (!item) { delete a.cosmSel[cat]; save(); return { profile: publicProfile(a) }; }
+  if (!COSM.COSMETICS[cat].items[item]) throw new Error('없는 치장품이에요.');
+  if (!a.cosm.includes(cat + ':' + item)) throw new Error('아직 뽑지 않은 치장품이에요.');
+  a.cosmSel[cat] = item; save();
+  return { profile: publicProfile(a) };
+}
+function cosmOf(key) {
+  const a = key && store.accounts[key];
+  if (!a) return {};
+  const out = {};
+  for (const [cat, item] of Object.entries(a.cosmSel || {})) if (a.cosm.includes(cat + ':' + item)) out[cat] = item;
+  return out;
+}
 // 게임에 쓸 장착 스킨 (능력 -> 스킨 id)
 function skinsOf(key) {
   const a = key && store.accounts[key];
@@ -359,6 +393,6 @@ setInterval(() => {
 
 module.exports = {
   init, storage: () => storageName, signup, login, logout, fromToken, profileOf, nickOf, isTaken,
-  owns, ownedOf, setSkill, record, buySkin, equipSkin, skinsOf, ranking, cleanNick, gacha, isAdmin, adminList, adminUpdate,
+  owns, ownedOf, setSkill, record, buySkin, equipSkin, skinsOf, cosmGacha, cosmEquip, cosmOf, ranking, cleanNick, gacha, isAdmin, adminList, adminUpdate,
   GEMS, GACHA, BASE_SKILLS, ALL_SKILLS,
 };

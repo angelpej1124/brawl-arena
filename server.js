@@ -73,6 +73,15 @@ async function api(req, res, urlPath) {
       if (limited(ip, 'gacha', 60, 60000)) return sendJson(res, 429, { error: '너무 빨리 뽑고 있어요. 잠시 후 다시 해 주세요.' });
       return sendJson(res, 200, accounts.gacha(key));
     }
+    if (req.method === 'POST' && (urlPath === '/api/cosm/gacha' || urlPath === '/api/cosm/equip')) {
+      const key = accounts.fromToken(bearer(req));
+      if (!key) return sendJson(res, 401, { error: '로그인이 필요해요.' });
+      if (urlPath === '/api/cosm/gacha' && limited(ip, 'cgacha', 60, 60000)) return sendJson(res, 429, { error: '너무 빨리 뽑고 있어요. 잠시 후 다시 해 주세요.' });
+      const b = await readBody(req);
+      const r = urlPath === '/api/cosm/gacha' ? accounts.cosmGacha(key) : accounts.cosmEquip(key, String(b.cat || ''), b.item ? String(b.item) : null);
+      for (const room of rooms.values()) for (const [cid, c] of room.clients) if (c.accountKey === key) { const p = room.sim.players.get(cid); if (p) p.cosm = accounts.cosmOf(key); }
+      return sendJson(res, 200, r);
+    }
     if (req.method === 'POST' && (urlPath === '/api/skin/buy' || urlPath === '/api/skin/equip')) {
       const key = accounts.fromToken(bearer(req));
       if (!key) return sendJson(res, 401, { error: '로그인이 필요해요.' });
@@ -212,7 +221,7 @@ class GameRoom {
     }
     this.clients.set(id, { socket, accountKey, name });
     const p = this.sim.addPlayer(id, name, false, skill);
-    if (p) p.skins = accounts.skinsOf(accountKey);
+    if (p) { p.skins = accounts.skinsOf(accountKey); p.cosm = accounts.cosmOf(accountKey); }
     if (!this.hostId) this.hostId = id;
     if (this.sim.doubleMode) this.giveSkill2(id);
     return true;

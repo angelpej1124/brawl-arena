@@ -62,6 +62,10 @@ const SKILLS = {
   reflect:  { name: '반사', cd: 3, window: 0.22 },
   // 반전: 나를 뺀 상대의 절반(올림)이 7초간 좌우 키가 반대로
   invert:   { name: '반전', cd: 13, duration: 7 },
+  // 원자: 때릴 때마다 주위를 도는 전자 +1 (최대 5). 3초 안 때리면 1초에 1개씩 사라짐. 전자에 닿아야만 피해
+  atom:     { name: '원자', cd: 13, max: 5, radius: 62, spin: 4, boost: 5, decayAfter: 3, decayEvery: 1, dmg: 3, baseKB: 170, growthKB: 4, hitEvery: 0.5 },
+  // 지뢰: 최대 10개, 밟으면 폭발 (주인·팀원은 안 터짐)
+  mine:     { name: '지뢰', cd: 8, max: 10, arm: 0.6, radius: 110, dmg: 10, power: 620 },
   turret:   { name: '터렛', cd: 12, max: 3, hp: 4, range: 560, fireEvery: 0.9, bulletSpeed: 820, bulletLife: 0.9, dmg: 3, baseKB: 210, growthKB: 5 },
 };
 const SKILL_IDS = Object.keys(SKILLS);
@@ -81,7 +85,7 @@ const cleanInput = (i) => ({
 const TEAMS = [null, { name: '빨강팀', color: '#ff4d4d' }, { name: '파랑팀', color: '#3f8cff' }, { name: '초록팀', color: '#3ccf6e' }, { name: '노랑팀', color: '#ffd23f' }];
 // 시간 되돌리기로 되돌리는 값들
 // 시간 되돌리기 때 그대로 두는 것 (나머지 상태는 전부 되돌림)
-const TIME_SKIP = new Set(['id', 'name', 'color', 'bot', 'dummy', 'team', 'skins', 'skill', 'skill2', 'wins', 'ready', 'mapMid',
+const TIME_SKIP = new Set(['id', 'name', 'color', 'bot', 'dummy', 'team', 'skins', 'cosm', 'skill', 'skill2', 'wins', 'ready', 'mapMid',
   'input', 'prevInput', 'rawInput', 'attack', 'errHold', 'kos', 'botKos']);
 // 스킨: 지금 쓰는 능력에 장착된 스킨만
 const SKIN_DB = require('./public/skins.js').SKINS;
@@ -114,6 +118,7 @@ class Player {
     this.id = id; this.name = name; this.color = color; this.bot = !!bot; this.skill = validSkill(skill);
     this.skill2 = null; this.team = 1;
     this.skins = {};              // 장착 스킨 (능력 -> 스킨 id), 보이는 것만 바뀜
+    this.cosm = {};               // 치장품 { hat, outfit }
     this.input = EMPTY_INPUT(); this.prevInput = EMPTY_INPUT();
     this.inMatch = false; this.wins = 0; this.stocks = 0; this.kos = 0; this.botKos = 0;
     this.hulkS = 1;
@@ -137,6 +142,7 @@ class Player {
     this.errT = 0; this.sunT = 0; this.parryT = 0; this.invT = 0;
     this.stillT = 0; this.charged = false;
     this.combo = 0;               // 콤보 스택 (죽으면 초기화)
+    this.electrons = 0; this.eLast = -999; this.eDecayT = 0; this.ePhase = 0; this.eBoostT = 0; this.eHit = {};   // 원자
     this.drawT = 0;               // 궁수: 시위 당긴 정도 (0이면 안 당김)
     this.parHits = {};            // 기생: 내가 때린 횟수 (상대 id -> 횟수)
     this.parHost = null;          // 기생 중인 숙주 id
@@ -156,6 +162,7 @@ class Sim {
     this.bullets = [];       // 터렛 총알
     this.blizzards = [];     // 얼음 눈보라 { by, t }
     this.arrows = [];        // 궁수 화살
+    this.mines = [];         // 지뢰
     this.winds = [];         // 바람 소용돌이
     this.timeSaves = new Map(); // 시간: 저장해 둔 순간 (시전자 id -> 상태)
     this.stage = MAPS[Math.floor(Math.random() * MAPS.length)];
@@ -311,11 +318,12 @@ class Sim {
   }
   clearField() {
     this.clones.clear(); this.smokes = []; this.slashes = [];
-    this.turrets = []; this.bullets = []; this.blizzards = []; this.arrows = []; this.winds = []; this.timeSaves = new Map();
+    this.turrets = []; this.bullets = []; this.blizzards = []; this.arrows = []; this.winds = []; this.timeSaves = new Map(); this.mines = [];
   }
   removeTurrets(id) {
     this.turrets = this.turrets.filter((t) => t.owner !== id);
     this.bullets = this.bullets.filter((b) => b.owner !== id);
+    this.mines = this.mines.filter((m) => m.owner !== id);
   }
   // x 위치 아래(또는 같은 높이)에 있는 가장 가까운 땅/발판
   surfaceBelow(x, y) {
@@ -443,6 +451,8 @@ class Sim {
     for (const p of list) if (p.alive && !p.inside && !(p.frozen > 0)) this.updateAttack(p, targets, dt);
     this.updateSlashes(targets, dt);
     this.updateTurrets(targets, dt);
+    this.updateAtoms(targets, dt);
+    this.updateMines(targets, dt);
     this.updateArrows(targets, dt);
     this.updateWinds(targets, dt);
     for (const p of list) if (p.alive && !p.inside) this.checkBlast(p);
@@ -461,7 +471,7 @@ class Sim {
     return {
       players: new Map([...this.players.values()].map((p) => [p.id, cp(p)])),
       clones: [...this.clones.values()].map((c) => structuredClone({ ...c, attack: null })),
-      turrets: structuredClone(this.turrets), bullets: structuredClone(this.bullets), slashes: structuredClone(this.slashes),
+      mines: structuredClone(this.mines), turrets: structuredClone(this.turrets), bullets: structuredClone(this.bullets), slashes: structuredClone(this.slashes),
       arrows: structuredClone(this.arrows), winds: structuredClone(this.winds), smokes: structuredClone(this.smokes),
       blizzards: structuredClone(this.blizzards),
     };
@@ -489,6 +499,7 @@ class Sim {
     }
     const alive = (x) => this.players.has(x.owner);
     this.turrets = structuredClone(snap.turrets).filter(alive);
+    this.mines = structuredClone(snap.mines || []).filter(alive);
     this.bullets = structuredClone(snap.bullets).filter(alive);
     this.slashes = structuredClone(snap.slashes).filter(alive);
     this.arrows = structuredClone(snap.arrows).filter(alive);
@@ -857,6 +868,17 @@ class Sim {
       }
     } else if (k === 'combo') {
       return this.smash(p);
+    } else if (k === 'atom') {
+      const s = SKILLS.atom;
+      p.eBoostT = s.boost; p.skillCd = s.cd;
+      this.ev({ k: 'atomq', x: r0(p.x), y: r0(cy), pid: p.id });
+    } else if (k === 'mine') {
+      const s = SKILLS.mine;
+      const mine = this.mines.filter((m) => m.owner === p.id);
+      if (mine.length >= s.max) this.mines = this.mines.filter((m) => m !== mine[0]);   // 가장 오래된 것 제거
+      this.mines.push({ id: ++this.evSeq, owner: p.id, x: p.x, y: p.y, vy: 0, arm: s.arm, color: p.color });
+      p.skillCd = s.cd;
+      this.ev({ k: 'mineset', x: r0(p.x), y: r0(p.y), pid: p.id });
     } else if (k === 'reflect') {
       p.parryT = SKILLS.reflect.window; p.skillCd = SKILLS.reflect.cd;
       this.ev({ k: 'parryq', x: r0(p.x), y: r0(cy), pid: p.id });
@@ -900,6 +922,82 @@ class Sim {
     if (shot.hit) shot.hit = new Set();
     if (shot.caught) shot.caught = new Set();
     shot.x += Math.sign(shot.vx) * 20;
+  }
+  // ---------------- 원자: 전자 위치 (서버·화면이 같은 식으로 계산) ----------------
+  electronPos(p) {
+    const s = SKILLS.atom, n = p.electrons || 0, out = [];
+    const R = s.radius * sizeOf(p), cx = p.x, cy = p.y - bh(p) / 2;
+    for (let i = 0; i < n; i++) {
+      if (p.eBoostT > 0) {
+        // 강화: 기울어진 링 2줄, 반반 나눠 돎
+        const ring = i % 2, cnt = Math.ceil(n / 2) || 1, j = Math.floor(i / 2);
+        const a = (ring ? -p.ePhase : p.ePhase) + (j * Math.PI * 2) / cnt;
+        const ex = Math.cos(a) * R, ey = Math.sin(a) * R * 0.4, t = ring ? 0.6 : -0.6;
+        out.push([cx + ex * Math.cos(t) - ey * Math.sin(t), cy + ex * Math.sin(t) + ey * Math.cos(t)]);
+      } else {
+        const a = p.ePhase + (i * Math.PI * 2) / n;
+        out.push([cx + Math.cos(a) * R, cy + Math.sin(a) * R]);
+      }
+    }
+    return out;
+  }
+  updateAtoms(list, dt) {
+    const s = SKILLS.atom;
+    for (const p of this.players.values()) {
+      if (!p.alive || p.inside || !(p.electrons > 0)) { if (p.eBoostT > 0) p.eBoostT -= dt; continue; }
+      if (p.eBoostT > 0) p.eBoostT = Math.max(0, p.eBoostT - dt);
+      p.ePhase = (p.ePhase + s.spin * (p.eBoostT > 0 ? 2 : 1) * dt) % (Math.PI * 2);
+      // 3초 동안 안 때리면 1초에 1개씩 사라짐
+      if (this.time - p.eLast > s.decayAfter) { p.eDecayT += dt; if (p.eDecayT >= s.decayEvery) { p.eDecayT = 0; p.electrons--; } }
+      if (this.phase === 'countdown' || this.phase === 'ended') continue;
+      const def = { damage: s.dmg, baseKB: s.baseKB, growthKB: s.growthKB, lift: 0.35 };
+      for (const [ex, ey] of this.electronPos(p)) {
+        for (const o of list) {
+          if (!this.foe(p, o) || !o.alive || o.inside || o.frozen > 0 || o.invincible > 0) continue;
+          if ((p.eHit[o.id] || -9) > this.time - s.hitEvery) continue;
+          const ow = bw(o), oh = bh(o);
+          if (ex > o.x - ow / 2 - 9 && ex < o.x + ow / 2 + 9 && ey > o.y - oh - 9 && ey < o.y + 9) {
+            p.eHit[o.id] = this.time;
+            if (this.parrying(o)) { this.parried(o, ex, ey); continue; }
+            this.applyHit(p, o, def, 'light', { dir: Math.sign(o.x - p.x) || p.facing, small: true, electron: true });
+            if (o.clone) this.hitClone(o);
+          }
+        }
+      }
+    }
+  }
+  // ---------------- 지뢰 ----------------
+  updateMines(list, dt) {
+    if (!this.mines.length) return;
+    const s = SKILLS.mine;
+    for (const m of [...this.mines]) {
+      if (!this.players.has(m.owner)) { this.mines = this.mines.filter((x) => x !== m); continue; }
+      if (m.arm > 0) m.arm -= dt;
+      const prevY = m.y;
+      m.vy = Math.min(m.vy + CONFIG.GRAVITY * dt, CONFIG.MAX_FALL); m.y += m.vy * dt;
+      for (const sf of [...this.stage.solids, ...this.stage.platforms]) if (m.x >= sf.x && m.x <= sf.x + sf.w && prevY <= sf.y && m.y >= sf.y) { m.y = sf.y; m.vy = 0; }
+      if (m.y > this.stage.blast.bottom) { this.mines = this.mines.filter((x) => x !== m); continue; }
+      if (m.arm > 0 || this.phase === 'countdown' || this.phase === 'ended') continue;
+      const stepped = list.some((o) => this.foe(m, o) && o.alive && !o.inside && !(o.frozen > 0) && Math.abs(o.x - m.x) < bw(o) / 2 + 12 && o.y >= m.y - 14 && o.y - bh(o) < m.y);
+      if (!stepped) continue;
+      // 펑! 주변을 날려 버림 (주인·팀원은 안 맞음)
+      this.mines = this.mines.filter((x) => x !== m);
+      const owner = this.players.get(m.owner);
+      for (const o of list) {
+        if (!this.foe(m, o) || !o.alive || o.inside || o.frozen > 0 || o.invincible > 0) continue;
+        const ox = o.x, oy = o.y - bh(o) / 2, d = Math.hypot(ox - m.x, oy - (m.y - 10));
+        if (d > s.radius) continue;
+        o.damage = Math.min(o.damage + s.dmg, 999);
+        if (o.rockT <= 0) {
+          const kb = s.power * (o.buffT > 0 ? SKILLS.empower.kbMul : 1) * (1 - SKILLS.hulk.tough * hulkF(o)) * (0.6 + 0.4 * (1 + o.damage / 150));
+          const nx = d < 1 ? 0 : (ox - m.x) / d;
+          o.vx = nx * kb; o.vy = -kb * 0.8; o.grounded = false; o.hitstun = Math.max(o.hitstun, 0.3);
+        }
+        o.attack = null; o.lastHitBy = m.owner; o.lastHitAt = this.tickCount;
+        if (o.clone) this.hitClone(o);
+      }
+      this.ev({ k: 'boom', x: r0(m.x), y: r0(m.y - 10), r: s.radius, c: owner ? owner.color : '#fff' });
+    }
   }
   // ---------------- 콤보 스매시 ----------------
   smash(p) {
@@ -1406,6 +1504,8 @@ class Sim {
     if (type === 'heavy') t.heavyHitAt = this.time;
     // 기생 준비: 같은 상대를 때린 횟수
     // 콤보: 때릴 때마다 스택 (스매시 자체는 제외)
+    // 원자: 때릴 때마다 전자 +1 (전자 자체로 맞힌 건 제외)
+    if (has(a, 'atom') && !a.clone && !opt.electron) { a.electrons = Math.min(SKILLS.atom.max, (a.electrons || 0) + 1); a.eLast = this.time; a.eDecayT = 0; }
     if (has(a, 'combo') && !a.clone && !opt.smash) a.combo = Math.min(SKILLS.combo.maxStack, (a.combo || 0) + 1);
     if (!t.clone && has(a, 'parasite') && !a.clone) a.parHits[t.id] = (a.parHits[t.id] || 0) + 1;
     // 비행 중 올라가다 맞으면 잠시 내려감
@@ -1524,6 +1624,7 @@ class Sim {
       brn: p.burnN > 0 ? 1 : 0, fd: p.fdashT > 0 ? 1 : 0,
       er: p.errT > 0 ? 1 : 0, sun: p.sunT > 0 ? 1 : 0,
       rv: p.invT > 0 ? 1 : 0, pa: p.parryT > 0 ? 1 : 0,
+      el: p.electrons > 0 ? [p.electrons, Math.round(p.ePhase * 100) / 100, p.eBoostT > 0 ? 1 : 0] : 0,
       ts: this.timeSaves.has(p.id) ? [r0(this.timeSaves.get(p.id).x), r0(this.timeSaves.get(p.id).y)] : 0,
       dr: p.drawT > 0 ? Math.round(p.drawT * 100) / 100 : 0, cb: p.combo || 0, hm: p.homingNext ? 1 : 0,
       smk: this.inSmoke(p) ? 1 : 0,
@@ -1534,8 +1635,9 @@ class Sim {
       ev: this.recent.slice(-10),
       ar: this.arrows.map((a) => ({ x: r0(a.x), y: r0(a.y), vx: r0(a.vx), vy: r0(a.vy), h: a.homing ? 1 : 0, de: a.de ? 1 : undefined, lf: a.lf ? 1 : undefined, el: a.el || undefined, s: a.big > 1 ? Math.round(a.big * 10) / 10 : undefined })),
       wd: this.winds.map((w) => { const o = this.players.get(w.owner); return { i: w.id, x: r0(w.x), y: r0(w.y), vx: w.vx, r: o && skinOn(o, 'firetornado') ? 1 : 0 }; }),
+      mn: this.mines.map((m) => ({ x: r0(m.x), y: r0(m.y), c: m.color, a: m.arm > 0 ? 0 : 1 })),
       tr: this.turrets.map((t) => { const o = this.players.get(t.owner); return { i: t.id, x: r0(t.x), y: r0(t.y), a: Math.round(t.aim * 100) / 100, hp: t.hp, c: t.color, o: t.owner, fg: o && skinOn(o, 'frog') ? 1 : 0 }; }),
-      bl: this.bullets.map((b) => (b.tg ? { tg: 1, ox: r0(b.ox), oy: r0(b.oy), x: r0(b.x), y: r0(b.y), vx: 0, vy: 0 } : { x: r0(b.x), y: r0(b.y), vx: r0(b.vx), vy: r0(b.vy) })),
+      bl: this.bullets.map((b) => { const o = this.players.get(b.owner), c = o ? o.color : '#fff'; return b.tg ? { tg: 1, ox: r0(b.ox), oy: r0(b.oy), x: r0(b.x), y: r0(b.y), vx: 0, vy: 0, c } : { x: r0(b.x), y: r0(b.y), vx: r0(b.vx), vy: r0(b.vy), c }; }),
       bz: this.blizzards.length ? Math.ceil(Math.max(...this.blizzards.map((b) => b.t)) * 10) / 10 : 0,
       bzs: this.blizzards.some((b) => b.sand) ? 1 : 0,
       bza: this.blizzards.some((b) => b.skin === 'aurora') ? 1 : 0,
@@ -1552,13 +1654,15 @@ class Sim {
         ft: ten(p.flyT), rt: ten(p.rockT), bt: ten(p.buffT),
         chg: has(p, 'empower') ? (p.charged ? 100 : Math.floor((p.stillT / SKILLS.empower.charge) * 100)) : 0,
         pr: has(p, 'parasite') ? Object.values(p.parHits).filter((n) => n >= SKILLS.parasite.hitsNeeded).length : 0,
+        cs: p.cosm && (p.cosm.hat || p.cosm.outfit) ? [p.cosm.hat || 0, p.cosm.outfit || 0] : 0,
         isd: p.iceSand ? 1 : 0, iau: p.iceAur ? 1 : 0, idk: p.iceDark ? 1 : 0, slm: p.slow > 0 && p.slowMud ? 1 : 0, sn: activeSkins(p), bb: p.burnN > 0 && p.burnBlue ? 1 : 0,
         ins: p.inside ? 1 : 0, phost: p.parHost, pt: ten(p.parT), ctl: p.controller, rd: p.ready ? 1 : 0,
       })),
       cl: [...this.clones.values()].map((c) => ({
         id: c.id, ow: c.ownerId, n: c.name, c: c.color, x: r0(c.x), y: r0(c.y), f: c.facing,
         g: c.grounded ? 1 : 0, vx: r0(c.vx), vy: r0(c.vy), al: 1, at: 0, ap: 0,
-        sk: c.skill, sk2: c.skill2, sn: this.players.get(c.ownerId) ? activeSkins(this.players.get(c.ownerId)) : [], hs: c.hitstun > 0 || c.stunT > 0 ? 1 : 0, b: c.bot ? 1 : 0, inv: 0, ...status(c),
+        sk: c.skill, sk2: c.skill2, sn: this.players.get(c.ownerId) ? activeSkins(this.players.get(c.ownerId)) : [],
+        cs: (() => { const o = this.players.get(c.ownerId); return o && o.cosm && (o.cosm.hat || o.cosm.outfit) ? [o.cosm.hat || 0, o.cosm.outfit || 0] : 0; })(), hs: c.hitstun > 0 || c.stunT > 0 ? 1 : 0, b: c.bot ? 1 : 0, inv: 0, ...status(c),
       })),
     };
   }
@@ -1688,6 +1792,8 @@ function botThink(sim, b) {
           else if (sv && (b.damage > 90 || b.stocks < sv.snap.players.get(b.id).stocks) && R < 0.05) use(sk);
         }
         if (sk === 'invert' && ready && best < 500 && R < 0.02) use(sk);
+        if (sk === 'atom' && ready && b.electrons >= 3 && best < 140 && R < 0.06) use(sk);
+        if (sk === 'mine' && ready && b.grounded && R < 0.03) use(sk);
         if (sk === 'reflect' && ready) {
           // 가까운 적이 공격 중이거나 화살·참격·총알이 날아오면 가끔 반사 시도
           const near = [...sim.players.values()].some((o) => sim.foe(b, o) && o.attack && Math.abs(o.x - b.x) < 130 && Math.abs(o.y - b.y) < 80)

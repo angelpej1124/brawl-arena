@@ -217,6 +217,15 @@
   .rp-btn:disabled { opacity: .5; cursor: not-allowed; }
   #roomPanel.folded #rpBody { display: none; }
   .skin-open { margin-top: 8px; border-color: #c77dff; color: #e2c8ff; }
+  .cosm-open { margin-top: 8px; border-color: #ff9ecf; color: #ffd0e6; }
+  .cosm-top { display: flex; gap: 14px; align-items: center; margin-top: 8px; }
+  #cosmPreview { background: radial-gradient(circle at 50% 70%, #2f2a55, #15122a); border-radius: 14px; flex: none; }
+  .cosm-side { flex: 1; min-width: 0; }
+  .cosm-cat { margin-top: 12px; }
+  .cosm-cat b { font-size: 14px; color: var(--muted); }
+  .cosm-items { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .cosm-items .chip:disabled { opacity: .4; cursor: default; }
+  @media (max-width: 420px) { .cosm-top { flex-direction: column; } }
   .modal { position: fixed; inset: 0; z-index: 20; background: rgba(6,5,14,.72); display: flex; align-items: center; justify-content: center; padding: 16px; }
   .modal[hidden] { display: none; }
   .modal-card { width: min(520px, 100%); max-height: calc(100% - 32px); overflow-y: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px; box-sizing: border-box; }
@@ -327,6 +336,7 @@
           <button class="sub-btn gacha-btn" id="gachaBtn" type="button">스킬 뽑기 · 보석 100</button>
         </div>
         <button class="sub-btn skin-open" id="skinBtn" type="button">스킨 보기</button>
+        <button class="sub-btn cosm-open" id="cosmBtn" type="button">치장품</button>
         <p class="hint" id="gachaMsg" role="status"></p>
         <p class="hint" id="gemHelp">판 참가 +25 · 우승 +40 · 처치 +12 &nbsp;|&nbsp; 봇전: 판 +10 · 봇 처치 +5</p>
       </div>
@@ -396,6 +406,20 @@
   <div class="tbtn tb-e tb-x" data-k="x" id="tSkill3" hidden><span id="tSkill3Name">R</span><small id="tSkill3Cd">R</small></div>
 </div>
 
+<div id="cosmModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="cosmTitle">
+  <div class="modal-card">
+    <div class="modal-head"><b id="cosmTitle">치장품</b><span id="cosmGems"></span><button class="modal-x" id="cosmClose" type="button" aria-label="닫기">✕</button></div>
+    <div class="cosm-top">
+      <canvas id="cosmPreview" width="150" height="170" aria-label="미리보기"></canvas>
+      <div class="cosm-side">
+        <p class="hint">뽑은 치장품은 카테고리마다 하나씩 장착할 수 있어요. 보이는 모습만 바뀌어요.</p>
+        <button class="skin-act" id="cosmGacha" type="button">치장품 뽑기 · 보석 70</button>
+        <p class="hint" id="cosmMsg" role="status"></p>
+      </div>
+    </div>
+    <div id="cosmCats"></div>
+  </div>
+</div>
 <div id="skinModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="skinTitle">
   <div class="modal-card">
     <div class="modal-head"><b id="skinTitle">스킨</b><span id="skinGems"></span><button class="modal-x" id="skinClose" type="button" aria-label="닫기">✕</button></div>
@@ -408,6 +432,7 @@
 
 <script src="maps.js"></script>
 <script src="skins.js"></script>
+<script src="cosmetics.js"></script>
 <script src="client.js"></script>
 </body>
 </html>
