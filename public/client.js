@@ -1938,12 +1938,12 @@ function drawBlizzard(state, dt, now) {
   if (on && state.bza && !state.bzs) {
     // 오로라: 밤하늘처럼 어두워지고, 진한 초록·청록·보라 빛의 커튼이 세로 빛줄기와 함께 일렁임
     const W2 = STAGE.width, H2 = STAGE.height;
-    ctx.fillStyle = 'rgba(5,15,35,0.45)'; ctx.fillRect(-400, -400, W2 + 800, H2 + 800);
+    ctx.fillStyle = 'rgba(5,15,35,0.22)'; ctx.fillRect(-400, -400, W2 + 800, H2 + 800);
     const cols = [[42, 245, 152], [58, 224, 208], [90, 255, 170], [166, 107, 255], [70, 200, 255]];
     for (let band = 0; band < 5; band++) {
       const [r, g, bl] = cols[band], top = 10 + band * 45, depth = 260 + band * 30;
       const grad = ctx.createLinearGradient(0, top, 0, top + depth);
-      grad.addColorStop(0, `rgba(${r},${g},${bl},0)`); grad.addColorStop(0.25, `rgba(${r},${g},${bl},0.65)`); grad.addColorStop(0.6, `rgba(${r},${g},${bl},0.3)`); grad.addColorStop(1, `rgba(${r},${g},${bl},0)`);
+      grad.addColorStop(0, `rgba(${r},${g},${bl},0)`); grad.addColorStop(0.25, `rgba(${r},${g},${bl},0.26)`); grad.addColorStop(0.6, `rgba(${r},${g},${bl},0.1)`); grad.addColorStop(1, `rgba(${r},${g},${bl},0)`);
       ctx.fillStyle = grad; ctx.beginPath(); ctx.moveTo(0, top);
       for (let x = 0; x <= W2; x += 30) ctx.lineTo(x, top + Math.sin(x / 130 + now / 500 + band * 1.7) * 45);
       for (let x = W2; x >= 0; x -= 30) ctx.lineTo(x, top + depth + Math.sin(x / 110 + now / 450 + band * 2.3) * 40);
@@ -1951,13 +1951,13 @@ function drawBlizzard(state, dt, now) {
     }
     // 세로로 내리꽂는 빛줄기
     for (let i = 0; i < 26; i++) {
-      const x = ((i * 113 + now / 25) % (W2 + 100)) - 50, h = 180 + ((i * 53) % 140), a2 = 0.18 + 0.18 * Math.sin(now / 200 + i);
+      const x = ((i * 113 + now / 25) % (W2 + 100)) - 50, h = 180 + ((i * 53) % 140), a2 = 0.07 + 0.06 * Math.sin(now / 200 + i);
       const rg = ctx.createLinearGradient(0, 20, 0, 20 + h);
       rg.addColorStop(0, `rgba(200,255,230,0)`); rg.addColorStop(0.4, `rgba(150,255,210,${a2})`); rg.addColorStop(1, 'rgba(150,255,210,0)');
       ctx.fillStyle = rg; ctx.fillRect(x, 20 + Math.sin(i) * 30, 6 + (i % 3) * 3, h);
     }
     // 반짝이는 별가루
-    ctx.fillStyle = 'rgba(230,255,245,0.9)';
+    ctx.fillStyle = 'rgba(230,255,245,0.6)';
     for (let i = 0; i < 40; i++) { const x = (i * 211) % W2, y = (i * 97) % (H2 * 0.6); if ((Math.floor(now / 180) + i) % 4 === 0) ctx.fillRect(x, y, 2.5, 2.5); }
     return;
   }

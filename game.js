@@ -33,7 +33,7 @@ const SKILLS = {
   rubber:   { name: '고무', cd: 13, duration: 7, reachMul: 2, jumpMul: 1.25 },
   engine:   { name: '엔진', cd: 12, duration: 6, speedMul: 1.6, kbPerSpeed: 0.8, kbMax: 2.2 },
   // 검사: 공격이 검으로 바뀜 (사거리 1.25배). 약공격은 앞으로 돌진하며 베기, 강공격은 주변 부채꼴 베기, Q는 참격 발사
-  sword:    { name: '검사', cd: 12, reachMul: 1.25, lunge: 620, fanR: 125, slashSpeed: 950, slashLife: 0.65, slashDmg: 9, slashKB: 380, slashGrowth: 12 },
+  sword:    { name: '검사', cd: 12, heavyGap: 0.3, reachMul: 1.25, lunge: 620, fanR: 125, slashSpeed: 950, slashLife: 0.65, slashDmg: 9, slashKB: 380, slashGrowth: 12 },
   // 흑섬: Q 자체는 이펙트만. 공격이 맞는 순간과 같은 타이밍(±window초)이면 넉백 강화
   blackflash: { name: '흑섬', cd: 0, window: 0.1, heavyKbMul: 1.45, stun: 0.7 },
   lightning: { name: '번개', cd: 13, radius: 480, count: 3, damage: 10, stun: 3 },
@@ -53,7 +53,7 @@ const SKILLS = {
   // 바람: 공격 넉백 1.3배. Q는 앞으로 나아가며 휩쓸어 가는 소용돌이
   wind:     { name: '바람', cd: 10, kbMul: 1.3, speed: 520, life: 1.6, w: 70, h: 170, dmg: 5, throwKB: 720 },
   // 궁수: 강공격을 누르고 있으면 시위를 당김 (full초면 최대), 놓으면 발사. Q는 다음 화살을 유도 화살로
-  archer:   { name: '궁수', cd: 13, full: 1, minSpeed: 650, maxSpeed: 1400, gravity: 520, homingSpeed: 760, homingLife: 3, turn: 7 },
+  archer:   { name: '궁수', heavyGap: 0.5, cd: 13, full: 1, minSpeed: 650, maxSpeed: 1400, gravity: 520, homingSpeed: 760, homingLife: 3, turn: 7 },
   // 시간: 모든 것을 10초 전으로 (시간 스킬 쿨타임은 제외)
   time:     { name: '시간', cd: 20 },                                   // 첫 Q 저장, 두 번째 Q 되돌림 → 쿨 20
   // 콤보: 때릴 때마다 스택. Q로 스택만큼 강한 스매시 (범위도 커짐)
@@ -596,16 +596,21 @@ class Sim {
       if (canFight && !p.clone) {
         for (const key of ['s', 'e', 'x']) if (pressed(key)) this.useSlot(p, key);
       }
+      // 강공격 연타 방지: 궁수는 화살 쏜 뒤 0.5초, 검사는 강공격이 끝난 뒤 0.3초 지나야 다시 강공격
+      if (p.hGap > 0 && !attacking && !(p.drawT > 0)) p.hGap -= dt;
       if (canFight && !attacking && !(p.drawT > 0)) {
         if (pressed('a')) p.attack = { type: 'light', t: 0, hit: new Set(), victims: [] };
-        else if (pressed('h')) {
+        else if (pressed('h') && !(p.hGap > 0)) {
           // 궁수: 강공격 = 활 시위 당기기
           if (has(p, 'archer') && !p.clone) p.drawT = 0.001;
-          else p.attack = { type: 'heavy', t: 0, hit: new Set(), victims: [] };
+          else {
+            p.attack = { type: 'heavy', t: 0, hit: new Set(), victims: [] };
+            if (has(p, 'sword') && !p.clone) p.hGap = SKILLS.sword.heavyGap;
+          }
         }
       } else if (p.drawT > 0) {
         if (inp.h && canFight) p.drawT = Math.min(1, p.drawT + dt / SKILLS.archer.full);
-        else this.fireArrow(p);
+        else { this.fireArrow(p); p.hGap = SKILLS.archer.heavyGap; }
       }
     }
 
