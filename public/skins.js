@@ -13,6 +13,10 @@
     demon:       { skill: 'fly', name: '악마', desc: '비행할 때 커다란 악마 날개와 머리의 악마 뿔', color: '#8b1030' },
     bluefire:    { skill: 'fire', name: '청염', desc: '불이 전부 파란색 (주먹·돌진·불붙은 상대까지)', color: '#3fa0ff' },
     firetornado: { skill: 'wind', name: '불 토네이도', desc: '공격에 붉은 이펙트, 소용돌이도 붉은 불꽃색', fx: 'redwind', color: '#ff5a2a' },
+    carnage:     { skill: 'parasite', name: '카니지', desc: '베놈과 같지만 빨간색. 공격이 붉은 이펙트, 기생 표시와 숙주의 찢어진 눈도 빨갛게', fx: 'carnage', color: '#c4161c' },
+    crystal:     { skill: 'rock', name: '크리스탈', desc: '바위 대신 반짝이는 보랏빛 크리스탈 몸', color: '#b48cff' },
+    sand:        { skill: 'ice', name: '모래', desc: '눈보라 대신 모래바람, 얼음 대신 모래에 갇힘, 게이지도 모래색', color: '#d9b26a' },
+    oneforall:   { skill: 'blackflash', name: '원포올', desc: '흑섬 이펙트가 초록 번개로, 훨씬 화려하게', color: '#3dff8a' },
     steel:       { skill: 'rock', name: '강철', desc: '바위 대신 반짝이는 강철 몸', color: '#9fb0c4' },
   };
   const PRICE = 50;

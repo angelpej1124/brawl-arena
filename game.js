@@ -22,12 +22,12 @@ const SKILLS = {
   clone:    { name: '분신', cd: 10, hits: 5 },
   swap:     { name: '전환', cd: 19, heavyLock: 1 },                       // 강공격 맞고 1초 동안은 못 씀
   fly:      { name: '비행', cd: 15, duration: 5, up: 380, down: 260, hitDrop: 0.6 },
-  explode:  { name: '폭파', cd: 9, radius: 270, power: 900, damage: 8, stun: 0.5, smoke: 3, smokeR: 270 },
-  freeze:   { name: '정지', cd: 8, duration: 1 },
+  explode:  { name: '폭파', cd: 10, radius: 270, power: 900, damage: 8, stun: 0.5, smoke: 3, smokeR: 270 },
+  freeze:   { name: '정지', cd: 7, duration: 1 },
   rock:     { name: '바위', cd: 10, duration: 6, moveMul: 0.32, jumpMul: 0.7 },
   magnet:   { name: '자석', cd: 9, cd2: 9, radius: 330, power: 720 },     // Q 끌어당김, E 밀어냄
   empower:  { name: '강화', charge: 8, duration: 6, kbMul: 0.35, reachMul: 1.3, speedMul: 1.35, jumpMul: 1.2 },
-  parasite: { name: '기생', hitsNeeded: 3, duration: 7 },
+  parasite: { name: '기생', hitsNeeded: 3, duration: 5 },
   quake:    { name: '지진', cd: 12, duration: 3 },                        // 시전자 빼고 모두의 화면이 흔들림
   giant:    { name: '거인', cd: 14, duration: 9, size: 2, kbMul: 0.8, speedMul: 0.85, reachMul: 1.6 },
   rubber:   { name: '고무', cd: 13, duration: 7, reachMul: 2, jumpMul: 1.25 },
@@ -36,18 +36,18 @@ const SKILLS = {
   sword:    { name: '검사', cd: 12, reachMul: 1.25, lunge: 620, fanR: 125, slashSpeed: 950, slashLife: 0.65, slashDmg: 9, slashKB: 380, slashGrowth: 12 },
   // 흑섬: Q 자체는 이펙트만. 공격이 맞는 순간과 같은 타이밍(±window초)이면 넉백 강화
   blackflash: { name: '흑섬', cd: 0, window: 0.1, heavyKbMul: 1.45, stun: 0.7 },
-  lightning: { name: '번개', cd: 11, radius: 480, count: 3, damage: 10, stun: 3 },
+  lightning: { name: '번개', cd: 13, radius: 480, count: 3, damage: 10, stun: 3 },
   undying:  { name: '불사', lives: 5 },                                   // 목숨 5개 (패시브)
   // 헐크: 퍼센트(맞은 정도)가 높을수록 커지고 강해짐 (패시브). maxAt% 에서 최대
-  hulk:     { name: '헐크', maxAt: 150, size: 0.9, reach: 0.6, power: 0.5, slow: 0.3, tough: 0.45, grow: 0.8 },
+  hulk:     { name: '헐크', maxAt: 150, size: 0.9, reach: 0.6, power: 1.0, slow: 0.3, tough: 0.45, grow: 0.8 },
   // 화염: 공격에 불이 붙어 맞은 뒤 burnHits번 더 살짝 밀림. Q는 불태우며 돌진 (맞으면 dashBurn번)
   fire:     { name: '화염', cd: 9, burnHits: 2, dashBurn: 4, burnEvery: 0.4, burnKB: 170, burnDmg: 1,
               dashSpeed: 950, dashTime: 0.32, dashDmg: 8, dashKB: 420, dashGrowth: 10 },
   // 얼음: 때리면 상대 얼음 게이지가 참. 100이 되면 2초 얼어붙음 (얼어도 공격은 맞음). Q는 5초 눈보라
-  ice:      { name: '얼음', cd: 11, blizzard: 5, fillLight: 20, fillHeavy: 34, blizRate: 24, freeze: 2, decay: 6 },
+  ice:      { name: '얼음', cd: 12, blizzard: 4, fillLight: 20, fillHeavy: 34, blizRate: 24, freeze: 2, decay: 6 },
   // 터렛: 최대 3개. 가까운 적에게 총알 발사, 4번 맞으면 부서짐
   // 에러: 나를 뺀 모두의 화면이 끊기고 조작이 제멋대로 (5초)
-  error:    { name: '에러', cd: 10, duration: 5 },
+  error:    { name: '에러', cd: 12, duration: 5 },             // 랜덤한 적 1명
   // 태양: 6초간 빨라지고, 평타에 불이 붙고(화염처럼 2번 더 밀림), 넉백이 세짐
   sun:      { name: '태양', cd: 11, duration: 6, speedMul: 1.35, kbMul: 1.3, burnHits: 2 },
   // 바람: 공격 넉백 1.3배. Q는 앞으로 나아가며 휩쓸어 가는 소용돌이
@@ -405,13 +405,12 @@ class Sim {
     for (const p of list) {
       if (!(p.errT > 0)) continue;
       if (!p.errModeT || p.errModeT <= 0) {
-        p.errMode = Math.floor(Math.random() * 5); p.errModeT = 8 + Math.floor(Math.random() * 22);
+        p.errMode = [0, 2, 3, 4][Math.floor(Math.random() * 4)]; p.errModeT = 8 + Math.floor(Math.random() * 22);
         p.errHold = { ...p.input };
       }
       p.errModeT--;
       const i = p.input;
-      if (p.errMode === 1) p.input = { ...i, l: i.r, r: i.l };                 // 좌우 반대
-      else if (p.errMode === 2) p.input = { ...p.errHold };                    // 예전 입력에 멈춤
+      if (p.errMode === 2) p.input = { ...p.errHold };                    // 예전 입력에 멈춤
       else if (p.errMode === 3) p.input = EMPTY_INPUT();                       // 안 먹힘
       else if (p.errMode === 4) p.input = { ...i, l: Math.random() < 0.5 ? 1 : 0, r: Math.random() < 0.5 ? 1 : 0, u: Math.random() < 0.06 ? 1 : 0, a: Math.random() < 0.05 ? 1 : 0 };
     }
@@ -790,9 +789,9 @@ class Sim {
       this.ev({ k: 'fdash', x: r0(p.x), y: r0(cy), f: p.facing, pid: p.id, b: skinOn(p, 'bluefire') ? 1 : 0 });
     } else if (k === 'ice') {
       const s = SKILLS.ice;
-      this.blizzards.push({ by: p.id, t: s.blizzard });
+      this.blizzards.push({ by: p.id, t: s.blizzard, sand: skinOn(p, 'sand') });
       p.skillCd = s.cd;
-      this.ev({ k: 'blizzard', x: r0(p.x), y: r0(cy), d: s.blizzard, n: p.name });
+      this.ev({ k: 'blizzard', x: r0(p.x), y: r0(cy), d: s.blizzard, n: p.name, sand: skinOn(p, 'sand') ? 1 : 0 });
     } else if (k === 'turret') {
       const s = SKILLS.turret;
       const mine = this.turrets.filter((t) => t.owner === p.id);
@@ -809,9 +808,13 @@ class Sim {
       this.ev({ k: 'turret', x: r0(t.x), y: r0(t.y), pid: p.id });
     } else if (k === 'error') {
       const s = SKILLS.error;
-      for (const o of this.players.values()) if (this.foe(p, o) && o.alive) { o.errT = s.duration; o.errModeT = 0; }
+      // 랜덤한 적 한 명만
+      const cands = [...this.players.values()].filter((o) => this.foe(p, o) && o.alive && (this.phase !== 'playing' || o.inMatch));
+      if (!cands.length) return this.deny(p, '에러를 걸 상대가 없어요');
+      const o = cands[Math.floor(Math.random() * cands.length)];
+      o.errT = s.duration; o.errModeT = 0;
       p.skillCd = s.cd;
-      this.ev({ k: 'error', by: p.id, d: s.duration, n: p.name });
+      this.ev({ k: 'error', by: p.id, d: s.duration, n: p.name, n2: o.name, x: r0(o.x), y: r0(o.y - bh(o) / 2) });
     } else if (k === 'sun') {
       const s = SKILLS.sun;
       p.sunT = s.duration; p.skillCd = s.cd;
@@ -1067,7 +1070,7 @@ class Sim {
     const s = SKILLS.blackflash;
     p.skillCd = s.cd;
     p.bfAt = this.time;
-    this.ev({ k: 'bfq', x: r0(p.x), y: r0(p.y - bh(p) / 2), pid: p.id });
+    this.ev({ k: 'bfq', x: r0(p.x), y: r0(p.y - bh(p) / 2), pid: p.id, g: skinOn(p, 'oneforall') ? 1 : 0 });
     const atk = p.attack;
     if (!atk || atk.black) return;
     const def = ATTACKS[atk.type];
@@ -1207,7 +1210,7 @@ class Sim {
     if (a.clone) return;
     if (has(a, 'fire')) this.ignite(t, a, SKILLS.fire.burnHits, dir);
     if (a.sunT > 0) this.ignite(t, a, SKILLS.sun.burnHits, dir);
-    if (has(a, 'ice')) this.chill(t, type === 'heavy' ? SKILLS.ice.fillHeavy : SKILLS.ice.fillLight);
+    if (has(a, 'ice')) this.chill(t, type === 'heavy' ? SKILLS.ice.fillHeavy : SKILLS.ice.fillLight, skinOn(a, 'sand'));
   }
   ignite(t, a, n, dir) {
     // 화염 + 태양을 같이 쓰는 중이면 불 피해 2배
@@ -1215,12 +1218,13 @@ class Sim {
     t.burnBlue = has(a, 'fire') && skinOn(a, 'bluefire');     // 청염 스킨이면 파란 불
     t.burnN = Math.max(t.burnN || 0, n); t.burnT = SKILLS.fire.burnEvery; t.burnDir = dir || a.facing; t.burnBy = a.id;
   }
-  chill(t, amount) {
+  chill(t, amount, sand) {
     if (t.iceT > 0) return;
     t.iceG = (t.iceG || 0) + amount; t.iceHitAt = this.time;
+    t.iceSand = !!sand;                                     // 모래 스킨이면 모래 게이지·모래에 갇힘
     if (t.iceG >= 100) {
       t.iceG = 0; t.iceT = SKILLS.ice.freeze; t.attack = null;
-      this.ev({ k: 'iced', x: r0(t.x), y: r0(t.y - bh(t) / 2) });
+      this.ev({ k: 'iced', x: r0(t.x), y: r0(t.y - bh(t) / 2), sand: t.iceSand ? 1 : 0 });
     }
   }
   // 불 붙은 상태(조금씩 밀림) · 얼음 게이지 (눈보라면 계속 참, 아니면 서서히 줄어듦)
@@ -1240,8 +1244,8 @@ class Sim {
         this.ev({ k: 'burn', x: r0(p.x), y: r0(p.y - bh(p) / 2), b: p.burnBlue ? 1 : 0 });
       }
     }
-    const bz = this.blizzards.some((b) => this.foe({ id: b.by }, p));
-    if (bz && !(p.frozen > 0)) this.chill(p, SKILLS.ice.blizRate * dt);
+    const bz = this.blizzards.find((b) => this.foe({ id: b.by }, p));
+    if (bz && !(p.frozen > 0)) this.chill(p, SKILLS.ice.blizRate * dt, bz.sand);
     else if (p.iceG > 0 && this.time - p.iceHitAt > 2) p.iceG = Math.max(0, p.iceG - SKILLS.ice.decay * dt);
   }
   // 화염 돌진: 몸 주변에 닿은 상대를 한 번씩 날리고 불붙임
@@ -1364,7 +1368,7 @@ class Sim {
     if (black) {
       const s = SKILLS.blackflash;
       if (type === 'heavy') t.stunT = Math.max(t.stunT || 0, s.stun);
-      this.ev({ k: 'bflash', x: r0(t.x), y: r0(t.y - bh(t) / 2), p: type === 'heavy' ? 2 : 1 });
+      this.ev({ k: 'bflash', x: r0(t.x), y: r0(t.y - bh(t) / 2), p: type === 'heavy' ? 2 : 1, g: skinOn(a, 'oneforall') ? 1 : 0, ax: r0(a.x), ay: r0(a.y - bh(a) / 2) });
     }
     if (t.rockT > 0) {
       // 바위: 넉백과 경직 없음
@@ -1436,6 +1440,9 @@ class Sim {
       if (killer && killer !== p) { if (p.dummy) { /* 더미는 보석 없음 */ } else if (p.bot) killer.botKos = (killer.botKos || 0) + 1; else killer.kos++; }
     }
     const keep = { wins: p.wins, skill: p.skill };
+    // 전환: 죽어도 쿨타임이 초기화되지 않음
+    if (p.skill === 'swap') keep.skillCd = p.skillCd;
+    if (p.skill2 === 'swap') keep.skillCdB = p.skillCdB;
     if (this.phase !== 'playing' || !p.inMatch) {
       p.reset(this.stage.respawn.x, this.stage.respawn.y); p.invincible = CONFIG.RESPAWN_INVINCIBLE; return;
     }
@@ -1476,6 +1483,7 @@ class Sim {
       tr: this.turrets.map((t) => ({ i: t.id, x: r0(t.x), y: r0(t.y), a: Math.round(t.aim * 100) / 100, hp: t.hp, c: t.color, o: t.owner })),
       bl: this.bullets.map((b) => ({ x: r0(b.x), y: r0(b.y), vx: r0(b.vx), vy: r0(b.vy) })),
       bz: this.blizzards.length ? Math.ceil(Math.max(...this.blizzards.map((b) => b.t)) * 10) / 10 : 0,
+      bzs: this.blizzards.some((b) => b.sand) ? 1 : 0,
       pj: this.slashes.map((sl) => ({ i: sl.id, x: r0(sl.x), y: r0(sl.y), vx: sl.vx, o: sl.owner })),
       sm: this.smokes.map((s) => ({ x: r0(s.x), y: r0(s.y), r: s.r, a: Math.round((s.t / s.max) * 100) / 100 })),
       p: this.list().map((p) => ({
@@ -1488,7 +1496,7 @@ class Sim {
         ft: ten(p.flyT), rt: ten(p.rockT), bt: ten(p.buffT),
         chg: has(p, 'empower') ? (p.charged ? 100 : Math.floor((p.stillT / SKILLS.empower.charge) * 100)) : 0,
         pr: has(p, 'parasite') ? Object.values(p.parHits).filter((n) => n >= SKILLS.parasite.hitsNeeded).length : 0,
-        sn: activeSkins(p), bb: p.burnN > 0 && p.burnBlue ? 1 : 0,
+        isd: p.iceSand ? 1 : 0, sn: activeSkins(p), bb: p.burnN > 0 && p.burnBlue ? 1 : 0,
         ins: p.inside ? 1 : 0, phost: p.parHost, pt: ten(p.parT), ctl: p.controller, rd: p.ready ? 1 : 0,
       })),
       cl: [...this.clones.values()].map((c) => ({
@@ -1514,6 +1522,15 @@ function botThink(sim, b) {
   let wantJump = false;
   const st = sim.stage;
   // 지진에 흔들리는 봇: 방향을 마구 바꾸고, 아무 데나 휘두름
+  // 반전에 걸린 봇: 헷갈려서 이상하게 움직임 (방향을 자꾸 바꾸고, 엉뚱한 데 휘두르고, 괜히 점프)
+  if (b.invT > 0 && Math.random() < 0.45) {
+    if (!b.cfT || b.cfT <= 0) { b.cfDir = Math.random() < 0.5 ? -1 : 1; b.cfT = 10 + Math.floor(Math.random() * 25); }
+    b.cfT--;
+    if (b.cfDir > 0) inp.r = 1; else inp.l = 1;
+    if (Math.random() < 0.06 && !b.prevInput.u) inp.u = 1;
+    if (!b.attack && Math.random() < 0.06) { if (Math.random() < 0.4) inp.h = 1; else inp.a = 1; }
+    return inp;
+  }
   if (b.quakeT > 0) {
     if (!b.qDirT || b.qDirT <= 0) { b.qDir = [-1, 0, 1][Math.floor(Math.random() * 3)]; b.qDirT = 6 + Math.floor(Math.random() * 18); }
     b.qDirT--;

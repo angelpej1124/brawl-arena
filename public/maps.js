@@ -82,6 +82,30 @@
       respawn: { x: 800, y: 130 },
       theme: { sky: ['#3b1d1a', '#8a3f2a', '#e59a5c'], hill: '#5a2a1e', grass: '#d58a4a', grassHi: '#f5bb7a', dirt: '#7a3e26', plat: '#f0b07a', platHi: '#ffe0c0', orb: 'rgba(255,190,120,', stars: false },
     },
+    {
+      id: 'ruins', name: '무너진 유적', width: 1600, height: 900,
+      solids: [{ x: 200, y: 660, w: 400, h: 80 }, { x: 1000, y: 660, w: 400, h: 80 }, { x: 640, y: 600, w: 320, h: 60 }, { x: 520, y: 570, w: 50, h: 90 }, { x: 1030, y: 570, w: 50, h: 90 }],
+      platforms: [{ x: 250, y: 520, w: 170 }, { x: 1180, y: 520, w: 170 }, { x: 700, y: 460, w: 200 }, { x: 420, y: 360, w: 170 }, { x: 1010, y: 360, w: 170 }, { x: 715, y: 250, w: 170 }],
+      spawns: [{ x: 300, y: 660 }, { x: 1300, y: 660 }, { x: 800, y: 600 }, { x: 335, y: 520 }, { x: 1265, y: 520 }, { x: 800, y: 460 }],
+      respawn: { x: 800, y: 140 },
+      theme: { sky: ['#1d1a2e', '#3d3a5c', '#8a7f9e'], hill: '#2a2640', grass: '#9c9483', grassHi: '#cfc6b3', dirt: '#4f4a42', plat: '#bcae92', platHi: '#ece2cb', orb: 'rgba(220,210,255,', stars: true },
+    },
+    {
+      id: 'volcano', name: '화산섬', width: 1600, height: 900,
+      solids: [{ x: 260, y: 640, w: 1080, h: 90 }, { x: 690, y: 560, w: 220, h: 80 }],
+      platforms: [{ x: 300, y: 500, w: 180 }, { x: 1120, y: 500, w: 180 }, { x: 520, y: 400, w: 160 }, { x: 920, y: 400, w: 160 }, { x: 720, y: 300, w: 160 }, { x: 330, y: 300, w: 140 }, { x: 1130, y: 300, w: 140 }],
+      spawns: [{ x: 360, y: 640 }, { x: 1240, y: 640 }, { x: 800, y: 560 }, { x: 600, y: 640 }, { x: 1000, y: 640 }, { x: 800, y: 300 }],
+      respawn: { x: 800, y: 130 },
+      theme: { sky: ['#1a0a0a', '#4a1410', '#a8401c'], hill: '#2a0e0a', grass: '#5a4a48', grassHi: '#8a7470', dirt: '#2e2220', plat: '#ff8a3d', platHi: '#ffd0a0', orb: 'rgba(255,120,60,', stars: false, water: '#d4471a' },
+    },
+    {
+      id: 'skygarden', name: '하늘 정원', width: 1600, height: 900,
+      solids: [{ x: 250, y: 600, w: 300, h: 60 }, { x: 1050, y: 600, w: 300, h: 60 }, { x: 650, y: 660, w: 300, h: 60 }],
+      platforms: [{ x: 560, y: 520, w: 140 }, { x: 900, y: 520, w: 140 }, { x: 300, y: 430, w: 160 }, { x: 1140, y: 430, w: 160 }, { x: 700, y: 380, w: 200 }, { x: 480, y: 270, w: 150 }, { x: 970, y: 270, w: 150 }, { x: 725, y: 180, w: 150 }],
+      spawns: [{ x: 400, y: 600 }, { x: 1200, y: 600 }, { x: 800, y: 660 }, { x: 380, y: 430 }, { x: 1220, y: 430 }, { x: 800, y: 380 }],
+      respawn: { x: 800, y: 100 },
+      theme: { sky: ['#7ec8ff', '#bfe6ff', '#fff3d6'], hill: '#9fd4a8', grass: '#7fe08a', grassHi: '#c4f5b8', dirt: '#8a6a4a', plat: '#ffffff', platHi: '#e8f6ff', orb: 'rgba(255,255,220,', stars: false },
+    },
   ];
   // 계산해 두는 값 (봇·분신이 땅 끝을 알기 위해)
   for (const m of MAPS) {
