@@ -261,7 +261,7 @@ class GameRoom {
     const p = this.sim.players.get(id), c = this.clients.get(id);
     if (!p || !c || p.skill2) return;
     const owned = c.accountKey ? accounts.ownedOf(c.accountKey) : accounts.BASE_SKILLS;
-    const k = owned.find((x) => x !== p.skill && !(['sword', 'archer'].includes(x) && ['sword', 'archer'].includes(p.skill)));
+    const k = owned.find((x) => x !== p.skill && !(['sword', 'archer', 'ninja'].includes(x) && ['sword', 'archer', 'ninja'].includes(p.skill)));
     if (k) this.sim.setSkill2(id, k);
   }
   // 방 닫기 (관리자 삭제): 모두에게 알리고 연결을 끊음

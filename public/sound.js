@@ -148,8 +148,12 @@
     error: (o) => S.glitch(o), invert: (o) => S.glitch(o), rewind: (o) => S.rewind(o), tsave: (o) => S.chime(o),
     infest: (o) => S.poof(o), unfest: (o) => S.poof(o), atomq: (o) => S.zap(o), homing: (o) => S.zap(o), bfq: (o) => S.zap(o),
     start: () => S.start(), deny: (o) => S.deny(o),
+    kunai: (o) => S.lunge(o), kawarimi: (o) => S.poof(o), logpoof: (o) => S.poof(o),
+    gamble: (o) => { for (let i = 0; i < 5; i++) tone('square', 300 + Math.random() * 500, 0, 0.04, 0.12, { ...o, delay: i * 0.06 }); S.chime({ ...o, delay: 0.32 }); },
+    starfall: (o) => { [1320, 1568, 1760, 2093, 2637].forEach((f, i) => tone('sine', f, f, 0.6, 0.12, { ...o, delay: i * 0.08 })); },
+    starpop: (o) => tone('triangle', 2400 + Math.random() * 800, 1600, 0.12, 0.08, o),
   };
-  const GAP = { hit: 0.035, burn: 0.06, jump: 0.05, jump2: 0.05, thunk: 0.05, bolt: 0.05 };
+  const GAP = { starpop: 0.05, hit: 0.035, burn: 0.06, jump: 0.05, jump2: 0.05, thunk: 0.05, bolt: 0.05 };
   // ev: 서버 이벤트, me: 내 캐릭터(거리에 따라 소리 크기·좌우), stageW: 맵 너비
   function event(ev, me, stageW) {
     if (!ac || !opt.sfx || !MAP[ev.k]) return;

@@ -32,6 +32,7 @@
     shadowice:   { skill: 'ice', name: '어둠', desc: '눈보라 대신 어둠이 깔리고, 검은 게이지가 차면 어둠에 잠식됨', color: '#2a2238' },
     steel:       { skill: 'rock', name: '강철', desc: '바위 대신 반짝이는 강철 몸', color: '#9fb0c4' },
     yinyang:     { skill: 'magnet', name: '음양', desc: '당기기·밀기 때 커다란 흑백 음양 무늬가 돎', color: '#1a1a1a' },
+    snowninja:   { skill: 'ninja', name: '스노우', desc: '쿠나이 대신 고드름을 휘두르고 던짐. 통나무 대신 눈사람을 남김', color: '#cfeaff' },
     solar:       { skill: 'atom', name: '태양계', desc: '시전자는 이글거리는 태양, 전자는 수성·금성·지구·화성·목성. 스킬을 쓰면 토성·천왕성·해왕성까지 수금지화목토천해가 다 돎', color: '#ffb02e' },
     gold:        { skill: 'rock', name: '골드', desc: '바위 대신 번쩍이는 금덩어리 몸', color: '#ffc928' },
   };
