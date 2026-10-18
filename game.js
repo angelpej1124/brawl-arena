@@ -58,6 +58,10 @@ const SKILLS = {
   time:     { name: '시간', cd: 20, back: 10 },
   // 콤보: 때릴 때마다 스택. Q로 스택만큼 강한 스매시 (범위도 커짐)
   combo:    { name: '콤보', maxStack: 30, baseR: 90, perR: 16, maxR: 520 },
+  // 반사: Q를 누르고 window초 안에 들어온 공격을 되돌려 보냄
+  reflect:  { name: '반사', cd: 3, window: 0.22 },
+  // 반전: 나를 뺀 상대의 절반(올림)이 7초간 좌우 키가 반대로
+  invert:   { name: '반전', cd: 13, duration: 7 },
   turret:   { name: '터렛', cd: 12, max: 3, hp: 4, range: 560, fireEvery: 0.9, bulletSpeed: 820, bulletLife: 0.9, dmg: 3, baseKB: 210, growthKB: 5 },
 };
 const SKILL_IDS = Object.keys(SKILLS);
@@ -78,7 +82,7 @@ const TEAMS = [null, { name: '빨강팀', color: '#ff4d4d' }, { name: '파랑팀
 // 시간 되돌리기로 되돌리는 값들
 const TIME_FIELDS = ['x', 'y', 'vx', 'vy', 'facing', 'grounded', 'jumpsLeft', 'damage', 'stocks', 'alive', 'inMatch', 'kos', 'botKos',
   'skillCd', 'skillCd2', 'skillCdB', 'slow', 'stealth', 'frozen', 'flyT', 'flyDownT', 'rockT', 'buffT', 'giantT', 'rubberT', 'engineT',
-  'stunT', 'quakeT', 'errT', 'sunT', 'iceG', 'iceT', 'burnN', 'burnT', 'hulkS', 'hitstun', 'invincible', 'charged', 'stillT', 'combo', 'homingNext'];
+  'stunT', 'quakeT', 'errT', 'sunT', 'invT', 'iceG', 'iceT', 'burnN', 'burnT', 'hulkS', 'hitstun', 'invincible', 'charged', 'stillT', 'combo', 'homingNext'];
 // 이 스킬을 가지고 있는지 (더블 모드면 두 번째 스킬도)
 const has = (p, k) => !!p && (p.skill === k || p.skill2 === k);
 // 키 배치: 보통 Q=스킬1, E=스킬2. 자석이 있으면 자석이 Q·E를 쓰고 나머지 스킬은 R
@@ -120,7 +124,7 @@ class Player {
     this.stunT = 0; this.quakeT = 0; this.bfAt = -999;
     this.burnN = 0; this.burnT = 0; this.burnDir = 1; this.burnBy = null; this.fdashT = 0; this.fdashHit = null;
     this.iceG = 0; this.iceT = 0; this.iceHitAt = -999;
-    this.errT = 0; this.sunT = 0;
+    this.errT = 0; this.sunT = 0; this.parryT = 0; this.invT = 0;
     this.stillT = 0; this.charged = false;
     this.combo = 0;               // 콤보 스택 (죽으면 초기화)
     this.drawT = 0;               // 궁수: 시위 당긴 정도 (0이면 안 당김)
@@ -378,6 +382,8 @@ class Sim {
         p.reset(s.x, s.y);
         if (this.phase !== 'ended') p.inMatch = false;
       }
+      // 사람: 받은 입력에서 매 틱 새로 시작 (에러·반전으로 바꾼 입력이 쌓이지 않게)
+      if (!p.bot && p.rawInput) p.input = { ...p.rawInput };
       if (p.dummy) p.input = EMPTY_INPUT();           // 더미: 가만히 있음
       else if (p.bot) p.input = botThink(this, p);
     });
@@ -403,6 +409,8 @@ class Sim {
       else if (p.errMode === 3) p.input = EMPTY_INPUT();                       // 안 먹힘
       else if (p.errMode === 4) p.input = { ...i, l: Math.random() < 0.5 ? 1 : 0, r: Math.random() < 0.5 ? 1 : 0, u: Math.random() < 0.06 ? 1 : 0, a: Math.random() < 0.05 ? 1 : 0 };
     }
+    // 반전: 좌우 키가 반대로
+    for (const p of list) if (p.invT > 0) p.input = { ...p.input, l: p.input.r, r: p.input.l };
     for (const p of [...list, ...this.clones.values()]) if (p.alive && !p.inside) this.updateElements(p, dt);
     for (const p of list) {
       if (!p.alive) continue;
@@ -503,6 +511,8 @@ class Sim {
     if (p.quakeT > 0) p.quakeT = Math.max(0, p.quakeT - dt);
     if (p.iceT > 0) p.iceT = Math.max(0, p.iceT - dt);
     if (p.errT > 0) p.errT = Math.max(0, p.errT - dt);
+    if (p.invT > 0) p.invT = Math.max(0, p.invT - dt);
+    if (p.parryT > 0) p.parryT = Math.max(0, p.parryT - dt);
     if (p.sunT > 0) p.sunT = Math.max(0, p.sunT - dt);
     // 헐크: 퍼센트에 따라 몸 크기가 서서히 변함
     if (p.clone) { /* 분신은 주인 크기를 따라감 */ } else if (has(p, 'hulk')) {
@@ -815,6 +825,18 @@ class Sim {
       this.ev({ k: 'rewind', n: p.name });
     } else if (k === 'combo') {
       return this.smash(p);
+    } else if (k === 'reflect') {
+      p.parryT = SKILLS.reflect.window; p.skillCd = SKILLS.reflect.cd;
+      this.ev({ k: 'parryq', x: r0(p.x), y: r0(cy), pid: p.id });
+    } else if (k === 'invert') {
+      const s = SKILLS.invert;
+      const cands = [...this.players.values()].filter((o) => this.foe(p, o) && o.alive && (this.phase !== 'playing' || o.inMatch));
+      if (!cands.length) return this.deny(p, '반전시킬 상대가 없어요');
+      for (let i = cands.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [cands[i], cands[j]] = [cands[j], cands[i]]; }
+      const pick = cands.slice(0, Math.ceil(cands.length / 2));
+      for (const o of pick) o.invT = s.duration;
+      p.skillCd = s.cd;
+      this.ev({ k: 'invert', n: p.name, h: pick.length, names: pick.map((o) => o.name) });
     } else if (k === 'hulk') {
       return this.deny(p, '헐크는 퍼센트가 오를수록 커지는 패시브 스킬이에요');
     } else if (k === 'undying') {
@@ -823,6 +845,29 @@ class Sim {
       this.magnet(p, 1);
       p.skillCd = SKILLS.magnet.cd;
     }
+  }
+  // ---------------- 반사 ----------------
+  parrying(o) { return !o.clone && o.parryT > 0 && o.alive && !o.inside; }
+  parried(o, x, y) {
+    o.parryT = 0; o.invincible = Math.max(o.invincible, 0.3);
+    this.ev({ k: 'parry', x: r0(x), y: r0(y) });
+  }
+  // 근접 공격·돌진을 반사: 공격한 쪽이 반대 방향으로 날아감
+  reflectHit(attacker, target, def, type, dir) {
+    this.parried(target, target.x, target.y - bh(target) / 2);
+    attacker.attack = null; attacker.fdashT = 0;
+    this.applyHit(target, attacker, def, type, { dir: -dir, reflect: true });
+  }
+  // 날아오는 것(화살·참격·총알·바람)을 반사: 주인이 바뀌고 방향이 반대로
+  reflectShot(o, shot) {
+    this.parried(o, shot.x, shot.y);
+    shot.owner = o.id; shot.vx = -shot.vx;
+    // 일반 화살은 왔던 포물선을 거꾸로 (위로 다시 띄움), 나머지는 수평으로 되돌림
+    if (shot.c !== undefined && !shot.homing) shot.vy = -Math.abs(shot.vy) - 40;
+    else if (shot.vy !== undefined) shot.vy = -shot.vy;
+    if (shot.hit) shot.hit = new Set();
+    if (shot.caught) shot.caught = new Set();
+    shot.x += Math.sign(shot.vx) * 20;
   }
   // ---------------- 콤보 스매시 ----------------
   smash(p) {
@@ -914,6 +959,7 @@ class Sim {
         const ow = bw(o), oh = bh(o);
         if (a.x > o.x - ow / 2 - 8 && a.x < o.x + ow / 2 + 8 && a.y > o.y - oh - 6 && a.y < o.y + 6) {
           const dir = Math.sign(a.vx) || 1;
+          if (this.parrying(o)) { this.reflectShot(o, a); a.t = Math.max(a.t, 1.5); break; }   // 유도 화살은 유도 그대로
           this.applyHit(owner, o, def, a.c > 0.8 || a.homing ? 'heavy' : 'light', { dir });
           this.elementHit(owner, o, 'light', dir);
           if (o.clone) this.hitClone(o);
@@ -940,6 +986,7 @@ class Sim {
         for (const o of list) {
           if (!this.foe(w, o) || !o.alive || o.inside || o.frozen > 0 || o.invincible > 0 || o.rockT > 0) continue;
           if (!inside(o)) continue;
+          if (this.parrying(o)) { this.reflectShot(o, w); w.t = Math.max(w.t, 0.8); break; }
           if (!w.caught.has(o.id)) {
             w.caught.add(o.id);
             o.damage = Math.min(o.damage + s.dmg, 999);
@@ -1132,6 +1179,7 @@ class Sim {
         if (overlaps(o)) {
           atk.hit.add(o.id);
           const dir = fan ? (Math.sign(o.x - p.x) || p.facing) : p.facing;
+          if (this.parrying(o)) { this.reflectHit(p, o, def, atk.type, dir); return; }
           if (!atk.dirs) atk.dirs = new Map();
           atk.dirs.set(o.id, dir);
           atk.victims.push(o);
@@ -1198,6 +1246,7 @@ class Sim {
       if (!this.foe(p, o) || !o.alive || o.inside || o.frozen > 0 || o.invincible > 0 || p.fdashHit.has(o.id)) continue;
       if (Math.abs(o.x - cx) < bw(o) / 2 + 46 && Math.abs(o.y - bh(o) / 2 - cy) < bh(o) / 2 + 40) {
         p.fdashHit.add(o.id);
+        if (this.parrying(o)) { this.reflectHit(p, o, def, 'heavy', p.facing); return; }
         this.applyHit(p, o, def, 'heavy', { dir: p.facing });
         this.ignite(o, p, s.dashBurn, p.facing);
         if (o.clone) this.hitClone(o);
@@ -1257,6 +1306,7 @@ class Sim {
         if (!this.foe(b, o) || !o.alive || o.inside || o.frozen > 0 || o.invincible > 0) continue;
         const ow = bw(o), oh = bh(o);
         if (b.x > o.x - ow / 2 - 6 && b.x < o.x + ow / 2 + 6 && b.y > o.y - oh - 6 && b.y < o.y + 6) {
+          if (this.parrying(o)) { this.reflectShot(o, b); break; }
           this.applyHit(owner, o, def, 'light', { dir: Math.sign(b.vx) || 1, small: true });
           if (o.clone) this.hitClone(o);
           b.t = 0; break;
@@ -1350,6 +1400,7 @@ class Sim {
         if (!this.foe(sl, o) || !o.alive || o.inside || o.frozen > 0 || o.invincible > 0 || sl.hit.has(o.id)) continue;
         const ow = bw(o), oh = bh(o);
         if (Math.abs(o.x - sl.x) < ow / 2 + 26 && sl.y > o.y - oh - 30 && sl.y < o.y + 30) {
+          if (this.parrying(o)) { this.reflectShot(o, sl); sl.hit.add(o.id); break; }
           sl.hit.add(o.id);
           this.applyHit(owner, o, def, 'light', { dir: Math.sign(sl.vx) });
           if (o.clone) this.hitClone(o);
@@ -1405,6 +1456,7 @@ class Sim {
       sz: Math.round(sizeOf(p) * 100) / 100, ig: Math.round(p.iceG || 0), icd: p.iceT > 0 ? 1 : 0,
       brn: p.burnN > 0 ? 1 : 0, fd: p.fdashT > 0 ? 1 : 0,
       er: p.errT > 0 ? 1 : 0, sun: p.sunT > 0 ? 1 : 0,
+      rv: p.invT > 0 ? 1 : 0, pa: p.parryT > 0 ? 1 : 0,
       dr: p.drawT > 0 ? Math.round(p.drawT * 100) / 100 : 0, cb: p.combo || 0, hm: p.homingNext ? 1 : 0,
       smk: this.inSmoke(p) ? 1 : 0,
     });
@@ -1549,6 +1601,13 @@ function botThink(sim, b) {
         if (sk === 'wind' && ready && b.facing === side && Math.abs(dx) < 420 && Math.abs(dy) < 90 && R < 0.04) use(sk);
         if (sk === 'archer' && ready && !b.homingNext && best > 250 && R < 0.03) use(sk);
         if (sk === 'time' && ready && b.damage > 100 && R < 0.01) use(sk);
+        if (sk === 'invert' && ready && best < 500 && R < 0.02) use(sk);
+        if (sk === 'reflect' && ready) {
+          // 가까운 적이 공격 중이거나 화살·참격·총알이 날아오면 가끔 반사 시도
+          const near = [...sim.players.values()].some((o) => sim.foe(b, o) && o.attack && Math.abs(o.x - b.x) < 130 && Math.abs(o.y - b.y) < 80)
+            || [...sim.arrows, ...sim.slashes, ...sim.bullets].some((q) => sim.foe(q, b) && Math.abs(q.x - b.x) < 110 && Math.abs(q.y - (b.y - 30)) < 60);
+          if (near && R < 0.25) use(sk);
+        }
         if (sk === 'combo' && b.combo >= 5 && best < SKILLS.combo.baseR + SKILLS.combo.perR * b.combo && R < 0.08) use(sk);
         if (sk === 'blackflash' && ready && b.attack && !b.attack.black) {
           // 봇은 가끔 타이밍을 맞춤

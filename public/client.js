@@ -44,6 +44,8 @@ const SKILLS = {
   archer:   { name: '궁수', desc: '강공격을 누르고 있으면 시위를 당김(1초면 최대), 놓으면 발사. Q는 다음 화살이 벽을 피해 쫓아가는 유도 화살', cd: '쿨 13초' },
   time:     { name: '시간', desc: '모든 것을 10초 전으로 되돌림 (위치·쿨타임·목숨 등, 시간 쿨타임은 제외). 탈락하면 못 씀', cd: '쿨 20초' },
   combo:    { name: '콤보', desc: '때릴 때마다 콤보가 쌓임. Q는 콤보만큼 강하고 넓은 스매시 (죽으면 초기화)', cd: '콤보 1 이상' },
+  reflect:  { name: '반사', desc: '상대 공격이 들어오는 순간에 맞춰 Q를 누르면 반사. 돌진·검 돌진은 반대로 날려 보내고, 화살(유도 포함)·참격·총알·바람은 되돌려 보냄', cd: '쿨 3초' },
+  invert:   { name: '반전', desc: '나를 뺀 상대 절반(올림)의 좌우 키가 7초간 반대로. 머리 위에 악마 표시', cd: '쿨 13초' },
   turret:   { name: '터렛', desc: '적을 자동으로 쏘는 터렛 설치 (최대 3개, 4번 맞으면 부서짐)', cd: '쿨 12초' },
 };
 const SKILL_COLOR = {
@@ -52,7 +54,7 @@ const SKILL_COLOR = {
   quake: '#d6a45c', giant: '#ff6b4a', rubber: '#ff9ff3', engine: '#ffb000',
   sword: '#cfe3ff', blackflash: '#c0263a', lightning: '#ffe94a', undying: '#ffd27a',
   hulk: '#5fd35a', fire: '#ff5a1f', ice: '#8fdcff', turret: '#a7b2c4', error: '#39ff88', sun: '#ffc21a',
-  wind: '#b8f2e6', archer: '#c98b4a', time: '#7c9cff', combo: '#ff5fa2',
+  wind: '#b8f2e6', archer: '#c98b4a', time: '#7c9cff', combo: '#ff5fa2', reflect: '#e0f0ff', invert: '#c2185b',
 };
 const SKILL_IDS = Object.keys(SKILLS);
 const MAPS = window.BRAWL_MAPS;   // maps.js (서버와 같은 맵 정보)
@@ -729,6 +731,16 @@ function onEvent(ev) {
     for (let i = 0; i < 30; i++) { const a = Math.random() * Math.PI * 2, sp = 200 + Math.random() * 500; particles.push({ x: ev.x, y: ev.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.45, max: 0.45, c: i % 2 ? '#ff5fa2' : '#ffe0ef', r: 6, nograv: true }); }
     shake = Math.max(shake, Math.min(26, 8 + ev.n));
     banners.push({ text: `${ev.n}콤보 스매시!`, life: 1.2, max: 1.2, small: true, color: '#ff5fa2' });
+  } else if (ev.k === 'parryq') {
+    particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.22, max: 0.22, r: 48, c: '220,240,255' });
+  } else if (ev.k === 'parry') {
+    // 반사 성공: 번쩍 + 튕겨 나가는 빛
+    particles.push({ ring: true, fill: true, x: ev.x, y: ev.y, life: 0.35, max: 0.35, r: 90, c: '235,245,255', grow: true });
+    for (let i = 0; i < 18; i++) { const a = Math.random() * Math.PI * 2, sp = 250 + Math.random() * 400; particles.push({ x: ev.x, y: ev.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.3, max: 0.3, c: i % 2 ? '#ffffff' : '#9fd0ff', r: 4, nograv: true }); }
+    shake = Math.max(shake, 10);
+    banners.push({ text: '반사!', life: 0.9, max: 0.9, small: true, color: '#cfe8ff' });
+  } else if (ev.k === 'invert') {
+    banners.push({ text: `${ev.n}의 반전! ${(ev.names || []).join(', ')}`, life: 1.8, max: 1.8, small: true, color: '#ff4f8b' });
   } else if (ev.k === 'map') {
     banners.push({ text: `맵: ${ev.n}`, life: 2.5, max: 2.5, small: true, color: '#ffcf3f' });
   } else if (ev.k === 'host') {
@@ -1084,6 +1096,24 @@ function drawSword(p, f, time, rubM = 1, otherM = 1) {
   ctx.beginPath(); ctx.arc(hx, hy, 9, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
 }
 function finishPlayer(p, x, y, G, light, ownerId, baseAlpha, isClone, time) {
+  if (p.pa) {
+    // 반사 대기: 몸 앞의 빛나는 방패
+    ctx.strokeStyle = 'rgba(220,240,255,0.95)'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(x, y - PH * G / 2, 40 * G, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = 'rgba(200,230,255,0.18)'; ctx.fill();
+  }
+  if (p.rv) {
+    // 반전: 머리 위 악마 표시 (빨간 얼굴 + 뿔)
+    const dx = x, dy = y - PH * G - 50 - (p.b ? 12 : 0) - (p.cb > 0 ? 22 : 0) + Math.sin(time / 200) * 2;
+    ctx.fillStyle = '#d81b4a';
+    ctx.beginPath(); ctx.moveTo(dx - 11, dy - 6); ctx.lineTo(dx - 15, dy - 20); ctx.lineTo(dx - 4, dy - 10); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(dx + 11, dy - 6); ctx.lineTo(dx + 15, dy - 20); ctx.lineTo(dx + 4, dy - 10); ctx.fill();
+    ctx.beginPath(); ctx.arc(dx, dy, 12, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ffe14a';
+    ctx.beginPath(); ctx.moveTo(dx - 8, dy - 4); ctx.lineTo(dx - 2, dy - 1); ctx.lineTo(dx - 8, dy + 1); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(dx + 8, dy - 4); ctx.lineTo(dx + 2, dy - 1); ctx.lineTo(dx + 8, dy + 1); ctx.fill();
+    ctx.strokeStyle = '#2a0010'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(dx, dy + 3, 5, 0.2, Math.PI - 0.2); ctx.stroke();
+  }
   if (p.cb > 0 && !isClone) {
     // 콤보 스택
     ctx.font = '400 20px "Black Han Sans", sans-serif'; ctx.textAlign = 'center';

@@ -325,7 +325,7 @@ server.on('upgrade', (req, sock) => {
         socket.send(JSON.stringify({ t: 'welcome', id, room: r.name, title: r.title, isPublic: r.isPublic }));
       } else if (m.t === 'input' && room) {
         const p = room.sim.players.get(id);
-        if (p) p.input = cleanInput(m);
+        if (p) { p.rawInput = cleanInput(m); p.input = { ...p.rawInput }; }
       } else if (m.t === 'bot' && room) {
         room.bot(id, !!m.add, !!m.dummy);
       } else if (m.t === 'ready' && room) {
