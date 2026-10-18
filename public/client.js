@@ -990,11 +990,26 @@ function drawStage() {
   for (const s of STAGE.solids) {
     const thin = s.w < 80; // 성벽 기둥
     ctx.fillStyle = th.dirt; roundRect(s.x, s.y, s.w, s.h + (thin ? 0 : 40), thin ? 6 : 14); ctx.fill();
+    if ((STAGE.slopes || []).some((sl) => sl.x1 <= s.x + 1 && sl.x2 >= s.x + s.w - 1)) continue;   // 윗면 전체가 빗면이면 풀 띠는 빗면이 그림
     ctx.fillStyle = th.grass; roundRect(s.x - (thin ? 2 : 6), s.y - 4, s.w + (thin ? 4 : 12), thin ? 14 : 22, thin ? 5 : 10); ctx.fill();
     ctx.fillStyle = th.grassHi; ctx.fillRect(s.x + 4, s.y - 2, s.w - 8, 4);
     ctx.fillStyle = 'rgba(0,0,0,0.15)';
     if (thin) { for (let y = s.y + 20; y < s.y + s.h - 8; y += 22) ctx.fillRect(s.x + 6, y, s.w - 12, 6); }
     else for (let x = s.x + 30; x < s.x + s.w - 20; x += 70) ctx.fillRect(x, s.y + 35, 28, 8);
+  }
+  // 빗면: 흙으로 채운 비탈 + 윗면을 따라 풀(눈·모래) 띠
+  for (const sl of STAGE.slopes || []) {
+    const base = Math.max(sl.y1, sl.y2) + 30;
+    ctx.fillStyle = th.dirt; ctx.beginPath(); ctx.moveTo(sl.x1, sl.y1); ctx.lineTo(sl.x2, sl.y2); ctx.lineTo(sl.x2, base); ctx.lineTo(sl.x1, base); ctx.closePath(); ctx.fill();
+    ctx.save(); ctx.beginPath(); ctx.moveTo(sl.x1, sl.y1); ctx.lineTo(sl.x2, sl.y2); ctx.lineTo(sl.x2, base); ctx.lineTo(sl.x1, base); ctx.closePath(); ctx.clip();
+    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+    const len = Math.hypot(sl.x2 - sl.x1, sl.y2 - sl.y1);
+    for (let d = 40; d < len - 30; d += 70) { const x = sl.x1 + (sl.x2 - sl.x1) * d / len, y = sl.y1 + (sl.y2 - sl.y1) * d / len; ctx.fillRect(x - 14, y + 30, 28, 8); }
+    ctx.restore();
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.strokeStyle = th.grass; ctx.lineWidth = 16; ctx.beginPath(); ctx.moveTo(sl.x1, sl.y1 + 5); ctx.lineTo(sl.x2, sl.y2 + 5); ctx.stroke();
+    ctx.strokeStyle = th.grassHi; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(sl.x1 + 4, sl.y1 + 1); ctx.lineTo(sl.x2 - 4, sl.y2 + 1); ctx.stroke();
+    ctx.lineCap = 'butt';
   }
   for (const p of STAGE.platforms) {
     ctx.fillStyle = 'rgba(0,0,0,0.25)'; roundRect(p.x + 4, p.y + 6, p.w, 14, 7); ctx.fill();
@@ -1115,8 +1130,24 @@ function drawPlayer(p, time) {
     else { g3.addColorStop(0, 'rgba(255,200,60,0.9)'); g3.addColorStop(1, 'rgba(255,60,20,0)'); }
     ctx.fillStyle = g3; ctx.beginPath(); ctx.ellipse(-f * 50, -PH / 2, 80, 30, 0, 0, Math.PI * 2); ctx.fill();
   }
+  if (p.el && skinOn(p, 'solar') && !p.hs) {
+    // 태양계: 시전자가 태양 — 뒤로 이글거리는 코로나
+    ctx.save(); ctx.translate(0, -PH / 2); ctx.rotate(time / 1200);
+    for (let i = 0; i < 12; i++) { ctx.rotate(Math.PI / 6); ctx.fillStyle = i % 2 ? 'rgba(255,170,40,0.55)' : 'rgba(255,220,90,0.5)'; ctx.beginPath(); ctx.moveTo(-6, 26); ctx.lineTo(0, 44 + Math.sin(time / 110 + i) * 6); ctx.lineTo(6, 26); ctx.fill(); }
+    const cg = ctx.createRadialGradient(0, 0, 14, 0, 0, 46); cg.addColorStop(0, 'rgba(255,240,150,0.6)'); cg.addColorStop(1, 'rgba(255,140,20,0)');
+    ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(0, 0, 46, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
   ctx.fillStyle = p.hs ? '#ffffff' : p.c;
   roundRect(-PW / 2, -PH, PW, PH, 12); ctx.fill();
+  if (p.el && skinOn(p, 'solar') && !p.hs) {
+    // 몸이 이글이글 타는 태양 표면으로
+    const sg2 = ctx.createRadialGradient(-6, -PH * 0.6, 4, 0, -PH / 2, PH * 0.75);
+    sg2.addColorStop(0, '#fff6b0'); sg2.addColorStop(0.45, '#ffc93a'); sg2.addColorStop(1, '#ff7a1a');
+    ctx.fillStyle = sg2; roundRect(-PW / 2, -PH, PW, PH, 12); ctx.fill();
+    ctx.fillStyle = 'rgba(255,120,20,0.45)';
+    for (let i = 0; i < 5; i++) { const bx = Math.sin(time / 400 + i * 2.3) * 12, by = -PH * 0.2 - ((time / 30 + i * 13) % (PH * 0.7)); ctx.beginPath(); ctx.arc(bx, by, 3 + (i % 2) * 2, 0, Math.PI * 2); ctx.fill(); }
+  }
   if (p.gt && skinOn(p, 'titan')) {
     // 근육이 드러난 거대한 모습: 붉은 근섬유 + 이를 드러낸 입
     ctx.fillStyle = '#a8423a'; roundRect(-PW / 2, -PH, PW, PH, 12); ctx.fill();
@@ -1404,6 +1435,21 @@ function drawSword(p, f, time, rubM = 1, otherM = 1) {
   ctx.fillStyle = p.c; ctx.strokeStyle = '#1a1030'; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.arc(hx, hy, 9, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
 }
+// 태양계 스킨 행성: 0 수성 1 금성 2 지구 3 화성 4 목성 5 토성 6 천왕성 7 해왕성
+const PLANETS = [
+  { r: 5, c: ['#d0d0d0', '#8a8a8a'] }, { r: 7, c: ['#fff0c0', '#d8a850'] }, { r: 7.5, c: ['#7fc8ff', '#1f5fc0'] }, { r: 6, c: ['#ff9a6a', '#b8401a'] },
+  { r: 11, c: ['#f4dcb4', '#b8865a'] }, { r: 9, c: ['#fbe7a8', '#c8a050'] }, { r: 7.5, c: ['#d4fbff', '#6ad0dc'] }, { r: 7.5, c: ['#8fb0ff', '#2a48c8'] },
+];
+function drawPlanet(x, y, i, G) {
+  const P = PLANETS[i % 8], r = P.r * Math.max(1, G * 0.8);
+  if (i === 5) { ctx.strokeStyle = 'rgba(230,205,150,0.9)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(x, y, r * 1.9, r * 0.55, -0.35, Math.PI, Math.PI * 2); ctx.stroke(); }
+  const g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.35, r * 0.2, x, y, r);
+  g.addColorStop(0, P.c[0]); g.addColorStop(1, P.c[1]);
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  if (i === 2) { ctx.fillStyle = '#3cbf5a'; ctx.beginPath(); ctx.ellipse(x - r * 0.25, y - r * 0.1, r * 0.4, r * 0.28, 0.5, 0, Math.PI * 2); ctx.ellipse(x + r * 0.35, y + r * 0.35, r * 0.25, r * 0.2, 0, 0, Math.PI * 2); ctx.fill(); }
+  if (i === 4) { ctx.strokeStyle = 'rgba(160,100,60,0.7)'; ctx.lineWidth = 1.5; for (const dy of [-0.4, 0, 0.4]) { ctx.beginPath(); ctx.moveTo(x - r * 0.9, y + dy * r); ctx.lineTo(x + r * 0.9, y + dy * r); ctx.stroke(); } ctx.fillStyle = '#c8603a'; ctx.beginPath(); ctx.ellipse(x + r * 0.3, y + r * 0.25, r * 0.22, r * 0.14, 0, 0, Math.PI * 2); ctx.fill(); }
+  if (i === 5) { ctx.strokeStyle = 'rgba(230,205,150,0.9)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(x, y, r * 1.9, r * 0.55, -0.35, 0, Math.PI); ctx.stroke(); }
+}
 function finishPlayer(p, x, y, G, light, ownerId, baseAlpha, isClone, time) {
   if (p.el && !isClone) {
     // 원자: 링(무해) + 도는 전자 — 서버와 같은 식 (화면 지연만큼 각도를 앞당김)
@@ -1411,14 +1457,24 @@ function finishPlayer(p, x, y, G, light, ownerId, baseAlpha, isClone, time) {
     const age = latest ? Math.max(0, (performance.now() - latest.time) / 1000) : 0;
     const ph = ph0 + 4 * (boost ? 2 : 1) * age;
     const rings = boost ? [-0.6, 0.6] : [null];
-    ctx.strokeStyle = 'rgba(90,216,255,0.45)'; ctx.lineWidth = 1.5;
+    const solar = skinOn(p, 'solar');
+    ctx.strokeStyle = solar ? 'rgba(255,220,150,0.35)' : 'rgba(90,216,255,0.45)'; ctx.lineWidth = 1.5;
     for (const t of rings) { ctx.beginPath(); if (t === null) ctx.arc(cx, cy, R, 0, Math.PI * 2); else ctx.ellipse(cx, cy, R, R * 0.4, t, 0, Math.PI * 2); ctx.stroke(); }
     for (let i = 0; i < n; i++) {
       let ex, ey;
       if (boost) { const ring = i % 2, cnt = Math.ceil(n / 2) || 1, j = Math.floor(i / 2), a = (ring ? -ph : ph) + (j * Math.PI * 2) / cnt, t = ring ? 0.6 : -0.6, rx = Math.cos(a) * R, ry = Math.sin(a) * R * 0.4; ex = cx + rx * Math.cos(t) - ry * Math.sin(t); ey = cy + rx * Math.sin(t) + ry * Math.cos(t); }
       else { const a = ph + (i * Math.PI * 2) / n; ex = cx + Math.cos(a) * R; ey = cy + Math.sin(a) * R; }
+      if (solar) { drawPlanet(ex, ey, i, G); continue; }
       const eg = ctx.createRadialGradient(ex, ey, 1, ex, ey, 11); eg.addColorStop(0, '#ffffff'); eg.addColorStop(0.4, '#5ad8ff'); eg.addColorStop(1, 'rgba(90,216,255,0)');
       ctx.fillStyle = eg; ctx.beginPath(); ctx.arc(ex, ey, 11, 0, Math.PI * 2); ctx.fill();
+    }
+    if (solar && boost) {
+      // 스킬을 쓰면 나머지 행성(…토성·천왕성·해왕성)도 바깥 궤도에 나타나 수금지화목토천해가 모두 돎 (장식, 판정은 안쪽 행성만)
+      for (let i = n; i < 8; i++) {
+        const k = i - n, orbit = R * (1.35 + k * 0.17), a = -ph * (0.6 - k * 0.06) + i * 2.1;
+        ctx.strokeStyle = 'rgba(255,230,180,0.18)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(cx, cy, orbit, orbit * 0.45, 0, 0, Math.PI * 2); ctx.stroke();
+        ctx.globalAlpha = 0.85; drawPlanet(cx + Math.cos(a) * orbit, cy + Math.sin(a) * orbit * 0.45, i, G); ctx.globalAlpha = 1;
+      }
     }
   }
   if (p.er && !isClone) {

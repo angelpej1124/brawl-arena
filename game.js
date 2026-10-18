@@ -95,6 +95,9 @@ const iceSkin = (p) => (skinOn(p, 'sand') ? 'sand' : skinOn(p, 'aurora') ? 'auro
 const skinFx = (p) => { for (const id of activeSkins(p)) if (SKIN_DB[id] && SKIN_DB[id].fx) return SKIN_DB[id].fx; return undefined; };
 // 더블 모드에서 같이 쓸 수 없는 조합 (둘 다 무기를 바꾸는 스킬)
 const CONFLICTS = [['sword', 'archer']];
+// 빗면 { x1, y1, x2, y2 }: 윗면이 기울어진 땅 (아래로는 큰 쪽 y까지 꽉 참)
+const slopeY = (sl, x) => sl.y1 + ((sl.y2 - sl.y1) * (x - sl.x1)) / (sl.x2 - sl.x1);
+const slopeBase = (sl) => Math.max(sl.y1, sl.y2);
 const conflicts = (a, b) => CONFLICTS.some(([x, y]) => (a === x && b === y) || (a === y && b === x));
 // 이 스킬을 가지고 있는지 (더블 모드면 두 번째 스킬도)
 const has = (p, k) => !!p && (p.skill === k || p.skill2 === k);
@@ -974,7 +977,7 @@ class Sim {
       if (m.arm > 0) m.arm -= dt;
       const prevY = m.y;
       m.vy = Math.min(m.vy + CONFIG.GRAVITY * dt, CONFIG.MAX_FALL); m.y += m.vy * dt;
-      for (const sf of [...this.stage.solids, ...this.stage.platforms]) if (m.x >= sf.x && m.x <= sf.x + sf.w && prevY <= sf.y && m.y >= sf.y) { m.y = sf.y; m.vy = 0; }
+      { const ly = this.landingY(m.x, prevY, m.y); if (ly != null) { m.y = ly; m.vy = 0; } }
       if (m.y > this.stage.blast.bottom) { this.mines = this.mines.filter((x) => x !== m); continue; }
       if (m.arm > 0 || this.phase === 'countdown' || this.phase === 'ended') continue;
       const stepped = list.some((o) => this.foe(m, o) && o.alive && !o.inside && !(o.frozen > 0) && Math.abs(o.x - m.x) < bw(o) / 2 + 12 && o.y >= m.y - 14 && o.y - bh(o) < m.y);
@@ -1055,7 +1058,10 @@ class Sim {
     }
     return target;
   }
-  solidAt(x, y) { return this.stage.solids.some((sf) => x > sf.x && x < sf.x + sf.w && y > sf.y && y < sf.y + sf.h); }
+  solidAt(x, y) {
+    if ((this.stage.slopes || []).some((sl) => x > sl.x1 && x < sl.x2 && y > slopeY(sl, x) && y < slopeBase(sl))) return true;
+    return this.stage.solids.some((sf) => x > sf.x && x < sf.x + sf.w && y > sf.y && y < sf.y + sf.h);
+  }
   updateArrows(list, dt) {
     if (!this.arrows.length) return;
     const s = SKILLS.archer;
@@ -1239,16 +1245,36 @@ class Sim {
 
   insideSolid(x, y) {
     const hw = CONFIG.PLAYER_W / 2, h = CONFIG.PLAYER_H;
+    if ((this.stage.slopes || []).some((sl) => x >= sl.x1 && x <= sl.x2 && y > slopeY(sl, x) + 2 && y - h < slopeBase(sl))) return true;
     return this.stage.solids.some((s) => x + hw > s.x && x - hw < s.x + s.w && y > s.y + 1 && y - h < s.y + s.h);
+  }
+  // 떨어지는 물건(터렛·지뢰)이 이번 틱에 땅/발판/빗면에 닿았으면 그 높이
+  landingY(x, prevY, y) {
+    let best = null;
+    for (const sf of [...this.stage.solids, ...this.stage.platforms]) if (x >= sf.x && x <= sf.x + sf.w && prevY <= sf.y && y >= sf.y && (best == null || sf.y < best)) best = sf.y;
+    for (const sl of this.stage.slopes || []) { if (x < sl.x1 || x > sl.x2) continue; const sy = slopeY(sl, x); if (prevY <= sy + 2 && y >= sy && (best == null || sy < best)) best = sy; }
+    return best;
   }
   onPlatform(p) {
     return this.stage.platforms.some((pl) => Math.abs(p.y - pl.y) < 1 && p.x > pl.x && p.x < pl.x + pl.w);
   }
   moveAndCollide(p, dt) {
-    const hw = bw(p) / 2, h = bh(p);
+    const hw = bw(p) / 2, h = bh(p), slopes = this.stage.slopes || [];
+    const wasGrounded = p.grounded, prevX = p.x;
     p.x += p.vx * dt;
+    // 빗면의 높은 쪽 절벽면: 빗면 땅속으로 옆에서 파고들면 막음
+    for (const sl of slopes) {
+      // 빗면 높은 쪽 끝이 절벽이면 몸 옆면으로 막힘
+      if (sl.wallL && p.x < sl.x1 && p.x + hw > sl.x1 && p.y > sl.y1 + 6 && p.y - h < slopeBase(sl)) { p.x = sl.x1 - hw; p.vx = Math.min(p.vx, 0); }
+      if (sl.wallR && p.x > sl.x2 && p.x - hw < sl.x2 && p.y > sl.y2 + 6 && p.y - h < slopeBase(sl)) { p.x = sl.x2 + hw; p.vx = Math.max(p.vx, 0); }
+      if (p.x < sl.x1 || p.x > sl.x2) continue;
+      const sy = slopeY(sl, p.x), lim = 14 + Math.abs(((sl.y2 - sl.y1) / (sl.x2 - sl.x1)) * (p.x - prevX));
+      if (p.y > sy + lim && p.y - h < slopeBase(sl) && !(prevX >= sl.x1 && prevX <= sl.x2 && p.y > slopeY(sl, prevX) + 14)) { p.x = prevX; p.vx = 0; }
+    }
     for (const s of this.stage.solids) {
       if (p.y > s.y && p.y - h < s.y + s.h && p.x + hw > s.x && p.x - hw < s.x + s.w) {
+        // 낮은 턱(빗면 끝 등)은 걸어서 넘어감
+        if (wasGrounded && p.y - s.y <= 18 && !this.stage.solids.some((o) => o !== s && p.x + hw > o.x && p.x - hw < o.x + o.w && s.y > o.y && s.y - h < o.y + o.h)) { p.y = s.y; continue; }
         if (p.vx > 0 || p.x < s.x + s.w / 2) p.x = s.x - hw; else p.x = s.x + s.w + hw;
         p.vx = 0;
       }
@@ -1259,6 +1285,20 @@ class Sim {
       if (p.x + hw <= s.x || p.x - hw >= s.x + s.w) continue;
       if (p.vy >= 0 && prevY <= s.y && p.y >= s.y) { p.y = s.y; p.vy = 0; p.grounded = true; }
       else if (p.vy < 0 && prevY - h >= s.y + s.h && p.y - h < s.y + s.h) { p.y = s.y + s.h + h; p.vy = 0; }
+    }
+    // 빗면: 위에서 내려오거나 걸어 올라가면 표면에 섬, 내리막에선 표면에 붙어서 걸음, 아래에서 올라오면 막힘
+    for (const sl of slopes) {
+      if (p.x < sl.x1 || p.x > sl.x2) continue;
+      const sy = slopeY(sl, p.x), grad = Math.abs((sl.y2 - sl.y1) / (sl.x2 - sl.x1));
+      const tol = grad * Math.abs(p.x - prevX) + 8;
+      const prevDepth = prevY - slopeY(sl, clamp(prevX, sl.x1, sl.x2));
+      if (p.y >= sy && prevDepth <= 6) {
+        // 위에서 닿았거나 비탈을 따라 밀려 올라감 (위로 날아가는 중이면 표면을 타고 미끄러져 올라감)
+        p.y = sy;
+        if (p.vy >= 0) { p.vy = 0; p.grounded = true; }
+      }
+      else if (wasGrounded && p.vy >= 0 && p.y < sy && sy - p.y <= tol + 4) { p.y = sy; p.vy = 0; p.grounded = true; }
+      else if (p.vy < 0 && prevY - h >= slopeBase(sl) && p.y - h < slopeBase(sl)) { p.y = slopeBase(sl) + h; p.vy = 0; }
     }
     if (p.dropThrough <= 0 && p.hitstun <= 0.05) {
       for (const pl of this.stage.platforms) {
@@ -1411,10 +1451,7 @@ class Sim {
       // 중력 (땅이나 발판 위에 멈춤)
       const prevY = t.y;
       t.vy = Math.min(t.vy + CONFIG.GRAVITY * dt, CONFIG.MAX_FALL); t.y += t.vy * dt;
-      for (const sf of [...this.stage.solids, ...this.stage.platforms]) {
-        if (t.x < sf.x || t.x > sf.x + sf.w) continue;
-        if (prevY <= sf.y && t.y >= sf.y) { t.y = sf.y; t.vy = 0; }
-      }
+      { const ly = this.landingY(t.x, prevY, t.y); if (ly != null) { t.y = ly; t.vy = 0; } }
       if (t.y > this.stage.blast.bottom) { this.turrets = this.turrets.filter((x) => x !== t); continue; }
       t.cd -= dt;
       const mx = t.x, my = t.y - 30;
@@ -1449,7 +1486,7 @@ class Sim {
       } else {
         b.t -= dt; b.x += b.vx * dt; b.y += b.vy * dt;
       }
-      if (this.stage.solids.some((sf) => b.x > sf.x && b.x < sf.x + sf.w && b.y > sf.y && b.y < sf.y + sf.h)) { b.t = 0; continue; }
+      if (this.solidAt(b.x, b.y)) { b.t = 0; continue; }
       const owner = this.players.get(b.owner);
       if (!owner) { b.t = 0; continue; }
       for (const o of list) {

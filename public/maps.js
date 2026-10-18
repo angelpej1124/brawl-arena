@@ -3,6 +3,7 @@
 //  월드 크기는 1280 x 720 (큰 맵은 width/height로 따로 지정). 숫자를 바꾸면 맵 모양이 바뀌어요.
 //   solids    : 단단한 땅 (옆·아래에서 못 지나감)
 //   platforms : 위에서만 올라설 수 있는 얇은 발판 (↓로 내려가기)
+//   slopes    : 빗면 { x1, y1, x2, y2 } — 윗면이 기울어진 땅. 걸어서 오르내림 (높은 쪽 끝은 땅에 딱 붙여서 만들기)
 //   spawns    : 라운드 시작 위치 (발 위치)
 //   respawn   : 장외 후 다시 나타나는 위치
 //   theme     : 색깔
@@ -19,9 +20,9 @@
     },
     {
       id: 'island', name: '작은 섬',
-      solids: [{ x: 400, y: 520, w: 480, h: 70 }],
-      platforms: [{ x: 440, y: 395, w: 160 }, { x: 680, y: 395, w: 160 }],
-      spawns: [{ x: 460, y: 520 }, { x: 820, y: 520 }, { x: 520, y: 395 }, { x: 760, y: 395 }, { x: 600, y: 520 }, { x: 680, y: 520 }],
+      solids: [{ x: 290, y: 520, w: 700, h: 70 }],
+      platforms: [{ x: 350, y: 395, w: 180 }, { x: 750, y: 395, w: 180 }, { x: 560, y: 285, w: 160 }],
+      spawns: [{ x: 360, y: 520 }, { x: 920, y: 520 }, { x: 440, y: 395 }, { x: 840, y: 395 }, { x: 560, y: 520 }, { x: 720, y: 520 }],
       respawn: { x: 640, y: 160 },
       theme: { sky: ['#0d3b66', '#2a7aa8', '#7fc8d8'], hill: '#11507a', grass: '#f2d58a', grassHi: '#fff1c2', dirt: '#b58a4c', plat: '#ffe0a3', platHi: '#fff6dd', orb: 'rgba(255,240,180,', stars: false, water: '#1a6f9a' },
     },
@@ -51,9 +52,9 @@
     },
     {
       id: 'float', name: '떠다니는 발판',
-      solids: [{ x: 530, y: 560, w: 220, h: 50 }],
-      platforms: [{ x: 250, y: 455, w: 180 }, { x: 850, y: 455, w: 180 }, { x: 390, y: 330, w: 170 }, { x: 720, y: 330, w: 170 }, { x: 555, y: 205, w: 170 }],
-      spawns: [{ x: 340, y: 455 }, { x: 940, y: 455 }, { x: 475, y: 330 }, { x: 805, y: 330 }, { x: 600, y: 560 }, { x: 680, y: 560 }],
+      solids: [{ x: 430, y: 560, w: 420, h: 50 }],
+      platforms: [{ x: 170, y: 455, w: 220 }, { x: 890, y: 455, w: 220 }, { x: 340, y: 330, w: 200 }, { x: 740, y: 330, w: 200 }, { x: 540, y: 205, w: 200 }, { x: 70, y: 300, w: 150 }, { x: 1060, y: 300, w: 150 }],
+      spawns: [{ x: 280, y: 455 }, { x: 1000, y: 455 }, { x: 440, y: 330 }, { x: 840, y: 330 }, { x: 540, y: 560 }, { x: 740, y: 560 }],
       respawn: { x: 640, y: 100 },
       theme: { sky: ['#0b0a1f', '#24164a', '#4b2a7a'], hill: '#1c1240', grass: '#b78cff', grassHi: '#e2d0ff', dirt: '#3b2766', plat: '#8fe3ff', platHi: '#e3f9ff', orb: 'rgba(180,140,255,', stars: true },
     },
@@ -106,15 +107,69 @@
       respawn: { x: 800, y: 100 },
       theme: { sky: ['#7ec8ff', '#bfe6ff', '#fff3d6'], hill: '#9fd4a8', grass: '#7fe08a', grassHi: '#c4f5b8', dirt: '#8a6a4a', plat: '#ffffff', platHi: '#e8f6ff', orb: 'rgba(255,255,220,', stars: false },
     },
+    // ---- 빗면이 있는 큰 맵 ----
+    {
+      id: 'halfpipe', name: '하프파이프', width: 1600, height: 900,
+      // 양 끝이 비탈로 솟은 스케이트장: 비탈을 타고 내려가며 달려들기
+      solids: [{ x: 330, y: 660, w: 940, h: 80 }, { x: 150, y: 520, w: 180, h: 220 }, { x: 1270, y: 520, w: 180, h: 220 }],
+      slopes: [{ x1: 330, y1: 520, x2: 540, y2: 660 }, { x1: 1060, y1: 660, x2: 1270, y2: 520 }],
+      platforms: [{ x: 650, y: 520, w: 300 }, { x: 430, y: 390, w: 160 }, { x: 1010, y: 390, w: 160 }, { x: 720, y: 270, w: 160 }],
+      spawns: [{ x: 230, y: 520 }, { x: 1370, y: 520 }, { x: 640, y: 660 }, { x: 960, y: 660 }, { x: 800, y: 520 }, { x: 800, y: 270 }],
+      respawn: { x: 800, y: 130 },
+      theme: { sky: ['#1a1030', '#4a2a6a', '#ff7a8a'], hill: '#2a1c44', grass: '#c8c8d4', grassHi: '#ffffff', dirt: '#6a6a7e', plat: '#ffd23f', platHi: '#fff1a8', orb: 'rgba(255,140,170,', stars: true },
+    },
+    {
+      id: 'peak', name: '설산 봉우리', width: 1600, height: 900,
+      // 한가운데 뾰족한 눈 덮인 산: 꼭대기를 차지하려는 싸움
+      solids: [{ x: 200, y: 680, w: 1200, h: 80 }],
+      slopes: [{ x1: 500, y1: 680, x2: 800, y2: 480 }, { x1: 800, y1: 480, x2: 1100, y2: 680 }],
+      platforms: [{ x: 720, y: 360, w: 160 }, { x: 250, y: 540, w: 170 }, { x: 1180, y: 540, w: 170 }, { x: 390, y: 410, w: 150 }, { x: 1060, y: 410, w: 150 }, { x: 735, y: 220, w: 130 }],
+      spawns: [{ x: 300, y: 680 }, { x: 1300, y: 680 }, { x: 800, y: 360 }, { x: 440, y: 680 }, { x: 1160, y: 680 }, { x: 335, y: 540 }],
+      respawn: { x: 800, y: 110 },
+      theme: { sky: ['#1c2a4a', '#5a7aa8', '#c8dcf0'], hill: '#3a5070', grass: '#f4f8ff', grassHi: '#ffffff', dirt: '#6a7890', plat: '#b8d8f0', platHi: '#f0f8ff', orb: 'rgba(240,248,255,', stars: false },
+    },
+    {
+      id: 'zigzag', name: '지그재그 산길', width: 1600, height: 900,
+      // 왼쪽 아래에서 오른쪽 위로 올라가는 계단식 산길 (오른쪽이 높은 고지대)
+      solids: [{ x: 180, y: 700, w: 1040, h: 80 }, { x: 760, y: 600, w: 460, h: 100 }, { x: 1220, y: 500, w: 240, h: 280 }],
+      slopes: [{ x1: 540, y1: 700, x2: 760, y2: 600 }, { x1: 1000, y1: 600, x2: 1220, y2: 500 }],
+      platforms: [{ x: 240, y: 560, w: 180 }, { x: 520, y: 450, w: 160 }, { x: 860, y: 420, w: 160 }, { x: 1250, y: 360, w: 170 }, { x: 640, y: 290, w: 160 }, { x: 1020, y: 250, w: 150 }],
+      spawns: [{ x: 300, y: 700 }, { x: 1340, y: 500 }, { x: 860, y: 600 }, { x: 440, y: 700 }, { x: 330, y: 560 }, { x: 600, y: 450 }],
+      respawn: { x: 820, y: 130 },
+      theme: { sky: ['#1f3a2a', '#4f7a4a', '#d8c88a'], hill: '#2c4a30', grass: '#7cb342', grassHi: '#aed581', dirt: '#6d4c2e', plat: '#d7b98a', platHi: '#f5e6c8', orb: 'rgba(255,240,180,', stars: false },
+    },
+    {
+      id: 'glacier', name: '기울어진 빙하', width: 1600, height: 900,
+      // 비스듬히 기운 얼음 섬 두 개와 낮은 가운데 섬 (기운 섬의 높은 쪽 끝은 절벽)
+      solids: [{ x: 200, y: 640, w: 320, h: 70 }, { x: 640, y: 700, w: 320, h: 70 }, { x: 1080, y: 640, w: 320, h: 70 }],
+      slopes: [{ x1: 200, y1: 580, x2: 520, y2: 640 }, { x1: 1080, y1: 640, x2: 1400, y2: 580 }],
+      platforms: [{ x: 560, y: 540, w: 150 }, { x: 890, y: 540, w: 150 }, { x: 720, y: 410, w: 160 }, { x: 290, y: 450, w: 150 }, { x: 1160, y: 450, w: 150 }, { x: 720, y: 260, w: 160 }],
+      spawns: [{ x: 365, y: 450 }, { x: 1235, y: 450 }, { x: 720, y: 700 }, { x: 880, y: 700 }, { x: 800, y: 410 }, { x: 635, y: 540 }],
+      respawn: { x: 800, y: 130 },
+      theme: { sky: ['#06223a', '#1b5a80', '#8fd3f0'], hill: '#103a58', grass: '#d8f4ff', grassHi: '#ffffff', dirt: '#5a9ac0', plat: '#a8e8ff', platHi: '#f0fcff', orb: 'rgba(220,250,255,', stars: true, water: '#0f4f78' },
+    },
+    {
+      id: 'dunes', name: '모래 언덕', width: 1600, height: 900,
+      // 물결치는 모래 언덕 사이 가운데에 계단식 피라미드 발판
+      solids: [{ x: 160, y: 700, w: 1280, h: 80 }],
+      slopes: [{ x1: 260, y1: 700, x2: 430, y2: 615 }, { x1: 430, y1: 615, x2: 600, y2: 700 }, { x1: 1000, y1: 700, x2: 1170, y2: 615 }, { x1: 1170, y1: 615, x2: 1340, y2: 700 }],
+      platforms: [{ x: 680, y: 590, w: 240 }, { x: 720, y: 480, w: 160 }, { x: 755, y: 370, w: 90 }, { x: 360, y: 470, w: 150 }, { x: 1090, y: 470, w: 150 }, { x: 540, y: 300, w: 130 }, { x: 930, y: 300, w: 130 }],
+      spawns: [{ x: 200, y: 700 }, { x: 1400, y: 700 }, { x: 700, y: 700 }, { x: 900, y: 700 }, { x: 800, y: 590 }, { x: 800, y: 480 }],
+      respawn: { x: 800, y: 130 },
+      theme: { sky: ['#5a2a10', '#d8803a', '#ffe0a0'], hill: '#b8703a', grass: '#f0c878', grassHi: '#ffe8b0', dirt: '#c8964e', plat: '#e8b878', platHi: '#fff0d0', orb: 'rgba(255,240,200,', stars: false },
+    },
   ];
   // 계산해 두는 값 (봇·분신이 땅 끝을 알기 위해)
   for (const m of MAPS) {
-    m.width = m.width || 1280; m.height = m.height || 720;
-    m.zoom = 1280 / m.width;   // 큰 맵은 화면에 맞게 작게 그림
+    m.width = m.width || 1280; m.height = m.height || 720; m.slopes = m.slopes || [];
+    m.zoom = 1280 / m.width;
+    // 빗면 높은 쪽 끝이 다른 빗면·땅과 이어져 있지 않으면 절벽(벽)으로 취급
+    const joined = (sl, x, y) => m.slopes.some((o) => o !== sl && ((o.x1 === x && o.y1 === y) || (o.x2 === x && o.y2 === y))) || m.solids.some((s) => s.y === y && s.x <= x && s.x + s.w >= x);
+    for (const sl of m.slopes) { sl.wallL = sl.y1 < sl.y2 && !joined(sl, sl.x1, sl.y1); sl.wallR = sl.y2 < sl.y1 && !joined(sl, sl.x2, sl.y2); }   // 큰 맵은 화면에 맞게 작게 그림
     const pad = m.width > 1280 ? 320 : 260;
     m.blast = { left: -pad, right: m.width + pad, top: -(m.height * 0.72), bottom: m.height + pad };
-    m.left = Math.min(...m.solids.map((s) => s.x), ...m.platforms.map((p) => p.x));
-    m.right = Math.max(...m.solids.map((s) => s.x + s.w), ...m.platforms.map((p) => p.x + p.w));
+    m.left = Math.min(...m.solids.map((s) => s.x), ...m.platforms.map((p) => p.x), ...m.slopes.map((s) => s.x1));
+    m.right = Math.max(...m.solids.map((s) => s.x + s.w), ...m.platforms.map((p) => p.x + p.w), ...m.slopes.map((s) => s.x2));
     m.floor = Math.max(...m.solids.map((s) => s.y), ...m.platforms.map((p) => p.y));
   }
   // 캐릭터 색 (한 방에서 같은 색은 한 명만)
