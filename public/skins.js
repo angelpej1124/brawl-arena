@@ -17,6 +17,9 @@
     crystal:     { skill: 'rock', name: '크리스탈', desc: '바위 대신 반짝이는 보랏빛 크리스탈 몸', color: '#b48cff' },
     sand:        { skill: 'ice', name: '모래', desc: '눈보라 대신 모래바람, 얼음 대신 모래에 갇힘, 게이지도 모래색', color: '#d9b26a' },
     oneforall:   { skill: 'blackflash', name: '원포올', desc: '흑섬 이펙트가 초록 번개로, 훨씬 화려하게', color: '#3dff8a' },
+    supernova:   { skill: 'sun', name: '초신성', desc: '파란 태양 — 햇살과 오라, 평타의 불까지 모두 파란색', color: '#4aa8ff' },
+    swamp:       { skill: 'slow', name: '늪', desc: '둔화가 갈색 늪으로 퍼지고, 걸린 사람은 진흙을 뒤집어씀', color: '#7a5a30' },
+    darkness:    { skill: 'sword', name: '어둠의 검사', desc: '검이 검은색·보라색으로, 휘두르는 궤적과 참격도 어둠의 보라빛', color: '#5b2a8c' },
     steel:       { skill: 'rock', name: '강철', desc: '바위 대신 반짝이는 강철 몸', color: '#9fb0c4' },
   };
   const PRICE = 50;
