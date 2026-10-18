@@ -216,6 +216,24 @@
   .rp-btn.on { background: var(--ok); color: #0b2a16; box-shadow: 0 3px 0 #2c8a50; }
   .rp-btn:disabled { opacity: .5; cursor: not-allowed; }
   #roomPanel.folded #rpBody { display: none; }
+  .skin-open { margin-top: 8px; border-color: #c77dff; color: #e2c8ff; }
+  .modal { position: fixed; inset: 0; z-index: 20; background: rgba(6,5,14,.72); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .modal[hidden] { display: none; }
+  .modal-card { width: min(520px, 100%); max-height: calc(100% - 32px); overflow-y: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px; box-sizing: border-box; }
+  .modal-head { display: flex; align-items: center; gap: 10px; }
+  .modal-head b { font-family: var(--display); font-weight: 400; font-size: 22px; color: var(--accent); flex: 1; }
+  #skinGems { font-weight: 700; color: #5ef2ff; font-size: 14px; }
+  .modal-x { border: 0; background: #2f2a55; color: var(--text); width: 32px; height: 32px; border-radius: 8px; cursor: pointer; font-size: 15px; }
+  .skin-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+  .skin-card { display: flex; align-items: center; gap: 12px; background: #15122a; border: 1.5px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+  .skin-card.on { border-color: var(--accent); background: #2a2348; }
+  .skin-sw { width: 36px; height: 36px; border-radius: 10px; flex: none; border: 2px solid rgba(255,255,255,.25); }
+  .skin-txt { flex: 1; min-width: 0; }
+  .skin-txt b { display: block; font-size: 15px; }
+  .skin-txt small { display: block; color: var(--muted); font-size: 12px; line-height: 1.45; margin-top: 2px; }
+  .skin-act { flex: none; border: 0; border-radius: 8px; padding: 8px 12px; font-weight: 700; font-family: inherit; font-size: 13px; cursor: pointer; background: var(--accent); color: #2a1a00; }
+  .skin-act.ghost { background: #2f2a55; color: var(--text); }
+  .skin-act:disabled { opacity: .55; cursor: default; }
   @media (orientation: landscape) and (max-height: 500px) { #roomPanel { top: calc(8px + env(safe-area-inset-top, 0px)); width: min(520px, calc(100% - 300px)); padding: 6px 10px; gap: 5px; } .rp-btn { padding: 6px; font-size: 15px; } }
   @media (prefers-reduced-motion: reduce) { .play:active { transform: none; } }
 </style>
@@ -308,6 +326,7 @@
           <span class="gem"><i class="gem-ico" aria-hidden="true"></i><b id="gemCount">-</b><small>보석</small></span>
           <button class="sub-btn gacha-btn" id="gachaBtn" type="button">스킬 뽑기 · 보석 100</button>
         </div>
+        <button class="sub-btn skin-open" id="skinBtn" type="button">스킨 보기</button>
         <p class="hint" id="gachaMsg" role="status"></p>
         <p class="hint" id="gemHelp">판 참가 +25 · 우승 +40 · 처치 +12 &nbsp;|&nbsp; 봇전: 판 +10 · 봇 처치 +5</p>
       </div>
@@ -377,7 +396,18 @@
   <div class="tbtn tb-e tb-x" data-k="x" id="tSkill3" hidden><span id="tSkill3Name">R</span><small id="tSkill3Cd">R</small></div>
 </div>
 
+<div id="skinModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="skinTitle">
+  <div class="modal-card">
+    <div class="modal-head"><b id="skinTitle">스킨</b><span id="skinGems"></span><button class="modal-x" id="skinClose" type="button" aria-label="닫기">✕</button></div>
+    <p class="hint" id="skinSub"></p>
+    <div class="skin-list" id="skinList"></div>
+    <p class="hint" id="skinMsg" role="status"></p>
+    <p class="hint" id="skinOther"></p>
+  </div>
+</div>
+
 <script src="maps.js"></script>
+<script src="skins.js"></script>
 <script src="client.js"></script>
 </body>
 </html>

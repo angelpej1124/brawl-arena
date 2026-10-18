@@ -141,6 +141,8 @@ const ADMIN_NICKS = String(process.env.ADMIN_NICKS || '').split(',').map((n) => 
 // 예전 계정에 새 항목 채워 넣기
 function upgrade(a, key) {
   let changed = false;
+  if (!Array.isArray(a.skins)) { a.skins = []; changed = true; }          // 산 스킨
+  if (!a.skinSel || typeof a.skinSel !== 'object') { a.skinSel = {}; changed = true; }   // 능력별 장착 스킨
   if (!Number.isFinite(a.gems)) { a.gems = GEMS.START; changed = true; }
   if (!Array.isArray(a.owned)) { a.owned = [...BASE_SKILLS]; changed = true; }
   for (const b of BASE_SKILLS) if (!a.owned.includes(b)) { a.owned.push(b); changed = true; }
@@ -160,6 +162,7 @@ function publicProfile(a) {
   return {
     nick: a.nick, wins: a.wins, games: a.games, kos: a.kos, skill: a.skill,
     gems: a.gems, owned: [...a.owned], admin: !!a.admin,
+    skins: [...(a.skins || [])], skinSel: { ...(a.skinSel || {}) },
   };
 }
 
@@ -256,6 +259,39 @@ function record(key, { counted, win, kills, botKills }) {
   return { profile: publicProfile(a), gained: gems };
 }
 
+// ---------- 스킨 ----------
+const { SKINS, PRICE: SKIN_PRICE } = require('./public/skins.js');
+function buySkin(key, id) {
+  const a = store.accounts[key];
+  if (!a) throw new Error('로그인이 필요해요.');
+  const sk = SKINS[id];
+  if (!sk) throw new Error('없는 스킨이에요.');
+  if (a.skins.includes(id)) throw new Error('이미 가진 스킨이에요.');
+  if (a.gems < SKIN_PRICE) throw new Error(`보석이 모자라요. 스킨은 ${SKIN_PRICE}개예요.`);
+  a.gems -= SKIN_PRICE; a.skins.push(id);
+  a.skinSel[sk.skill] = id;                 // 사면 바로 장착
+  save();
+  return { profile: publicProfile(a) };
+}
+function equipSkin(key, skill, id) {
+  const a = store.accounts[key];
+  if (!a) throw new Error('로그인이 필요해요.');
+  if (!id) { delete a.skinSel[skill]; save(); return { profile: publicProfile(a) }; }   // 기본 스킨
+  const sk = SKINS[id];
+  if (!sk || sk.skill !== skill) throw new Error('이 능력의 스킨이 아니에요.');
+  if (!a.skins.includes(id)) throw new Error('아직 사지 않은 스킨이에요.');
+  a.skinSel[skill] = id; save();
+  return { profile: publicProfile(a) };
+}
+// 게임에 쓸 장착 스킨 (능력 -> 스킨 id)
+function skinsOf(key) {
+  const a = key && store.accounts[key];
+  if (!a) return {};
+  const out = {};
+  for (const [skill, id] of Object.entries(a.skinSel || {})) if (SKINS[id] && SKINS[id].skill === skill && a.skins.includes(id)) out[skill] = id;
+  return out;
+}
+
 function gacha(key) {
   const a = store.accounts[key];
   if (!a) throw new Error('로그인이 필요해요.');
@@ -323,6 +359,6 @@ setInterval(() => {
 
 module.exports = {
   init, storage: () => storageName, signup, login, logout, fromToken, profileOf, nickOf, isTaken,
-  owns, ownedOf, setSkill, record, ranking, cleanNick, gacha, isAdmin, adminList, adminUpdate,
+  owns, ownedOf, setSkill, record, buySkin, equipSkin, skinsOf, ranking, cleanNick, gacha, isAdmin, adminList, adminUpdate,
   GEMS, GACHA, BASE_SKILLS, ALL_SKILLS,
 };

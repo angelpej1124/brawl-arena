@@ -73,6 +73,15 @@ async function api(req, res, urlPath) {
       if (limited(ip, 'gacha', 60, 60000)) return sendJson(res, 429, { error: '너무 빨리 뽑고 있어요. 잠시 후 다시 해 주세요.' });
       return sendJson(res, 200, accounts.gacha(key));
     }
+    if (req.method === 'POST' && (urlPath === '/api/skin/buy' || urlPath === '/api/skin/equip')) {
+      const key = accounts.fromToken(bearer(req));
+      if (!key) return sendJson(res, 401, { error: '로그인이 필요해요.' });
+      const b = await readBody(req);
+      const r = urlPath === '/api/skin/buy' ? accounts.buySkin(key, String(b.skin || '')) : accounts.equipSkin(key, String(b.skill || ''), b.skin ? String(b.skin) : null);
+      // 지금 게임 중이면 바로 모습이 바뀜
+      for (const room of rooms.values()) for (const [cid, c] of room.clients) if (c.accountKey === key) { const p = room.sim.players.get(cid); if (p) p.skins = accounts.skinsOf(key); }
+      return sendJson(res, 200, r);
+    }
     if (urlPath.startsWith('/api/admin/')) {
       const key = accounts.fromToken(bearer(req));
       if (!key || !accounts.isAdmin(key)) return sendJson(res, 403, { error: '관리자만 쓸 수 있어요.' });
@@ -202,7 +211,8 @@ class GameRoom {
       if (bot) this.sim.removePlayer(bot.id);
     }
     this.clients.set(id, { socket, accountKey, name });
-    this.sim.addPlayer(id, name, false, skill);
+    const p = this.sim.addPlayer(id, name, false, skill);
+    if (p) p.skins = accounts.skinsOf(accountKey);
     if (!this.hostId) this.hostId = id;
     if (this.sim.doubleMode) this.giveSkill2(id);
     return true;

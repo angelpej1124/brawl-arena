@@ -83,6 +83,11 @@ const TEAMS = [null, { name: '빨강팀', color: '#ff4d4d' }, { name: '파랑팀
 const TIME_FIELDS = ['x', 'y', 'vx', 'vy', 'facing', 'grounded', 'jumpsLeft', 'damage', 'stocks', 'alive', 'inMatch', 'kos', 'botKos',
   'skillCd', 'skillCd2', 'skillCdB', 'slow', 'stealth', 'frozen', 'flyT', 'flyDownT', 'rockT', 'buffT', 'giantT', 'rubberT', 'engineT',
   'stunT', 'quakeT', 'errT', 'sunT', 'invT', 'iceG', 'iceT', 'burnN', 'burnT', 'hulkS', 'hitstun', 'invincible', 'charged', 'stillT', 'combo', 'homingNext'];
+// 스킨: 지금 쓰는 능력에 장착된 스킨만
+const SKIN_DB = require('./public/skins.js').SKINS;
+const activeSkins = (p) => [p.skill, p.skill2].map((k) => k && p.skins && p.skins[k]).filter(Boolean);
+const skinOn = (p, id) => activeSkins(p).includes(id);
+const skinFx = (p) => { for (const id of activeSkins(p)) if (SKIN_DB[id] && SKIN_DB[id].fx) return SKIN_DB[id].fx; return undefined; };
 // 이 스킬을 가지고 있는지 (더블 모드면 두 번째 스킬도)
 const has = (p, k) => !!p && (p.skill === k || p.skill2 === k);
 // 키 배치: 보통 Q=스킬1, E=스킬2. 자석이 있으면 자석이 Q·E를 쓰고 나머지 스킬은 R
@@ -104,6 +109,7 @@ class Player {
   constructor(id, name, color, bot, skill) {
     this.id = id; this.name = name; this.color = color; this.bot = !!bot; this.skill = validSkill(skill);
     this.skill2 = null; this.team = 1;
+    this.skins = {};              // 장착 스킨 (능력 -> 스킨 id), 보이는 것만 바뀜
     this.input = EMPTY_INPUT(); this.prevInput = EMPTY_INPUT();
     this.inMatch = false; this.wins = 0; this.stocks = 0; this.kos = 0; this.botKos = 0;
     this.hulkS = 1;
@@ -656,7 +662,7 @@ class Sim {
       const old = this.clones.get(p.id);
       if (old) this.ev({ k: 'poof', x: r0(old.x), y: r0(old.y - bh(old) / 2) });
       const c = new Player('c-' + p.id + '-' + this.tickCount, p.name, p.color, p.bot, p.skill);
-      c.clone = true; c.ownerId = p.id; c.hitsTaken = 0; c.skill2 = p.skill2;
+      c.clone = true; c.ownerId = p.id; c.hitsTaken = 0; c.skill2 = p.skill2; c.skins = p.skins;
       let x = p.x - p.facing * 60;
       if (this.insideSolid(x, p.y)) x = p.x;
       c.reset(x, p.y);
@@ -781,7 +787,7 @@ class Sim {
       if (d) p.facing = d;
       p.fdashT = s.dashTime; p.fdashHit = new Set(); p.attack = null;
       p.skillCd = s.cd;
-      this.ev({ k: 'fdash', x: r0(p.x), y: r0(cy), f: p.facing, pid: p.id });
+      this.ev({ k: 'fdash', x: r0(p.x), y: r0(cy), f: p.facing, pid: p.id, b: skinOn(p, 'bluefire') ? 1 : 0 });
     } else if (k === 'ice') {
       const s = SKILLS.ice;
       this.blizzards.push({ by: p.id, t: s.blizzard });
@@ -850,7 +856,7 @@ class Sim {
   parrying(o) { return !o.clone && o.parryT > 0 && o.alive && !o.inside; }
   parried(o, x, y) {
     o.parryT = 0; o.invincible = Math.max(o.invincible, 0.3);
-    this.ev({ k: 'parry', x: r0(x), y: r0(y) });
+    this.ev({ k: 'parry', x: r0(x), y: r0(y), fx: skinOn(o, 'rainbow') ? 'rainbow' : null });
   }
   // 근접 공격·돌진을 반사: 공격한 쪽이 반대 방향으로 날아감
   reflectHit(attacker, target, def, type, dir) {
@@ -1206,6 +1212,7 @@ class Sim {
   ignite(t, a, n, dir) {
     // 화염 + 태양을 같이 쓰는 중이면 불 피해 2배
     t.burnMul = has(a, 'fire') && a.sunT > 0 ? 2 : 1;
+    t.burnBlue = has(a, 'fire') && skinOn(a, 'bluefire');     // 청염 스킨이면 파란 불
     t.burnN = Math.max(t.burnN || 0, n); t.burnT = SKILLS.fire.burnEvery; t.burnDir = dir || a.facing; t.burnBy = a.id;
   }
   chill(t, amount) {
@@ -1230,7 +1237,7 @@ class Sim {
           p.vx = p.burnDir * kb; p.vy = Math.min(p.vy, -kb * 0.8); p.grounded = false;
           p.hitstun = Math.max(p.hitstun, 0.08);
         }
-        this.ev({ k: 'burn', x: r0(p.x), y: r0(p.y - bh(p) / 2) });
+        this.ev({ k: 'burn', x: r0(p.x), y: r0(p.y - bh(p) / 2), b: p.burnBlue ? 1 : 0 });
       }
     }
     const bz = this.blizzards.some((b) => this.foe({ id: b.by }, p));
@@ -1380,7 +1387,7 @@ class Sim {
     const dir = opt.dir || a.facing;
     t.vx = dir * kb * 0.85; t.vy = -kb * (black ? kdef.lift : def.lift) - 120;
     t.grounded = false; t.hitstun = 0.15 + kb * 0.00025;
-    this.ev({ k: 'hit', x: r0(t.x), y: r0(t.y - bh(t) / 2), p: opt.small ? 0 : type === 'heavy' || black ? 2 : 1 });
+    this.ev({ k: 'hit', x: r0(t.x), y: r0(t.y - bh(t) / 2), p: opt.small ? 0 : type === 'heavy' || black ? 2 : 1, fx: skinFx(a) });
   }
   // 검사 참격: 앞으로 날아가며 닿는 상대를 한 번씩 벰 (벽에 막히면 사라짐)
   updateSlashes(list, dt) {
@@ -1465,7 +1472,7 @@ class Sim {
       md: [this.teamMode ? 1 : 0, this.doubleMode ? 1 : 0], s: this.tickCount, mp: this.stage.id,
       ev: this.recent.slice(-10),
       ar: this.arrows.map((a) => ({ x: r0(a.x), y: r0(a.y), vx: r0(a.vx), vy: r0(a.vy), h: a.homing ? 1 : 0 })),
-      wd: this.winds.map((w) => ({ i: w.id, x: r0(w.x), y: r0(w.y), vx: w.vx })),
+      wd: this.winds.map((w) => { const o = this.players.get(w.owner); return { i: w.id, x: r0(w.x), y: r0(w.y), vx: w.vx, r: o && skinOn(o, 'firetornado') ? 1 : 0 }; }),
       tr: this.turrets.map((t) => ({ i: t.id, x: r0(t.x), y: r0(t.y), a: Math.round(t.aim * 100) / 100, hp: t.hp, c: t.color, o: t.owner })),
       bl: this.bullets.map((b) => ({ x: r0(b.x), y: r0(b.y), vx: r0(b.vx), vy: r0(b.vy) })),
       bz: this.blizzards.length ? Math.ceil(Math.max(...this.blizzards.map((b) => b.t)) * 10) / 10 : 0,
@@ -1481,12 +1488,13 @@ class Sim {
         ft: ten(p.flyT), rt: ten(p.rockT), bt: ten(p.buffT),
         chg: has(p, 'empower') ? (p.charged ? 100 : Math.floor((p.stillT / SKILLS.empower.charge) * 100)) : 0,
         pr: has(p, 'parasite') ? Object.values(p.parHits).filter((n) => n >= SKILLS.parasite.hitsNeeded).length : 0,
+        sn: activeSkins(p), bb: p.burnN > 0 && p.burnBlue ? 1 : 0,
         ins: p.inside ? 1 : 0, phost: p.parHost, pt: ten(p.parT), ctl: p.controller, rd: p.ready ? 1 : 0,
       })),
       cl: [...this.clones.values()].map((c) => ({
         id: c.id, ow: c.ownerId, n: c.name, c: c.color, x: r0(c.x), y: r0(c.y), f: c.facing,
         g: c.grounded ? 1 : 0, vx: r0(c.vx), vy: r0(c.vy), al: 1, at: 0, ap: 0,
-        sk: c.skill, sk2: c.skill2, hs: c.hitstun > 0 || c.stunT > 0 ? 1 : 0, b: c.bot ? 1 : 0, inv: 0, ...status(c),
+        sk: c.skill, sk2: c.skill2, sn: this.players.get(c.ownerId) ? activeSkins(this.players.get(c.ownerId)) : [], hs: c.hitstun > 0 || c.stunT > 0 ? 1 : 0, b: c.bot ? 1 : 0, inv: 0, ...status(c),
       })),
     };
   }
