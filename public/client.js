@@ -773,7 +773,7 @@ function onEvent(ev) {
   } else if (ev.k === 'iced') {
     for (let i = 0; i < 18; i++) {
       const a = Math.random() * Math.PI * 2, sp = 80 + Math.random() * 240;
-      particles.push({ x: ev.x, y: ev.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.5, max: 0.5, c: ev.dk ? (i % 2 ? '#140c20' : '#7a3cc0') : ev.sand ? (i % 2 ? '#f0d49a' : '#b88a45') : (i % 2 ? '#e8f8ff' : '#8fdcff'), r: 5, nograv: true });
+      particles.push({ x: ev.x, y: ev.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.5, max: 0.5, c: ev.au ? ['#2af598', '#3ae0d0', '#a66bff'][i % 3] : ev.dk ? (i % 2 ? '#140c20' : '#7a3cc0') : ev.sand ? (i % 2 ? '#f0d49a' : '#b88a45') : (i % 2 ? '#e8f8ff' : '#8fdcff'), r: 5, nograv: true });
     }
     particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.35, max: 0.35, r: 70, c: ev.sand ? '217,178,106' : '170,225,255' });
   } else if (ev.k === 'blizzard') {
@@ -1115,7 +1115,22 @@ function drawPlayer(p, time) {
       ctx.beginPath(); ctx.moveTo(fx2 - 7, -PH + 10); ctx.quadraticCurveTo(fx2, -PH - h2, fx2 + 7, -PH + 10); ctx.fill();
     }
   }
-  if (p.icd && p.idk) {
+  if (p.icd && p.iau) {
+    // 오로라에 갇힘: 몸을 감싼 빛의 기둥 안에서 초록·청록·보라 띠가 일렁임
+    const cg = ctx.createLinearGradient(-PW, 0, PW, 0);
+    cg.addColorStop(0, 'rgba(42,245,152,0.15)'); cg.addColorStop(0.5, 'rgba(58,224,208,0.55)'); cg.addColorStop(1, 'rgba(166,107,255,0.15)');
+    ctx.fillStyle = cg; roundRect(-PW / 2 - 12, -PH - 26, PW + 24, PH + 30, 16); ctx.fill();
+    for (let i = 0; i < 4; i++) {
+      const yy = -PH - 18 + i * 20, ph = time / 260 + i * 1.3;
+      const col = ['rgba(42,245,152,0.9)', 'rgba(58,224,208,0.85)', 'rgba(120,160,255,0.85)', 'rgba(190,120,255,0.85)'][i];
+      ctx.strokeStyle = col; ctx.lineWidth = 4; ctx.beginPath();
+      for (let x = -PW / 2 - 10; x <= PW / 2 + 10; x += 4) ctx.lineTo(x, yy + Math.sin(x / 7 + ph) * 5);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(220,255,245,0.9)'; ctx.lineWidth = 2; roundRect(-PW / 2 - 12, -PH - 26, PW + 24, PH + 30, 16); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    for (let i = 0; i < 6; i++) { const sx = Math.sin(time / 300 + i * 2.1) * (PW / 2 + 6), sy = -PH - 20 + ((time / 9 + i * 17) % (PH + 20)); ctx.fillRect(sx - 1, sy - 1, 2.5, 2.5); }
+  } else if (p.icd && p.idk) {
     // 어둠에 잠식: 검은 기운이 온몸을 휘감고 촉수가 꿈틀거림
     ctx.fillStyle = 'rgba(12,8,20,0.88)'; roundRect(-PW / 2 - 6, -PH - 6, PW + 12, PH + 8, 14); ctx.fill();
     ctx.strokeStyle = 'rgba(120,60,190,0.8)'; ctx.lineWidth = 3; ctx.lineCap = 'round';
@@ -1747,17 +1762,29 @@ function drawBlizzard(state, dt, now) {
     return;
   }
   if (on && state.bza && !state.bzs) {
-    // 오로라: 하늘에 초록·보라 빛의 커튼이 일렁임
-    const W2 = STAGE.width, top = 30;
-    for (let band = 0; band < 3; band++) {
-      const g = ctx.createLinearGradient(0, top + band * 60, 0, top + band * 60 + 220);
-      g.addColorStop(0, `rgba(${band === 2 ? '170,110,255' : '60,255,170'},0)`); g.addColorStop(0.4, `rgba(${band === 2 ? '170,110,255' : band ? '60,230,220' : '60,255,170'},0.33)`); g.addColorStop(1, 'rgba(60,255,170,0)');
-      ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(0, top + band * 60);
-      for (let x = 0; x <= W2; x += 40) ctx.lineTo(x, top + band * 60 + Math.sin(x / 140 + now / 700 + band) * 40);
-      for (let x = W2; x >= 0; x -= 40) ctx.lineTo(x, top + band * 60 + 220 + Math.sin(x / 120 + now / 600 + band * 2) * 30);
+    // 오로라: 밤하늘처럼 어두워지고, 진한 초록·청록·보라 빛의 커튼이 세로 빛줄기와 함께 일렁임
+    const W2 = STAGE.width, H2 = STAGE.height;
+    ctx.fillStyle = 'rgba(5,15,35,0.45)'; ctx.fillRect(-400, -400, W2 + 800, H2 + 800);
+    const cols = [[42, 245, 152], [58, 224, 208], [90, 255, 170], [166, 107, 255], [70, 200, 255]];
+    for (let band = 0; band < 5; band++) {
+      const [r, g, bl] = cols[band], top = 10 + band * 45, depth = 260 + band * 30;
+      const grad = ctx.createLinearGradient(0, top, 0, top + depth);
+      grad.addColorStop(0, `rgba(${r},${g},${bl},0)`); grad.addColorStop(0.25, `rgba(${r},${g},${bl},0.65)`); grad.addColorStop(0.6, `rgba(${r},${g},${bl},0.3)`); grad.addColorStop(1, `rgba(${r},${g},${bl},0)`);
+      ctx.fillStyle = grad; ctx.beginPath(); ctx.moveTo(0, top);
+      for (let x = 0; x <= W2; x += 30) ctx.lineTo(x, top + Math.sin(x / 130 + now / 500 + band * 1.7) * 45);
+      for (let x = W2; x >= 0; x -= 30) ctx.lineTo(x, top + depth + Math.sin(x / 110 + now / 450 + band * 2.3) * 40);
       ctx.closePath(); ctx.fill();
     }
-    ctx.fillStyle = 'rgba(120,255,200,0.06)'; ctx.fillRect(-400, -400, STAGE.width + 800, STAGE.height + 800);
+    // 세로로 내리꽂는 빛줄기
+    for (let i = 0; i < 26; i++) {
+      const x = ((i * 113 + now / 25) % (W2 + 100)) - 50, h = 180 + ((i * 53) % 140), a2 = 0.18 + 0.18 * Math.sin(now / 200 + i);
+      const rg = ctx.createLinearGradient(0, 20, 0, 20 + h);
+      rg.addColorStop(0, `rgba(200,255,230,0)`); rg.addColorStop(0.4, `rgba(150,255,210,${a2})`); rg.addColorStop(1, 'rgba(150,255,210,0)');
+      ctx.fillStyle = rg; ctx.fillRect(x, 20 + Math.sin(i) * 30, 6 + (i % 3) * 3, h);
+    }
+    // 반짝이는 별가루
+    ctx.fillStyle = 'rgba(230,255,245,0.9)';
+    for (let i = 0; i < 40; i++) { const x = (i * 211) % W2, y = (i * 97) % (H2 * 0.6); if ((Math.floor(now / 180) + i) % 4 === 0) ctx.fillRect(x, y, 2.5, 2.5); }
     return;
   }
   const sand = !!state.bzs;   // 모래 스킨이면 모래바람

@@ -1252,7 +1252,7 @@ class Sim {
     t.iceDark = sand === 'shadow';                          // 어둠 스킨이면 검은 게이지·어둠에 잠식
     if (t.iceG >= 100) {
       t.iceG = 0; t.iceT = SKILLS.ice.freeze; t.attack = null;
-      this.ev({ k: 'iced', x: r0(t.x), y: r0(t.y - bh(t) / 2), sand: t.iceSand ? 1 : 0, dk: t.iceDark ? 1 : 0 });
+      this.ev({ k: 'iced', x: r0(t.x), y: r0(t.y - bh(t) / 2), sand: t.iceSand ? 1 : 0, dk: t.iceDark ? 1 : 0, au: t.iceAur ? 1 : 0 });
     }
   }
   // 불 붙은 상태(조금씩 밀림) · 얼음 게이지 (눈보라면 계속 참, 아니면 서서히 줄어듦)
