@@ -439,6 +439,7 @@ renderAccount(); // 스킬 버튼을 만든 뒤 잠금 상태 반영
 //  서버 연결
 // =====================================================================
 let ws = null, myId = null, online = false, inGame = false, lastPh = null;
+const swingSeen = new Map();   // 플레이어별 직전 공격 상태 (검 휘두르는 소리용)
 // 소리 켜기/끄기 (로비와 게임 화면 둘 다)
 function renderSnd() {
   const o = window.SFX ? SFX.get() : { bgm: false, sfx: false };
@@ -577,6 +578,12 @@ function onMessage(m) {
       $('dumDel').hidden = !isHost;
     }
     const meS = m.p.find((q) => q.id === myId);
+    // 검사: 공격을 시작하는 순간 휘두르는 소리 (약공격 = 전진베기, 강공격 = 크게 휘두르기)
+    if (window.SFX) for (const q of m.p) {
+      const was = swingSeen.get(q.id) || 0;
+      if (q.at && !was && (q.sk === 'sword' || q.sk2 === 'sword') && q.al) SFX.at(q.at === 2 ? 'sword' : 'lunge', q.x, q.y, meS);
+      swingSeen.set(q.id, q.at || 0);
+    }
     for (const e of m.ev || []) if (e.i > lastEvSeen) { lastEvSeen = e.i; onEvent(e); if (window.SFX) SFX.event(e, meS, STAGE.width); }
     // 배경음악: 게임 중엔 신나게, 대기실은 잔잔하게 / 판이 끝나면 승리 음악
     if (window.SFX) { SFX.mode(m.ph === 'playing' ? 'battle' : 'calm'); if (m.ph === 'ended' && lastPh === 'playing') SFX.play('win'); }
@@ -1782,6 +1789,13 @@ function drawGlitch() {
   if (Math.random() < 0.5) ctx.fillText('ERR0R: INPUT_STREAM CORRUPTED', W / 2 + (Math.random() - 0.5) * 20, 160);
 }
 // 터렛 + 총알
+// 색 밝게(+)/어둡게(-): '#rrggbb'
+function shadeHex(hex, k) {
+  const n = parseInt(String(hex).slice(1, 7), 16);
+  if (!Number.isFinite(n)) return hex;
+  const f = (c) => Math.round(k >= 0 ? c + (255 - c) * k : c * (1 + k));
+  return `rgb(${f(n >> 16 & 255)},${f(n >> 8 & 255)},${f(n & 255)})`;
+}
 function drawTurrets(state, now) {
   for (const m of state.mn || []) {
     // 지뢰: 주인 색 고리 + 깜빡이는 불빛 (설치 직후엔 흐림)
@@ -1796,20 +1810,21 @@ function drawTurrets(state, now) {
   for (const t of state.tr || []) {
     const x = t.x, y = t.y;
     if (t.fg) {
-      // 개구리: 쪼그려 앉은 초록 몸 + 툭 튀어나온 눈 + 보는 방향의 입
+      // 개구리: 쪼그려 앉은 몸 + 툭 튀어나온 눈 + 보는 방향의 입. 몸 색 = 주인(플레이어) 색
       const fx3 = Math.cos(t.a) >= 0 ? 1 : -1;
+      const body = t.c, belly = shadeHex(t.c, 0.45), leg = shadeHex(t.c, -0.3), edge = shadeHex(t.c, -0.55);
       ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(x, y + 2, 26, 5, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#4caf3c'; ctx.beginPath(); ctx.ellipse(x, y - 18, 26, 18, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#8be06a'; ctx.beginPath(); ctx.ellipse(x + fx3 * 4, y - 12, 15, 10, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#3d9030'; for (const sx3 of [-20, 20]) { ctx.beginPath(); ctx.ellipse(x + sx3, y - 3, 9, 5, 0, 0, Math.PI * 2); ctx.fill(); }
+      ctx.fillStyle = leg; for (const sx3 of [-20, 20]) { ctx.beginPath(); ctx.ellipse(x + sx3, y - 3, 9, 5, 0, 0, Math.PI * 2); ctx.fill(); }
+      ctx.fillStyle = body; ctx.beginPath(); ctx.ellipse(x, y - 18, 26, 18, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = edge; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.fillStyle = belly; ctx.beginPath(); ctx.ellipse(x + fx3 * 4, y - 12, 15, 10, 0, 0, Math.PI * 2); ctx.fill();
       for (const ex of [-11, 11]) {
-        ctx.fillStyle = '#4caf3c'; ctx.beginPath(); ctx.arc(x + ex, y - 34, 9, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = body; ctx.beginPath(); ctx.arc(x + ex, y - 34, 9, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = edge; ctx.lineWidth = 1.5; ctx.stroke();
         ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x + ex, y - 35, 6, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(x + ex + fx3 * 2, y - 35, 3, 0, Math.PI * 2); ctx.fill();
       }
-      ctx.strokeStyle = '#1d4a14'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x + fx3 * 6, y - 22, 10, 0.2, Math.PI - 0.2); ctx.stroke();
-      ctx.fillStyle = t.c; ctx.fillRect(x - 12, y - 4, 24, 5);   // 주인 색 목걸이
-      ctx.strokeStyle = t.c; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.ellipse(x, y - 18, 28, 20, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = edge; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x + fx3 * 6, y - 22, 10, 0.2, Math.PI - 0.2); ctx.stroke();
       for (let i = 0; i < 4; i++) { ctx.fillStyle = i < t.hp ? '#6fe39a' : 'rgba(255,255,255,0.2)'; ctx.fillRect(x - 17 + i * 9, y - 52, 7, 4); }
       continue;
     }
