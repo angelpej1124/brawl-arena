@@ -2241,7 +2241,8 @@ function botThink(sim, b) {
   } else {
     let target = null, best = 1e9;
     for (const o of [...sim.players.values(), ...sim.clones.values()]) {
-      if (!sim.foe(b, o) || !o.alive || o.inside || o.invincible > 0 || o.frozen > 0) continue;
+      // 무적(다시 나온 직후)인 상대도 인식은 함 — 귀신만 빼고
+      if (!sim.foe(b, o) || !o.alive || o.inside || o.ghostT > 0 || o.frozen > 0) continue;
       if (o.stealth > 0) continue;
       // 연기 속에 있는 상대는 봇도 볼 수 없음
       if (sim.smokes.some((s) => Math.hypot(o.x - s.x, o.y - bh(o) / 2 - s.y) < s.r * 0.75)) continue;
@@ -2278,7 +2279,11 @@ function botThink(sim, b) {
       if (Math.abs(dx) > 55) { if (side > 0) inp.r = 1; else inp.l = 1; }
       else if (b.facing !== side && !b.attack) { if (side > 0) inp.r = 1; else inp.l = 1; }
       if (dy < -90 && b.grounded) wantJump = true;
+      // 이중 점프: 공중에서 상대가 아직 위에 있고 올라가는 힘이 거의 끝났으면 한 번 더
+      if (!b.grounded && b.jumpsLeft > 0 && dy < -60 && b.vy > -120 && !b.flyT && !b.anchorT) wantJump = true;
       if (b.flyT > 0 && dy < -40) inp.u = 1;
+      // 무적인 상대: 붙어서 기다리다가 무적이 끝날 때 때림
+      if (target.invincible > 0.15) b.waitHit = Math.max(b.waitHit || 0, 2);
       // 상대가 방패로 막고 있으면 정면으로 때리지 않고 잠깐 기다리거나 뒤로 넘어감
       const blocking = target.blockT > 0 && target.facing === -side && Math.abs(dx) < 140;
       if (blocking) { b.waitHit = 8; if (Math.random() < 0.12 && b.grounded) wantJump = true; }
