@@ -149,6 +149,8 @@
   .snd-btn.off { opacity: .5; text-decoration: line-through; }
   .botlist { display: flex; flex-wrap: wrap; gap: 6px; }
   .botlist .bp { display: flex; align-items: center; gap: 4px; background: #15122a; border-radius: 8px; padding: 3px 6px; font-size: 12px; color: var(--muted); }
+  .botlist .kick { border: 1px solid #ff6b6b; border-radius: 6px; background: transparent; color: #ffb3b3; font: inherit; font-size: 12px; padding: 2px 8px; cursor: pointer; }
+  .botlist .kick:hover { background: rgba(255,107,107,0.15); }
   .botlist select { background: #221d40; color: var(--text); border: 1px solid #3d3670; border-radius: 6px; font: inherit; font-size: 12px; padding: 2px 4px; max-width: 128px; }
   #net { position: fixed; top: calc(14px + env(safe-area-inset-top, 0px)); left: max(14px, env(safe-area-inset-left, 0px)); z-index: 5; font-size: 12px; color: var(--muted); }
   #rotate { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(46% + 8px); z-index: 4; font-size: 12px; color: var(--muted);
@@ -407,6 +409,7 @@
     <div class="rp-row" id="chip2Row" hidden><span class="rp-lbl" id="chip2Lbl">스킬2</span><div class="chips" id="skillChips2" role="group" aria-labelledby="chip2Lbl"></div></div>
     <div class="rp-keys" id="keysNote" hidden></div>
     <div class="rp-row" id="skinRow" hidden><span class="rp-lbl" id="skinLbl">스킨</span><div class="chips" id="skinChips" role="group" aria-labelledby="skinLbl"></div></div>
+    <div class="rp-row" id="kickRow" hidden><span class="rp-lbl" id="kickLbl">추방</span><div class="botlist" id="kickList" role="group" aria-labelledby="kickLbl"></div></div>
     <div class="rp-row" id="botRow" hidden><span class="rp-lbl" id="botLbl">봇</span><div class="botlist" id="botList" role="group" aria-labelledby="botLbl"></div></div>
   </div>
   <button id="readyBtn" class="rp-btn" type="button">준비</button>

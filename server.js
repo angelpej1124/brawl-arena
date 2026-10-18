@@ -418,6 +418,14 @@ server.on('upgrade', (req, sock) => {
         const err = room.sim.setSkill(id, skill);
         if (err) return notice(err);
         if (c.accountKey) accounts.setSkill(c.accountKey, skill);
+      } else if (m.t === 'kick' && room) {
+        // 방장이 플레이어를 내보냄 (영구 추방 아님: 다시 들어올 수 있음)
+        if (id !== room.hostId) return notice('추방은 방장만 할 수 있어요.');
+        const tid = String(m.id || ''), tc = room.clients.get(tid);
+        if (!tc || tid === id) return notice('추방할 수 없는 대상이에요.');
+        room.sim.ev({ k: 'kickout', n: tc.name });
+        try { tc.socket.send(JSON.stringify({ t: 'kicked', msg: '방장이 방에서 내보냈어요. 다시 들어갈 수는 있어요.' })); tc.socket.close(); } catch (_) {}
+        room.leave(tid);
       } else if (m.t === 'botskill' && room) {
         if (id !== room.hostId) return notice('봇 스킬은 방장만 정할 수 있어요.');
         const err = room.sim.setBotSkill(String(m.id || ''), m.skill ? String(m.skill) : null, m.skill2 ? String(m.skill2) : null);

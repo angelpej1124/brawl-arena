@@ -52,7 +52,7 @@ const SKILLS = {
   ninja:    { name: '닌자', desc: '쿠나이를 듦. 약공격은 쿠나이 베기, 강공격은 딜레이 없이 쿠나이를 똑바로 던짐 (던진 뒤 0.4초 뒤 다시). Q는 통나무를 남기고 랜덤한 안전한 곳으로 순간이동', cd: '쿨 13초' },
   gamble:   { name: '도박', desc: '사거리·주는 넉백·받는 넉백·점프·속도·크기가 각각 0.0~2.0배로 랜덤. 판이 시작되면 자동으로 굴림 (그래서 바로는 못 씀). 죽어도 유지', cd: '쿨 20초' },
   shield:   { name: '방패', desc: '방패를 듦. 약공격은 방패 막기(앞에서 오는 공격), 강공격은 방패 휘두르기(넉백↑). Q를 누르고 있다 놓으면 방패를 던짐(오래 누를수록 멀리). 맞히거나 벽에 부딪히면 튕겨 돌아오고, 가까이 가면 주움(나만). 장외로 떨어지면 10초 뒤 다시 생김. 방패가 없으면 보통 공격', cd: '누르고 있다 놓기' },
-  tentacle: { name: '촉수', desc: '등 뒤 촉수 4개. 약공격(J)은 위 촉수 2개, 강공격(K)은 아래 촉수 2개를 번갈아 뻗어 공격. Q는 아래 촉수 2개로 땅을 짚고 8초간 중력 없이 WASD로 이동, 넉백 거의 없음 (맨 밑 바닥 아래로는 못 감, 그동안 아래 촉수 공격·점멸·화염 돌진 불가 — K도 위 촉수로)', cd: '쿨 18초' },
+  tentacle: { name: '촉수', desc: '등 뒤 촉수 4개. 약공격(J)은 위 촉수 2개, 강공격(K)은 아래 촉수 2개를 번갈아 뻗어 공격 (촉수마다 따로 쿨 1초). Q는 아래 촉수 2개로 땅을 짚고 8초간 중력 없이 WASD로 이동, 넉백 거의 없음 (맨 밑 바닥 아래로는 못 감, 그동안 아래 촉수 공격·점멸·화염 돌진 불가 — K도 위 촉수로)', cd: '쿨 18초' },
   ghost:    { name: '귀신', desc: '목숨을 다 잃으면 마지막 5초간 귀신이 됨 (중력·벽 무시, WASD 이동, 안 맞음). 그동안 한 명을 3번 때리면 그 사람도 장외 → 마지막 상대였다면 귀신이 승리 (패시브)', cd: '패시브' },
   starlight: { name: '별빛', desc: '별 카운트(처음 1개, 10초마다·죽을 때마다 +1, 최대 5)를 모두 써서 하늘에서 사선으로 별비를 쏟음. 별이 많을수록 별이 많고 크고 세게 밀어냄', cd: '별 1개 이상' },
 };
@@ -757,6 +757,8 @@ function onEvent(ev) {
     particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.5, max: 0.5, r: 220, c: '255,255,255' });
     shake = 22;
     banners.push({ text: `${ev.n} 장외!`, life: 1.2, max: 1.2, small: true });
+  } else if (ev.k === 'kickout') {
+    banners.push({ text: `${ev.n}님이 방에서 나갔어요 (추방)`, life: 1.8, max: 1.8, small: true, color: '#ffb3b3' });
   } else if (ev.k === 'randskill') {
     banners.push({ text: `🎲 이번 판 스킬: ${SKILLS[validSkill(ev.s)].name}${ev.s2 ? ' · ' + SKILLS[validSkill(ev.s2)].name : ''}`, life: 2.6, max: 2.6, small: true, color: '#ffe27a' });
   } else if (ev.k === 'block') {
@@ -2534,6 +2536,17 @@ function updateRoomPanel(m) {
     }
   }
   $('skinRow').hidden = !anySkin;
+  // 추방 (방장만): 다른 사람을 방에서 내보냄. 다시 들어올 수는 있음
+  const others = m.p.filter((p) => !p.b && p.id !== myId);
+  $('kickRow').hidden = !host || !others.length;
+  const kl = $('kickList'); kl.textContent = '';
+  if (host) for (const o of others) {
+    const pill = document.createElement('div'); pill.className = 'bp';
+    const nm = document.createElement('span'); nm.textContent = o.n; nm.style.color = o.c;
+    const kb = document.createElement('button'); kb.type = 'button'; kb.className = 'kick'; kb.textContent = '추방';
+    kb.addEventListener('click', (e) => { e.currentTarget.blur(); if (confirm(`${o.n}님을 방에서 내보낼까요? (다시 들어올 수는 있어요)`)) send({ t: 'kick', id: o.id }); });
+    pill.append(nm, kb); kl.append(pill);
+  }
   // 봇 스킬 (방장만): 봇마다 스킬을 고르거나 랜덤
   const bots = m.p.filter((p) => p.b && !p.dm);
   $('botRow').hidden = !host || !bots.length;

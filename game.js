@@ -77,7 +77,7 @@ const SKILLS = {
   shield:   { name: '방패', blockTime: 0.45, blockGap: 0.2, bashKB: 1.25, full: 1, minSpeed: 520, maxSpeed: 1300, flyMin: 0.22, flyMax: 0.75,
               gravity: 1500, dmg: 9, baseKB: 360, growthKB: 9, back: 0.35, respawn: 10, pickR: 60 },
   // 촉수: 등 뒤 촉수 4개. 약공격(J)=위 촉수 2개, 강공격(K)=아래 촉수 2개를 번갈아 뻗어 공격. Q = 아래 촉수 2개(K·L)로 땅을 짚고 8초간 중력 없이 이동 (맨 밑 바닥까지만, 넉백 거의 없음)
-  tentacle: { name: '촉수', cd: 18, anchor: 8, reach: 150, out: 0.13, hold: 0.07, back: 0.16, gap: 0.42, dmg: 6, baseKB: 250, growthKB: 9, anchorKB: 0.2, speed: 360 },
+  tentacle: { name: '촉수', cd: 18, anchor: 8, reach: 150, out: 0.13, hold: 0.07, back: 0.16, gap: 1, dmg: 6, baseKB: 250, growthKB: 9, anchorKB: 0.2, speed: 360 },
   // 귀신: 목숨이 다 없어지면 5초간 귀신(중력·벽 무시, WASD 이동, 안 맞음). 한 명을 3번 때리면 그 사람도 장외
   ghost:    { name: '귀신', time: 5, marks: 3, speed: 430 },
   turret:   { name: '터렛', cd: 12, max: 3, hp: 4, range: 560, fireEvery: 0.9, bulletSpeed: 820, bulletLife: 0.9, dmg: 3, baseKB: 210, growthKB: 5 },
