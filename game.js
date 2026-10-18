@@ -141,6 +141,7 @@ class Player {
     this.inMatch = false; this.wins = 0; this.stocks = 0; this.kos = 0; this.botKos = 0;
     this.hulkS = 1;
     this.starN = SKILLS.starlight.start; this.starT = 0;   // 별빛: 별 카운트
+    this.randS1 = false; this.randS2 = false; this.randPool = null;   // 랜덤 스킬: 매 판 시작할 때 새로 뽑음 (pool = 고를 수 있는 스킬, 없으면 전부)
     this.gam = null;              // 도박: 굴린 배율 { reach, kbOut, kbIn, jump, speed, size }
     this.reset(0, 0); this.alive = false;
     this.botCd = 0;
@@ -280,7 +281,7 @@ class Sim {
     skill = validSkill(skill);
     if (p.skill2 && p.skill2 !== skill && conflicts(skill, p.skill2)) return '검사·궁수·닌자·방패·촉수는 공격 방식이 바뀌는 스킬이라 같이 쓸 수 없어요. (촉수와 비행도 불가)';
     if (p.skill2 === skill) p.skill2 = p.skill;   // 두 스킬을 서로 바꾼 것
-    p.skill = skill;
+    p.skill = skill; p.randS1 = false;
     p.skillCd = 0; p.skillCdB = 0; p.skillCd2 = 0; p.charged = false; p.stillT = 0; p.parHits = {};
     p.flyT = 0; p.rockT = 0; p.buffT = 0; p.stealth = 0; p.giantT = 0; p.rubberT = 0; p.engineT = 0; p.stunT = 0; p.hulkS = 1; p.sunT = 0;
     this.clones.delete(id);
@@ -297,31 +298,56 @@ class Sim {
     if (skill === p.skill) return '첫 번째 스킬과 다른 스킬을 골라 주세요.';
     if (conflicts(skill, p.skill)) return '검사·궁수·닌자·방패·촉수는 공격 방식이 바뀌는 스킬이라 같이 쓸 수 없어요. (촉수와 비행도 불가)';
     if (p.parHost) this.endParasite(p, true);
-    p.skill2 = skill; p.skillCd = 0; p.skillCdB = 0; p.skillCd2 = 0; p.charged = false; p.stillT = 0; p.parHits = {};
+    p.skill2 = skill; p.randS2 = false; p.skillCd = 0; p.skillCdB = 0; p.skillCd2 = 0; p.charged = false; p.stillT = 0; p.parHits = {};
     p.flyT = 0; p.rockT = 0; p.buffT = 0; p.stealth = 0; p.giantT = 0; p.rubberT = 0; p.engineT = 0; p.sunT = 0;
     this.clones.delete(id); this.removeTurrets(id);
     this.skillPicked(p);
     return null;
   }
   // 방장이 봇(더미 포함)의 스킬을 정함. 'random'이면 랜덤 (더블 모드면 두 번째도)
+  // 랜덤 스킬 뽑기 (고를 수 있는 스킬 중에서, 더블이면 두 스킬이 겹치거나 충돌하지 않게)
+  pickSkill(p, avoid) {
+    const pool = (p.randPool && p.randPool.length ? p.randPool : SKILL_IDS).filter((x) => x !== avoid && !(avoid && conflicts(x, avoid)));
+    return pool.length ? pool[Math.floor(Math.random() * pool.length)] : validSkill(avoid ? 'blink' : 'slow');
+  }
+  rollRandomSkills(p) {
+    if (p.randS1) { const k = this.pickSkill(p, this.doubleMode && !p.randS2 ? p.skill2 : null); p.skill = k; }
+    if (this.doubleMode && p.randS2) p.skill2 = this.pickSkill(p, p.skill);
+    if (p.skill2 && (p.skill2 === p.skill || conflicts(p.skill, p.skill2))) p.skill2 = this.pickSkill(p, p.skill);
+  }
+  // 랜덤으로 정하기 (slot 1 = 첫 스킬, 2 = 두 번째). 지금 바로 한 번 뽑고, 판마다 다시 뽑음
+  setRandom(id, slot, pool) {
+    const p = this.players.get(id);
+    if (!p) return '없는 플레이어예요.';
+    if (this.phase !== 'waiting') return '스킬은 게임 시작 전에만 바꿀 수 있어요.';
+    if (slot === 2 && !this.doubleMode) return '더블 모드에서만 두 번째 스킬을 고를 수 있어요.';
+    p.randPool = pool || null;
+    if (slot === 2) { const k2 = this.pickSkill(p, p.skill); const e = this.setSkill2(id, k2); if (e) return e; p.randS2 = true; }
+    else { const keep2 = p.randS2; const k = this.pickSkill(p, this.doubleMode ? p.skill2 : null); const e = this.setSkill(id, k); if (e) return e; p.randS1 = true; p.randS2 = keep2; }
+    return null;
+  }
+  // 방장이 봇(더미 포함)의 스킬을 정함. 'random'이면 매 판 랜덤 (더블 모드면 두 번째도)
   setBotSkill(id, skill, skill2) {
     const p = this.players.get(id);
     if (!p || !p.bot) return '봇만 바꿀 수 있어요.';
     if (this.phase !== 'waiting') return '스킬은 게임 시작 전에만 바꿀 수 있어요.';
-    const pick = (avoid) => { const c = SKILL_IDS.filter((x) => x !== avoid && !(avoid && conflicts(x, avoid))); return c[Math.floor(Math.random() * c.length)]; };
     if (skill) {
-      const k = skill === 'random' ? pick(null) : validSkill(skill);
-      const prev2 = p.skill2; p.skill2 = null;
-      this.setSkill(id, k);
-      p.skill2 = prev2 && prev2 !== k && !conflicts(prev2, k) ? prev2 : (this.doubleMode ? pick(k) : null);
+      if (skill === 'random') { const e = this.setRandom(id, 1, null); if (e) return e; }
+      else {
+        const k = validSkill(skill), r2 = p.randS2;
+        if (p.skill2 && (p.skill2 === k || conflicts(p.skill2, k))) p.skill2 = this.pickSkill(p, k);
+        const e = this.setSkill(id, k); if (e) return e; p.randS2 = r2;
+      }
     }
     if (skill2 && this.doubleMode) {
-      const k2 = skill2 === 'random' ? pick(p.skill) : validSkill(skill2);
-      if (k2 === p.skill) return '첫 번째 스킬과 다른 스킬을 골라 주세요.';
-      if (conflicts(k2, p.skill)) return '같이 쓸 수 없는 스킬이에요.';
-      this.setSkill2(id, k2);
+      if (skill2 === 'random') { const e = this.setRandom(id, 2, null); if (e) return e; }
+      else {
+        const k2 = validSkill(skill2);
+        if (k2 === p.skill) return '첫 번째 스킬과 다른 스킬을 골라 주세요.';
+        if (conflicts(k2, p.skill)) return '같이 쓸 수 없는 스킬이에요.';
+        const r1 = p.randS1; const e = this.setSkill2(id, k2); if (e) return e; p.randS1 = r1;
+      }
     }
-    this.skillPicked(p);
     return null;
   }
   // 방장이 시작 가능한지: 2명 이상(봇 포함), 방장 빼고 사람은 모두 준비
@@ -360,6 +386,7 @@ class Sim {
     this.list().forEach((p, i) => {
       p.mapMid = this.stage.width / 2; p.hulkS = 1;
       if (p.parHost) this.endParasite(p, true);
+      if (p.randS1 || p.randS2) { this.rollRandomSkills(p); if (!p.bot) this.ev({ k: 'randskill', only: p.id, s: p.skill, s2: p.skill2 || '' }); }   // 랜덤 스킬: 판마다 새로
       const sp = this.stage.spawns[i % this.stage.spawns.length];
       const keep = { wins: p.wins, inMatch: p.inMatch, stocks: p.stocks };
       p.reset(sp.x, sp.y); Object.assign(p, keep);
@@ -2056,6 +2083,7 @@ class Sim {
       shd: has(p, 'shield') && !p.clone ? [p.shieldHeld ? 1 : 0, p.blockT > 0 ? 1 : 0, Math.round((p.shCharge || 0) * 100) / 100, Math.ceil(p.shieldBack || 0)] : 0,
       tc: has(p, 'tentacle') && !p.clone ? p.tents.flatMap((tc) => [Math.round(this.tentExt(tc) * 100) / 100, Math.round(tc.ang * 100) / 100]) : 0,
       an: p.anchorT > 0 ? [Math.round(p.anchorT * 10) / 10, (() => { const g = this.groundBelow(p.x, p.y); return g == null ? 260 : Math.min(600, r0(g - p.y)); })()] : 0,
+      rs: p.randS1 || p.randS2 ? [p.randS1 ? 1 : 0, p.randS2 ? 1 : 0] : 0,
       gh: p.ghostT > 0 ? Math.round(p.ghostT * 10) / 10 : 0,
       mk: (() => { let m = 0; for (const g of this.players.values()) if (g.ghostT > 0 && g.gMarks[p.id]) m = Math.max(m, g.gMarks[p.id]); return m; })(),
     });

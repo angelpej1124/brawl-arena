@@ -757,6 +757,8 @@ function onEvent(ev) {
     particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.5, max: 0.5, r: 220, c: '255,255,255' });
     shake = 22;
     banners.push({ text: `${ev.n} 장외!`, life: 1.2, max: 1.2, small: true });
+  } else if (ev.k === 'randskill') {
+    banners.push({ text: `🎲 이번 판 스킬: ${SKILLS[validSkill(ev.s)].name}${ev.s2 ? ' · ' + SKILLS[validSkill(ev.s2)].name : ''}`, life: 2.6, max: 2.6, small: true, color: '#ffe27a' });
   } else if (ev.k === 'block') {
     // 방패로 막음: 금빛 불꽃
     for (let i = 0; i < 10; i++) { const a = Math.random() * Math.PI * 2, sp = 120 + Math.random() * 200; particles.push({ x: ev.x, y: ev.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.3, max: 0.3, c: i % 2 ? '#ffe27a' : '#ffffff', r: 3 }); }
@@ -2432,14 +2434,21 @@ let myReady = false;
     e.currentTarget.setAttribute('aria-expanded', String(!folded));
   });
 })();
-function renderSkillChips(current, boxId = 'skillChips', msg = 'skill', other = null) {
+function renderSkillChips(current, boxId = 'skillChips', msg = 'skill', other = null, isRandom = false) {
   const box = $(boxId);
   const owned = account.profile ? account.profile.owned : BASE_SKILLS;
   box.textContent = '';
+  // 랜덤: 가진 스킬 중에서 매 판 새로 뽑음
+  const rb = document.createElement('button');
+  rb.className = 'chip' + (isRandom ? ' on' : ''); rb.type = 'button'; rb.textContent = '🎲 랜덤';
+  rb.title = isRandom ? `매 판 가진 스킬 중에서 랜덤 (이번 판: ${SKILLS[validSkill(current)].name})` : '매 판 시작할 때 가진 스킬 중에서 랜덤으로 정해요';
+  rb.addEventListener('click', (e) => { e.currentTarget.blur(); send({ t: msg, skill: 'random' }); });
+  box.append(rb);
   for (const k of SKILL_IDS) {
     if (!owned.includes(k)) continue;
     const b = document.createElement('button');
     b.className = 'chip' + (k === current ? ' on' : ''); b.type = 'button';
+    if (isRandom && k === current) b.style.borderStyle = 'dashed';   // 랜덤으로 이번 판에 뽑힌 스킬
     const dot = document.createElement('i'); dot.style.background = SKILL_COLOR[k];
     b.append(dot, SKILLS[k].name);
     b.title = `${SKILLS[k].desc}. ${SKILLS[k].cd}` + (k === other ? ' (다른 칸에서 쓰는 중 · 누르면 서로 바뀜)' : '');
@@ -2463,8 +2472,8 @@ function updateRoomPanel(m) {
   const host = m.host === myId;
   const md = m.md || [0, 0];
   const prof = account.profile;
-  const key = [me.c, me.sk, me.sk2, me.rd, host, ready, need, m.p.length, [...taken].join(), (prof && prof.owned.join()) || '',
-    prof ? (prof.skins || []).join() + JSON.stringify(prof.skinSel || {}) : '', m.p.filter((p) => p.b).map((p) => p.id + p.sk + (p.sk2 || '')).join(),
+  const key = [me.c, me.sk, me.sk2, me.rd, host, JSON.stringify(me.rs || 0), ready, need, m.p.length, [...taken].join(), (prof && prof.owned.join()) || '',
+    prof ? (prof.skins || []).join() + JSON.stringify(prof.skinSel || {}) : '', m.p.filter((p) => p.b).map((p) => p.id + p.sk + (p.sk2 || '') + JSON.stringify(p.rs || 0)).join(),
     md.join(), m.p.map((p) => p.id + ':' + p.tm + ':' + p.n).join()].join('|');
   if (key === panelKey) return;
   panelKey = key;
@@ -2474,7 +2483,7 @@ function updateRoomPanel(m) {
     const name = PALETTE.find((c) => c.hex === b.dataset.hex).name;
     b.title = b.disabled ? `${name} (다른 사람이 사용 중)` : name;
   });
-  renderSkillChips(me.sk, 'skillChips', 'skill', md[1] ? me.sk2 : null);
+  renderSkillChips(me.sk, 'skillChips', 'skill', md[1] ? me.sk2 : null, !!(me.rs && me.rs[0]));
   // 모드 (방장만 바꿀 수 있음)
   for (const [segId, field] of [['segTeam', 0], ['segDbl', 1]]) {
     $(segId).querySelectorAll('button').forEach((b) => { b.classList.toggle('on', +b.dataset.v === md[field]); b.disabled = !host; b.setAttribute('aria-pressed', String(+b.dataset.v === md[field])); });
@@ -2500,7 +2509,7 @@ function updateRoomPanel(m) {
   }
   // 두 번째 스킬 (더블 모드)
   $('chip2Row').hidden = !md[1];
-  if (md[1]) renderSkillChips(me.sk2, 'skillChips2', 'skill2', me.sk);
+  if (md[1]) renderSkillChips(me.sk2, 'skillChips2', 'skill2', me.sk, !!(me.rs && me.rs[1]));
   const sl = slotsOf(me);
   $('keysNote').hidden = !md[1];
   if (md[1]) $('keysNote').textContent = sl.x ? `자석 당기기 Q · 밀기 E · ${SKILLS[validSkill(sl.x)].name} R` : `${SKILLS[validSkill(me.sk)].name} Q · ${me.sk2 ? SKILLS[validSkill(me.sk2)].name : '?'} E`;
@@ -2532,20 +2541,20 @@ function updateRoomPanel(m) {
   if (host) for (const bot of bots) {
     const pill = document.createElement('div'); pill.className = 'bp';
     const nm = document.createElement('span'); nm.textContent = bot.n.replace('봇 ', ''); pill.append(nm);
-    const mkSel = (cur, field, other) => {
+    const mkSel = (cur, field, other, rnd) => {
       const sel = document.createElement('select'); sel.setAttribute('aria-label', `${bot.n} ${field === 'skill' ? '스킬' : '스킬2'}`);
-      const r = document.createElement('option'); r.value = 'random'; r.textContent = '🎲 랜덤'; sel.append(r);
+      const r = document.createElement('option'); r.value = 'random'; r.textContent = rnd ? `🎲 랜덤 (${SKILLS[validSkill(cur)].name})` : '🎲 랜덤'; if (rnd) r.selected = true; sel.append(r);
       for (const k of SKILL_IDS) {
         const o = document.createElement('option'); o.value = k; o.textContent = SKILLS[k].name;
         if (other && (k === other || conflictsK(k, other))) o.disabled = true;
-        if (k === cur) o.selected = true;
+        if (k === cur && !rnd) o.selected = true;
         sel.append(o);
       }
       sel.addEventListener('change', () => send({ t: 'botskill', id: bot.id, [field]: sel.value }));
       return sel;
     };
-    pill.append(mkSel(bot.sk, 'skill', null));
-    if (md[1]) pill.append(mkSel(bot.sk2, 'skill2', bot.sk));
+    pill.append(mkSel(bot.sk, 'skill', null, !!(bot.rs && bot.rs[0])));
+    if (md[1]) pill.append(mkSel(bot.sk2, 'skill2', bot.sk, !!(bot.rs && bot.rs[1])));
     bl.append(pill);
   }
   const btn = $('readyBtn');

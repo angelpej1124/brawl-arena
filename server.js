@@ -403,6 +403,12 @@ server.on('upgrade', (req, sock) => {
       } else if (m.t === 'color' && room) {
         const err = room.sim.setColor(id, String(m.color || ''));
         if (err) notice(err);
+      } else if ((m.t === 'skill' || m.t === 'skill2') && room && m.skill === 'random') {
+        // 랜덤: 내가 가진 스킬 중에서 매 판 새로 뽑음
+        const c = room.clients.get(id);
+        const pool = c.accountKey ? accounts.ownedOf(c.accountKey) : accounts.BASE_SKILLS;
+        const err = room.sim.setRandom(id, m.t === 'skill2' ? 2 : 1, [...pool]);
+        if (err) return notice(err);
       } else if (m.t === 'skill' && room) {
         const skill = validSkill(m.skill);
         const c = room.clients.get(id);
