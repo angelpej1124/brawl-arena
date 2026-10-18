@@ -176,6 +176,12 @@ $('logoutBtn').addEventListener('click', () => {
 
 function renderAccount() {
   const p = account.profile;
+  // 닉네임 경고: 닉네임을 바꿀 때까지 다른 걸 못 함 (게임 중이면 로비로)
+  if (p && p.nickWarn) {
+    if (inGameNow()) { location.reload(); return; }
+    $('nickWhy').textContent = `관리자가 "${p.nick}" 닉네임에 경고를 줬어요. 사유: ${p.nickWarn}. 새 닉네임으로 바꿔야 게임을 할 수 있어요.`;
+    if ($('nickModal').hidden) { $('nickModal').hidden = false; $('nickNew').value = ''; $('nickMsg').textContent = ''; setTimeout(() => $('nickNew').focus(), 0); }
+  } else if ($('nickModal')) $('nickModal').hidden = true;
   const loggedIn = !!p;
   $('authBox').hidden = loggedIn;
   $('meBox').hidden = !loggedIn;
@@ -247,6 +253,18 @@ async function skinAction(path, body) {
     $('skinMsg').textContent = path.endsWith('buy') ? '구매 완료! 바로 장착했어요.' : '장착했어요.';
   } catch (e) { $('skinMsg').textContent = e.message; }
 }
+// ---------------- 닉네임 바꾸기 (경고받았을 때) ----------------
+function inGameNow() { return $('lobby').hidden; }
+async function saveNick() {
+  $('nickMsg').textContent = '';
+  try {
+    const r = await api('/api/nick', { nick: $('nickNew').value });
+    account.profile = r.profile; renderAccount();
+    $('nickModal').hidden = true;
+  } catch (e) { $('nickMsg').textContent = e.message; }
+}
+$('nickSave').addEventListener('click', saveNick);
+$('nickNew').addEventListener('keydown', (e) => { if (e.key === 'Enter') saveNick(); });
 // ---------------- 치장품 창 ----------------
 const COSM = window.BRAWL_COSM;
 let cosmPrev = null;   // 미리보기에서 보고 있는 것 { hat, outfit }
@@ -331,7 +349,7 @@ async function adminSearch() {
     for (const u of r.users) {
       const li = document.createElement('li');
       if (adminSel && adminSel.nick === u.nick) li.className = 'sel';
-      const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = u.nick + (u.admin ? ' (관리자)' : '');
+      const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = (u.nickWarn ? '⚠ ' : '') + u.nick + (u.admin ? ' (관리자)' : '');
       const sc = document.createElement('span'); sc.className = 'sc';
       sc.textContent = `보석 ${u.gems} · 스킬 ${u.owned.length}/${SKILL_IDS.length}`;
       li.style.gridTemplateColumns = 'minmax(0,1fr) auto';
@@ -347,14 +365,27 @@ async function adminSearch() {
 function adminPick(u) {
   adminSel = u;
   $('admEdit').hidden = false;
-  $('admName').textContent = `${u.nick} 관리 중`;
+  $('admName').textContent = `${u.nick} 관리 중` + (u.nickWarn ? ` · ⚠ 경고 중 (${u.nickWarn})` : '');
+  $('admWarn').textContent = u.nickWarn ? '닉네임 경고 해제' : '닉네임 경고';
+  $('admReason').value = '';
   $('admGems').value = u.gems;
   for (const k of SKILL_IDS) if (k !== 'slow' && k !== 'blink') $('admSk' + k).checked = u.owned.includes(k);
   $('admMsg').textContent = '';
-  document.querySelectorAll('#admList li').forEach((li) => li.classList.toggle('sel', li.firstChild && li.firstChild.textContent.startsWith(u.nick)));
+  document.querySelectorAll('#admList li').forEach((li) => li.classList.toggle('sel', li.firstChild && li.firstChild.textContent.replace('⚠ ', '').startsWith(u.nick)));
 }
 let admTimer = null;
 $('admQ').addEventListener('input', () => { clearTimeout(admTimer); admTimer = setTimeout(adminSearch, 300); });
+$('admWarn').addEventListener('click', async () => {
+  if (!adminSel) return;
+  const on = !adminSel.nickWarn;
+  try {
+    const r = await api('/api/admin/warn', { nick: adminSel.nick, on, reason: $('admReason').value });
+    adminPick(r.profile);
+    $('admMsg').style.color = 'var(--ok)';
+    $('admMsg').textContent = on ? `${r.profile.nick}에게 닉네임 경고를 줬어요. 닉네임을 바꿀 때까지 게임을 못 해요.` : `${r.profile.nick}의 경고를 해제했어요.`;
+    adminSearch();
+  } catch (e) { $('admMsg').style.color = 'var(--danger)'; $('admMsg').textContent = e.message; }
+});
 $('admSave').addEventListener('click', async () => {
   if (!adminSel) return;
   const owned = [...document.querySelectorAll('.adm-skills input')].filter((c) => c.checked).map((c) => c.dataset.skill);
@@ -1678,9 +1709,20 @@ function drawSmoke(list, time) {
 }
 // ---------------- 치장품 그리기 (몸 좌표계: 발 = (0,0), 머리 꼭대기 = (0,-PH)) ----------------
 function drawOutfit(g, id, f, time) {
-  const top = -PH + 30;   // 눈 아래부터
+  // 옷이 몸 밖으로 삐져나오지 않게 몸 모양(둥근 모서리)으로 잘라서 그림
+  g.save(); roundRect2(g, -PW / 2, -PH, PW, PH, 12); g.clip();
+  drawOutfitInner(g, id, f, time);
+  g.restore();
+  if (id === 'baby') {
+    // 쪽쪽이는 몸 밖으로 살짝 나와도 됨
+    g.fillStyle = '#7fd0ff'; g.beginPath(); g.arc(f * 7, -PH + 29, 4, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = '#ffd23f'; g.lineWidth = 2; g.beginPath(); g.arc(f * 7, -PH + 29, 6, 0, Math.PI * 2); g.stroke();
+  }
+}
+function drawOutfitInner(g, id, f, time) {
+  const top = -PH + 31;   // 눈 아래부터
   if (id === 'suit') {
-    g.fillStyle = '#23263a'; roundRect2(g, -PW / 2, top, PW, PH - 30, 6); g.fill();
+    g.fillStyle = '#23263a'; g.fillRect(-PW / 2, top, PW, PH - 31);
     g.fillStyle = '#f4f4f6'; g.beginPath(); g.moveTo(-7, top); g.lineTo(7, top); g.lineTo(0, top + 14); g.closePath(); g.fill();
     g.fillStyle = '#c4161c'; g.beginPath(); g.moveTo(-2.5, top + 2); g.lineTo(2.5, top + 2); g.lineTo(3.5, top + 16); g.lineTo(0, top + 20); g.lineTo(-3.5, top + 16); g.closePath(); g.fill();
     g.strokeStyle = '#3a3f5c'; g.lineWidth = 2; g.beginPath(); g.moveTo(-7, top); g.lineTo(-2, top + 18); g.moveTo(7, top); g.lineTo(2, top + 18); g.stroke();
@@ -1694,7 +1736,7 @@ function drawOutfit(g, id, f, time) {
     g.strokeStyle = '#4a3418'; g.lineWidth = 1; g.strokeRect(-12, top + 6, 8, 7); g.strokeRect(6, top + 12, 7, 6);
     g.beginPath(); g.moveTo(-4, top + 16); g.lineTo(0, top + 20); g.lineTo(-3, top + 24); g.stroke();
   } else if (id === 'doctor') {
-    g.fillStyle = '#f7f9fb'; roundRect2(g, -PW / 2 - 1, top, PW + 2, PH - 30, 6); g.fill();
+    g.fillStyle = '#f7f9fb'; g.fillRect(-PW / 2, top, PW, PH - 31);
     g.strokeStyle = '#cfd6de'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(0, top); g.lineTo(0, -2); g.stroke();
     g.fillStyle = '#8fd0e8'; g.beginPath(); g.moveTo(-6, top); g.lineTo(6, top); g.lineTo(0, top + 8); g.closePath(); g.fill();
     g.strokeStyle = '#555c66'; g.lineWidth = 2; g.beginPath(); g.moveTo(-8, top); g.quadraticCurveTo(-10, top + 14, -2, top + 16); g.moveTo(8, top); g.quadraticCurveTo(10, top + 14, 4, top + 16); g.stroke();
@@ -1702,7 +1744,7 @@ function drawOutfit(g, id, f, time) {
     g.strokeStyle = '#3f8cff'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(10, top + 6); g.lineTo(10, top + 12); g.stroke();
     g.strokeStyle = '#cfd6de'; g.strokeRect(7, top + 9, 8, 7);
   } else if (id === 'uniform') {
-    g.fillStyle = '#1f2f5a'; roundRect2(g, -PW / 2, top, PW, PH - 30, 6); g.fill();
+    g.fillStyle = '#1f2f5a'; g.fillRect(-PW / 2, top, PW, PH - 31);
     g.fillStyle = '#ffffff'; g.beginPath(); g.moveTo(-9, top); g.lineTo(0, top + 9); g.lineTo(9, top); g.closePath(); g.fill();
     g.fillStyle = '#b8323c'; g.fillRect(-2, top + 3, 4, 14);
     g.strokeStyle = '#e8c860'; g.lineWidth = 1; for (let k = 0; k < 3; k++) { g.beginPath(); g.moveTo(-2, top + 6 + k * 4); g.lineTo(2, top + 4 + k * 4); g.stroke(); }
@@ -1713,8 +1755,6 @@ function drawOutfit(g, id, f, time) {
     g.strokeStyle = '#dcdcdc'; g.lineWidth = 1; g.stroke();
     g.fillStyle = '#ffb3d1'; g.beginPath(); g.moveTo(-10, top - 2); g.quadraticCurveTo(0, top + 18, 10, top - 2); g.closePath(); g.fill();
     g.fillStyle = '#fff'; for (const [dx, dy] of [[-4, top + 4], [3, top + 7]]) { g.beginPath(); g.arc(dx, dy, 1.6, 0, Math.PI * 2); g.fill(); }
-    g.fillStyle = '#7fd0ff'; g.beginPath(); g.arc(f * 6, -PH + 28, 4, 0, Math.PI * 2); g.fill();   // 쪽쪽이
-    g.strokeStyle = '#ffd23f'; g.lineWidth = 2; g.beginPath(); g.arc(f * 6, -PH + 28, 6, 0, Math.PI * 2); g.stroke();
   }
 }
 function drawHat(g, id, f, time) {
@@ -1738,10 +1778,15 @@ function drawHat(g, id, f, time) {
     g.fillStyle = '#efe6d2'; g.strokeStyle = '#b8a888'; g.lineWidth = 1.5;
     for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(sd * 8, t + 3); g.quadraticCurveTo(sd * 22, t - 2, sd * 20, t - 20); g.quadraticCurveTo(sd * 16, t - 8, sd * 15, t + 4); g.closePath(); g.fill(); g.stroke(); }
   } else if (id === 'brain') {
-    g.fillStyle = '#f29ab8'; g.beginPath(); g.ellipse(0, t - 4, 17, 11, 0, Math.PI, Math.PI * 2); g.lineTo(17, t + 1); g.lineTo(-17, t + 1); g.closePath(); g.fill();
+    // 머리 윗부분에 딱 붙어 튀어나온 뇌 (머리 모서리 곡선에 맞춤)
+    g.fillStyle = '#f29ab8'; g.beginPath(); g.ellipse(0, t + 6, 17, 15, 0, Math.PI, Math.PI * 2); g.closePath(); g.fill();
     g.strokeStyle = '#c4587e'; g.lineWidth = 1.5;
-    g.beginPath(); g.moveTo(0, t - 14); g.lineTo(0, t); g.stroke();
-    for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(sd * 3, t - 10); g.quadraticCurveTo(sd * 9, t - 13, sd * 8, t - 6); g.quadraticCurveTo(sd * 13, t - 4, sd * 12, t - 1); g.stroke(); }
+    g.beginPath(); g.ellipse(0, t + 6, 17, 15, 0, Math.PI, Math.PI * 2); g.stroke();
+    g.beginPath(); g.moveTo(0, t - 9); g.lineTo(0, t + 6); g.stroke();
+    for (const sd of [-1, 1]) {
+      g.beginPath(); g.moveTo(sd * 3, t - 5); g.quadraticCurveTo(sd * 10, t - 8, sd * 9, t - 1); g.quadraticCurveTo(sd * 14, t + 1, sd * 13, t + 5); g.stroke();
+      g.beginPath(); g.moveTo(sd * 4, t + 1); g.quadraticCurveTo(sd * 7, t + 3, sd * 5, t + 5); g.stroke();
+    }
   } else if (id === 'cap') {
     g.fillStyle = '#d8323c'; g.beginPath(); g.ellipse(0, t + 2, 18, 14, 0, Math.PI, Math.PI * 2); g.fill();
     g.fillStyle = '#b02028'; g.beginPath(); g.ellipse(f * 18, t + 2, 14, 3.5, 0, 0, Math.PI * 2); g.fill();

@@ -73,6 +73,18 @@ async function api(req, res, urlPath) {
       if (limited(ip, 'gacha', 60, 60000)) return sendJson(res, 429, { error: '너무 빨리 뽑고 있어요. 잠시 후 다시 해 주세요.' });
       return sendJson(res, 200, accounts.gacha(key));
     }
+    if (req.method === 'POST' && urlPath === '/api/nick') {
+      const key = accounts.fromToken(bearer(req));
+      if (!key) return sendJson(res, 401, { error: '로그인이 필요해요.' });
+      const b = await readBody(req);
+      const r = accounts.changeNick(key, b.nick);
+      // 방에 있으면 이름도 바뀜
+      for (const room of rooms.values()) for (const [cid, c] of room.clients) if (c.accountKey === key) {
+        c.accountKey = r.key; c.name = r.profile.nick;
+        const p = room.sim.players.get(cid); if (p) p.name = r.profile.nick;
+      }
+      return sendJson(res, 200, { profile: r.profile });
+    }
     if (req.method === 'POST' && (urlPath === '/api/cosm/gacha' || urlPath === '/api/cosm/equip')) {
       const key = accounts.fromToken(bearer(req));
       if (!key) return sendJson(res, 401, { error: '로그인이 필요해요.' });
@@ -97,6 +109,15 @@ async function api(req, res, urlPath) {
       if (req.method === 'GET' && urlPath === '/api/admin/users') {
         const q = new URL(req.url, 'http://x').searchParams.get('q') || '';
         return sendJson(res, 200, { users: accounts.adminList(q) });
+      }
+      if (req.method === 'POST' && urlPath === '/api/admin/warn') {
+        const b = await readBody(req);
+        const profile = accounts.adminWarn(b.nick, !!b.on, b.reason);
+        console.log(`[관리자] ${accounts.nickOf(key)} → ${profile.nick}: 닉네임 경고 ${b.on ? '켬 (' + profile.nickWarn + ')' : '끔'}`);
+        for (const r of rooms.values()) for (const c of r.clients.values()) {
+          if (c.accountKey && accounts.nickOf(c.accountKey) === profile.nick) c.socket.send(JSON.stringify({ t: 'profile', profile }));
+        }
+        return sendJson(res, 200, { profile });
       }
       if (req.method === 'POST' && urlPath === '/api/admin/user') {
         const b = await readBody(req);
@@ -254,6 +275,13 @@ class GameRoom {
       else name = BOT_NAMES.find((n) => !used.has(n)) || '봇';
       const p = this.sim.addPlayer((dummy ? 'dum' : 'bot') + nextId++, name, true, dummy ? 'slow' : SKILL_IDS[Math.floor(Math.random() * SKILL_IDS.length)]);
       if (p && dummy) p.dummy = true;
+      // 봇은 가끔 치장품을 입고 나옴 (모자 60%, 옷 50%)
+      if (p && !dummy) {
+        const C = require('./public/cosmetics.js').COSMETICS, pick = (o) => { const k = Object.keys(o); return k[Math.floor(Math.random() * k.length)]; };
+        p.cosm = {};
+        if (Math.random() < 0.6) p.cosm.hat = pick(C.hat.items);
+        if (Math.random() < 0.5) p.cosm.outfit = pick(C.outfit.items);
+      }
     } else {
       // 봇 빼기는 봇만, 더미 빼기는 더미만
       const bot = this.sim.list().reverse().find((p) => p.bot && !!p.dummy === !!dummy);
@@ -300,6 +328,7 @@ server.on('upgrade', (req, sock) => {
           accountKey = accounts.fromToken(m.token);
           if (!accountKey) return fail('로그인이 만료됐어요. 다시 로그인해 주세요.');
           name = accounts.nickOf(accountKey);
+          if (accounts.profileOf(accountKey).nickWarn) return fail('닉네임 경고를 받았어요. 로비에서 닉네임을 바꿔야 게임을 할 수 있어요.');
           if (!accounts.owns(accountKey, skill)) return fail('아직 뽑지 않은 스킬이에요. 다른 스킬을 골라 주세요.');
           accounts.setSkill(accountKey, skill);
         } else {

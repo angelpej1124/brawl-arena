@@ -166,6 +166,7 @@ function publicProfile(a) {
     gems: a.gems, owned: [...a.owned], admin: !!a.admin,
     skins: [...(a.skins || [])], skinSel: { ...(a.skinSel || {}) },
     cosm: [...(a.cosm || [])], cosmSel: { ...(a.cosmSel || {}) },
+    nickWarn: a.nickWarn || null,   // 닉네임 경고 (사유). 있으면 닉네임을 바꿔야 게임 가능
   };
 }
 
@@ -375,6 +376,33 @@ function adminUpdate(targetNick, { gems, owned }) {
   return publicProfile(a);
 }
 
+// ---------- 닉네임 경고 ----------
+function adminWarn(targetNick, on, reason) {
+  const a = store.accounts[keyOf(targetNick)];
+  if (!a) throw new Error('그런 닉네임의 계정이 없어요.');
+  if (on) a.nickWarn = String(reason || '').normalize('NFC').replace(/[<>&"'\u0000-\u001f]/g, '').trim().slice(0, 40) || '부적절한 닉네임';
+  else delete a.nickWarn;
+  save();
+  return publicProfile(a);
+}
+// 경고받은 사람이 닉네임을 바꿈 (계정 키·로그인 세션도 같이 옮김)
+function changeNick(key, newRaw) {
+  const a = store.accounts[key];
+  if (!a) throw new Error('로그인이 필요해요.');
+  if (!a.nickWarn) throw new Error('닉네임 경고를 받은 경우에만 바꿀 수 있어요.');
+  const nick = cleanNick(newRaw);
+  if (nick.length < 2) throw new Error('닉네임은 2~12자로 써 주세요.');
+  const nk = keyOf(nick);
+  if (nk === key) throw new Error('지금과 다른 닉네임을 써 주세요.');
+  if (store.accounts[nk]) throw new Error('이미 있는 닉네임이에요. 다른 닉네임을 써 주세요.');
+  delete store.accounts[key];
+  a.nick = nick; delete a.nickWarn;
+  store.accounts[nk] = a;
+  for (const s of Object.values(store.sessions)) if (s.key === key) s.key = nk;
+  save();
+  return { key: nk, profile: publicProfile(a) };
+}
+
 function ranking(limit = 10) {
   return Object.values(store.accounts)
     .filter((a) => a.games > 0)
@@ -393,6 +421,6 @@ setInterval(() => {
 
 module.exports = {
   init, storage: () => storageName, signup, login, logout, fromToken, profileOf, nickOf, isTaken,
-  owns, ownedOf, setSkill, record, buySkin, equipSkin, skinsOf, cosmGacha, cosmEquip, cosmOf, ranking, cleanNick, gacha, isAdmin, adminList, adminUpdate,
+  owns, ownedOf, setSkill, record, buySkin, equipSkin, skinsOf, adminWarn, changeNick, cosmGacha, cosmEquip, cosmOf, ranking, cleanNick, gacha, isAdmin, adminList, adminUpdate,
   GEMS, GACHA, BASE_SKILLS, ALL_SKILLS,
 };

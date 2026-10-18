@@ -217,6 +217,8 @@
   .rp-btn:disabled { opacity: .5; cursor: not-allowed; }
   #roomPanel.folded #rpBody { display: none; }
   .skin-open { margin-top: 8px; border-color: #c77dff; color: #e2c8ff; }
+  .adm-warn { border-color: #ff6b6b; color: #ffb3b3; }
+  #nickModal .modal-card input { width: 100%; box-sizing: border-box; margin-top: 6px; }
   .cosm-open { margin-top: 8px; border-color: #ff9ecf; color: #ffd0e6; }
   .cosm-top { display: flex; gap: 14px; align-items: center; margin-top: 8px; }
   #cosmPreview { background: radial-gradient(circle at 50% 70%, #2f2a55, #15122a); border-radius: 14px; flex: none; }
@@ -358,6 +360,9 @@
         <span class="lbl">가진 스킬</span>
         <div class="adm-skills" id="admSkills"></div>
         <button class="sub-btn" id="admSave" type="button">저장</button>
+        <span class="lbl">닉네임 경고</span>
+        <input id="admReason" maxlength="40" placeholder="사유 (예: 욕설이 들어간 닉네임)" autocomplete="off">
+        <button class="sub-btn adm-warn" id="admWarn" type="button">닉네임 경고</button>
         <p class="hint" id="admMsg" role="status"></p>
       </div>
     </div>
@@ -406,6 +411,16 @@
   <div class="tbtn tb-e tb-x" data-k="x" id="tSkill3" hidden><span id="tSkill3Name">R</span><small id="tSkill3Cd">R</small></div>
 </div>
 
+<div id="nickModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="nickTitle">
+  <div class="modal-card">
+    <div class="modal-head"><b id="nickTitle">닉네임을 바꿔 주세요</b></div>
+    <p class="hint" id="nickWhy"></p>
+    <label for="nickNew">새 닉네임 (2~12자)</label>
+    <input id="nickNew" maxlength="12" autocomplete="off">
+    <button class="sub-btn" id="nickSave" type="button">바꾸기</button>
+    <p class="hint" id="nickMsg" role="status"></p>
+  </div>
+</div>
 <div id="cosmModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="cosmTitle">
   <div class="modal-card">
     <div class="modal-head"><b id="cosmTitle">치장품</b><span id="cosmGems"></span><button class="modal-x" id="cosmClose" type="button" aria-label="닫기">✕</button></div>
