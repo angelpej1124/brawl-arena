@@ -145,6 +145,7 @@ class Player {
     this.gam = null;              // 도박: 굴린 배율 { reach, kbOut, kbIn, jump, speed, size }
     this.reset(0, 0); this.alive = false;
     this.botCd = 0;
+    this.diff = 'mid';            // 봇 난이도: easy · mid · hard (기본 미들, 방장이 바꿈)
   }
   reset(x, y) {
     this.x = x; this.y = y; this.vx = 0; this.vy = 0;
@@ -327,6 +328,13 @@ class Sim {
     return null;
   }
   // 방장이 봇(더미 포함)의 스킬을 정함. 'random'이면 매 판 랜덤 (더블 모드면 두 번째도)
+  setBotDiff(id, diff) {
+    const p = this.players.get(id);
+    if (!p || !p.bot) return '봇만 바꿀 수 있어요.';
+    if (!['easy', 'mid', 'hard'].includes(diff)) return '난이도가 잘못됐어요.';
+    p.diff = diff; p.inQ = [];
+    return null;
+  }
   setBotSkill(id, skill, skill2) {
     const p = this.players.get(id);
     if (!p || !p.bot) return '봇만 바꿀 수 있어요.';
@@ -529,7 +537,7 @@ class Sim {
       // 사람: 받은 입력에서 매 틱 새로 시작 (에러·반전으로 바꾼 입력이 쌓이지 않게)
       if (!p.bot && p.rawInput) p.input = { ...p.rawInput };
       if (p.dummy) p.input = EMPTY_INPUT();           // 더미: 가만히 있음
-      else if (p.bot) p.input = botThink(this, p);
+      else if (p.bot) p.input = botInput(this, p);
     });
     // 기생당한 몸은 기생자의 입력으로 움직임 (숙주 스킬은 못 씀)
     for (const p of list) {
@@ -2083,6 +2091,7 @@ class Sim {
       shd: has(p, 'shield') && !p.clone ? [p.shieldHeld ? 1 : 0, p.blockT > 0 ? 1 : 0, Math.round((p.shCharge || 0) * 100) / 100, Math.ceil(p.shieldBack || 0)] : 0,
       tc: has(p, 'tentacle') && !p.clone ? p.tents.flatMap((tc) => [Math.round(this.tentExt(tc) * 100) / 100, Math.round(tc.ang * 100) / 100]) : 0,
       an: p.anchorT > 0 ? [Math.round(p.anchorT * 10) / 10, (() => { const g = this.groundBelow(p.x, p.y); return g == null ? 260 : Math.min(600, r0(g - p.y)); })()] : 0,
+      bd: p.bot && !p.dummy ? ['easy', 'mid', 'hard'].indexOf(p.diff) : undefined,
       rs: p.randS1 || p.randS2 ? [p.randS1 ? 1 : 0, p.randS2 ? 1 : 0] : 0,
       gh: p.ghostT > 0 ? Math.round(p.ghostT * 10) / 10 : 0,
       mk: (() => { let m = 0; for (const g of this.players.values()) if (g.ghostT > 0 && g.gMarks[p.id]) m = Math.max(m, g.gMarks[p.id]); return m; })(),
@@ -2319,6 +2328,33 @@ function botThink(sim, b) {
   return inp;
 }
 
+// ---------------- 봇 난이도 ----------------
+// 하드 = 원래 봇 그대로. 미들·이지는 반응이 늦고, 공격·스킬을 덜 쓰고, 가끔 멍하니 있음
+const BOT_DIFF = {
+  hard: { delay: 0, atk: 1, skill: 1, idle: 0 },
+  mid:  { delay: 9, atk: 0.55, skill: 0.45, idle: 0.004 },
+  easy: { delay: 18, atk: 0.28, skill: 0.18, idle: 0.012 },
+};
+function botInput(sim, b) {
+  const D = BOT_DIFF[b.diff] || BOT_DIFF.mid;
+  const raw = botThink(sim, b);
+  if (D === BOT_DIFF.hard) return raw;
+  // 공격·스킬 키는 "새로 누르는 순간"마다 확률로 그냥 넘김 (누르고 있는 동안은 같은 결정 유지)
+  b.keyKeep = b.keyKeep || {}; b.rawPrev = b.rawPrev || {};
+  for (const k of ['a', 'h', 's', 'e', 'x']) {
+    if (raw[k] && !b.rawPrev[k]) b.keyKeep[k] = Math.random() < (k === 'a' || k === 'h' ? D.atk : D.skill);
+    b.rawPrev[k] = raw[k];
+    if (raw[k] && !b.keyKeep[k]) raw[k] = 0;
+  }
+  // 가끔 잠깐 멍하니 있음 (떨어지는 중엔 안 멈춤)
+  if (b.idleT > 0) { b.idleT--; if (b.grounded) return EMPTY_INPUT(); }
+  else if (b.grounded && Math.random() < D.idle) b.idleT = 20 + Math.floor(Math.random() * 40);
+  // 반응 지연: 몇 틱 전의 판단을 지금 씀
+  b.inQ = b.inQ || [];
+  b.inQ.push(raw);
+  while (b.inQ.length > D.delay + 1) b.inQ.shift();
+  return b.inQ.length > D.delay ? b.inQ[0] : EMPTY_INPUT();
+}
 // ---------------- 분신 움직임 ----------------
 // 주인 근처를 왔다 갔다 하다가, 적이 다가오면 주인과 적 사이를 막아섬. 공격은 안 함.
 function cloneThink(sim, c, owner) {

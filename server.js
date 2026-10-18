@@ -426,6 +426,10 @@ server.on('upgrade', (req, sock) => {
         room.sim.ev({ k: 'kickout', n: tc.name });
         try { tc.socket.send(JSON.stringify({ t: 'kicked', msg: '방장이 방에서 내보냈어요. 다시 들어갈 수는 있어요.' })); tc.socket.close(); } catch (_) {}
         room.leave(tid);
+      } else if (m.t === 'botdiff' && room) {
+        if (id !== room.hostId) return notice('봇 난이도는 방장만 정할 수 있어요.');
+        const err = room.sim.setBotDiff(String(m.id || ''), String(m.diff || ''));
+        if (err) return notice(err);
       } else if (m.t === 'botskill' && room) {
         if (id !== room.hostId) return notice('봇 스킬은 방장만 정할 수 있어요.');
         const err = room.sim.setBotSkill(String(m.id || ''), m.skill ? String(m.skill) : null, m.skill2 ? String(m.skill2) : null);

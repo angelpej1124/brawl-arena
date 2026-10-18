@@ -2475,7 +2475,7 @@ function updateRoomPanel(m) {
   const md = m.md || [0, 0];
   const prof = account.profile;
   const key = [me.c, me.sk, me.sk2, me.rd, host, JSON.stringify(me.rs || 0), ready, need, m.p.length, [...taken].join(), (prof && prof.owned.join()) || '',
-    prof ? (prof.skins || []).join() + JSON.stringify(prof.skinSel || {}) : '', m.p.filter((p) => p.b).map((p) => p.id + p.sk + (p.sk2 || '') + JSON.stringify(p.rs || 0)).join(),
+    prof ? (prof.skins || []).join() + JSON.stringify(prof.skinSel || {}) : '', m.p.filter((p) => p.b).map((p) => p.id + p.sk + (p.sk2 || '') + JSON.stringify(p.rs || 0) + (p.bd ?? '')).join(),
     md.join(), m.p.map((p) => p.id + ':' + p.tm + ':' + p.n).join()].join('|');
   if (key === panelKey) return;
   panelKey = key;
@@ -2566,6 +2566,11 @@ function updateRoomPanel(m) {
       sel.addEventListener('change', () => send({ t: 'botskill', id: bot.id, [field]: sel.value }));
       return sel;
     };
+    // 난이도 (기본 미들)
+    const dsel = document.createElement('select'); dsel.setAttribute('aria-label', `${bot.n} 난이도`);
+    ['이지', '미들', '하드'].forEach((t, i) => { const o = document.createElement('option'); o.value = ['easy', 'mid', 'hard'][i]; o.textContent = t; if ((bot.bd ?? 1) === i) o.selected = true; dsel.append(o); });
+    dsel.addEventListener('change', () => send({ t: 'botdiff', id: bot.id, diff: dsel.value }));
+    pill.append(dsel);
     pill.append(mkSel(bot.sk, 'skill', null, !!(bot.rs && bot.rs[0])));
     if (md[1]) pill.append(mkSel(bot.sk2, 'skill2', bot.sk, !!(bot.rs && bot.rs[1])));
     bl.append(pill);
