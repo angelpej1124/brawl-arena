@@ -438,7 +438,21 @@ renderAccount(); // 스킬 버튼을 만든 뒤 잠금 상태 반영
 // =====================================================================
 //  서버 연결
 // =====================================================================
-let ws = null, myId = null, online = false, inGame = false;
+let ws = null, myId = null, online = false, inGame = false, lastPh = null;
+// 소리 켜기/끄기 (로비와 게임 화면 둘 다)
+function renderSnd() {
+  const o = window.SFX ? SFX.get() : { bgm: false, sfx: false };
+  for (const b of document.querySelectorAll('.snd-btn')) {
+    const on = o[b.dataset.snd]; b.classList.toggle('off', !on);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    b.title = (b.dataset.snd === 'bgm' ? '배경음악 ' : '효과음 ') + (on ? '끄기' : '켜기');
+  }
+}
+for (const b of document.querySelectorAll('.snd-btn')) b.addEventListener('click', (e) => {
+  e.currentTarget.blur(); if (!window.SFX) return;
+  SFX.init(); SFX.set(b.dataset.snd, !SFX.get()[b.dataset.snd]); renderSnd();
+});
+renderSnd();
 let snapshots = [], latest = null, lastEvSeen = 0, pingMs = null;
 
 try { $('roomcode').value = localStorage.getItem('brawl_room') || ''; } catch (e) {}
@@ -562,7 +576,11 @@ function onMessage(m) {
       $('dumAdd').hidden = !isHost;
       $('dumDel').hidden = !isHost;
     }
-    for (const e of m.ev || []) if (e.i > lastEvSeen) { lastEvSeen = e.i; onEvent(e); }
+    const meS = m.p.find((q) => q.id === myId);
+    for (const e of m.ev || []) if (e.i > lastEvSeen) { lastEvSeen = e.i; onEvent(e); if (window.SFX) SFX.event(e, meS, STAGE.width); }
+    // 배경음악: 게임 중엔 신나게, 대기실은 잔잔하게 / 판이 끝나면 승리 음악
+    if (window.SFX) { SFX.mode(m.ph === 'playing' ? 'battle' : 'calm'); if (m.ph === 'ended' && lastPh === 'playing') SFX.play('win'); }
+    lastPh = m.ph;
   }
 }
 

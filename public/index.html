@@ -142,6 +142,9 @@
     background: rgba(18,16,31,.78); border: 1px solid var(--line); border-radius: 10px; padding: 5px 6px 5px 12px; font-size: 13px; }
   #bar button { border: 0; border-radius: 7px; padding: 6px 10px; background: #2f2a55; color: var(--text); cursor: pointer; font-size: 13px; touch-action: manipulation; }
   #bar button:hover { background: #3d3670; }
+  .snd-row { display: flex; justify-content: center; gap: 6px; margin: -4px 0 10px; }
+  .snd-row .snd-btn { border: 1px solid #3d3670; border-radius: 999px; padding: 4px 12px; background: transparent; color: var(--muted); cursor: pointer; font-size: 12px; }
+  .snd-btn.off { opacity: .5; text-decoration: line-through; }
   #net { position: fixed; top: calc(14px + env(safe-area-inset-top, 0px)); left: max(14px, env(safe-area-inset-left, 0px)); z-index: 5; font-size: 12px; color: var(--muted); }
   #rotate { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(46% + 8px); z-index: 4; font-size: 12px; color: var(--muted);
     background: rgba(18,16,31,.7); padding: 4px 10px; border-radius: 99px; white-space: nowrap; }
@@ -249,6 +252,7 @@
     <div class="card">
       <h1>난투 아레나</h1>
       <p class="sub">서로 때려서 날려버리고, 마지막까지 살아남으세요</p>
+      <div class="snd-row"><button class="snd-btn" data-snd="bgm" type="button">음악</button><button class="snd-btn" data-snd="sfx" type="button">효과음</button></div>
 
       <section id="authBox" aria-label="로그인">
         <div class="tabs" role="tablist">
@@ -365,6 +369,8 @@
   <button id="botDel" hidden>봇 빼기</button>
   <button id="dumAdd" hidden title="가만히 서 있는 연습 상대">더미 추가</button>
   <button id="dumDel" hidden>더미 빼기</button>
+  <button class="snd-btn" data-snd="bgm" type="button">음악</button>
+  <button class="snd-btn" data-snd="sfx" type="button">효과음</button>
   <button id="exitBtn">나가기</button>
 </div>
 <div id="net" hidden></div>
@@ -423,6 +429,7 @@
 
 <script src="maps.js"></script>
 <script src="skins.js"></script>
+<script src="sound.js"></script>
 <script src="client.js"></script>
 </body>
 </html>
