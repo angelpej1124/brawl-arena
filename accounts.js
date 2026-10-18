@@ -327,7 +327,7 @@ function adminList(q) {
     .slice(0, 50)
     .map(([, a]) => publicProfile(a));
 }
-function adminUpdate(targetNick, { gems, owned }) {
+function adminUpdate(targetNick, { gems, owned, skins }) {
   const key = keyOf(targetNick);
   const a = store.accounts[key];
   if (!a) throw new Error('그런 닉네임의 계정이 없어요.');
@@ -342,6 +342,13 @@ function adminUpdate(targetNick, { gems, owned }) {
     for (const b of BASE_SKILLS) set.add(b);       // 기본 스킬은 항상 유지
     a.owned = ALL_SKILLS.filter((k) => set.has(k));
     if (!a.owned.includes(a.skill)) a.skill = 'slow';
+  }
+  if (skins !== undefined) {
+    // 스킨 지급·회수: 없는 스킨 id는 버리고, 회수한 스킨을 장착 중이었으면 장착도 해제
+    if (!Array.isArray(skins)) throw new Error('스킨 목록이 잘못됐어요.');
+    const set = new Set(skins.filter((id) => SKINS[id]));
+    a.skins = Object.keys(SKINS).filter((id) => set.has(id));
+    for (const [sk, id] of Object.entries(a.skinSel || {})) if (!set.has(id)) delete a.skinSel[sk];
   }
   save();
   return publicProfile(a);
@@ -392,6 +399,6 @@ setInterval(() => {
 
 module.exports = {
   init, storage: () => storageName, signup, login, logout, fromToken, profileOf, nickOf, isTaken,
-  owns, ownedOf, setSkill, record, buySkin, equipSkin, skinsOf, adminWarn, changeNick, ranking, cleanNick, gacha, isAdmin, adminList, adminUpdate,
+  keyOf, owns, ownedOf, setSkill, record, buySkin, equipSkin, skinsOf, adminWarn, changeNick, ranking, cleanNick, gacha, isAdmin, adminList, adminUpdate,
   GEMS, GACHA, BASE_SKILLS, ALL_SKILLS,
 };

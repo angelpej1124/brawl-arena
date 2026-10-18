@@ -221,6 +221,12 @@
   #roomPanel.folded #rpBody { display: none; }
   .skin-open { margin-top: 8px; border-color: #c77dff; color: #e2c8ff; }
   .adm-warn { border-color: #ff6b6b; color: #ffb3b3; }
+  .adm-rooms-h { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; }
+  .adm-refresh, .adm-del { border: 1px solid #3d3670; border-radius: 7px; padding: 3px 9px; background: transparent; color: var(--muted); cursor: pointer; font-size: 12px; }
+  .adm-del { border-color: #ff6b6b; color: #ffb3b3; }
+  .adm-del:hover { background: rgba(255,107,107,0.15); }
+  #admRooms li { cursor: default; grid-template-columns: minmax(0,1fr) auto; align-items: center; }
+  #admRooms .rm-sub { display: block; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #nickModal .modal-card input { width: 100%; box-sizing: border-box; margin-top: 6px; }
   .modal { position: fixed; inset: 0; z-index: 20; background: rgba(6,5,14,.72); display: flex; align-items: center; justify-content: center; padding: 16px; }
   .modal[hidden] { display: none; }
@@ -353,12 +359,17 @@
         <input id="admGems" type="number" min="0" max="1000000" step="1" inputmode="numeric">
         <span class="lbl">가진 스킬</span>
         <div class="adm-skills" id="admSkills"></div>
+        <span class="lbl">가진 스킨 (체크하면 지급, 빼면 회수)</span>
+        <div class="adm-skills" id="admSkins"></div>
         <button class="sub-btn" id="admSave" type="button">저장</button>
         <span class="lbl">닉네임 경고</span>
         <input id="admReason" maxlength="40" placeholder="사유 (예: 욕설이 들어간 닉네임)" autocomplete="off">
         <button class="sub-btn adm-warn" id="admWarn" type="button">닉네임 경고</button>
         <p class="hint" id="admMsg" role="status"></p>
       </div>
+      <span class="lbl adm-rooms-h">방 관리 <button class="adm-refresh" id="admRoomsRefresh" type="button">새로고침</button></span>
+      <ul class="rank adm-list" id="admRooms"></ul>
+      <p class="hint" id="admRoomMsg" role="status"></p>
     </div>
   </div>
 </div>

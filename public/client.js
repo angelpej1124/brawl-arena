@@ -210,7 +210,7 @@ function renderAccount() {
   selectSkill(account.skill, false);
   // 관리자
   $('adminCard').hidden = !(p && p.admin);
-  if (p && p.admin && !adminLoaded) { adminLoaded = true; adminSearch(); }
+  if (p && p.admin && !adminLoaded) { adminLoaded = true; adminSearch(); adminRooms(); }
 }
 
 // ---------------- 스킬 뽑기 ----------------
@@ -323,9 +323,49 @@ function adminPick(u) {
   $('admReason').value = '';
   $('admGems').value = u.gems;
   for (const k of SKILL_IDS) if (k !== 'slow' && k !== 'blink') $('admSk' + k).checked = u.owned.includes(k);
+  renderAdminSkins(u);
   $('admMsg').textContent = '';
   document.querySelectorAll('#admList li').forEach((li) => li.classList.toggle('sel', li.firstChild && li.firstChild.textContent.replace('⚠ ', '').startsWith(u.nick)));
 }
+// 스킨 체크박스 (능력 이름 · 스킨 이름)
+function renderAdminSkins(u) {
+  const box = $('admSkins'); box.textContent = '';
+  const have = new Set(u.skins || []);
+  for (const [id, sk] of Object.entries(SKIN_INFO.SKINS)) {
+    const l = document.createElement('label'); l.className = 'chk';
+    const c = document.createElement('input'); c.type = 'checkbox'; c.dataset.skin = id; c.checked = have.has(id);
+    l.append(c, ` ${sk.name} (${SKILLS[sk.skill] ? SKILLS[sk.skill].name : sk.skill})`);
+    box.append(l);
+  }
+}
+// 방 관리: 모든 방(공개·비공개) 목록과 삭제
+async function adminRooms() {
+  const ul = $('admRooms');
+  try {
+    const r = await api('/api/admin/rooms');
+    ul.textContent = '';
+    for (const rm of r.rooms) {
+      const li = document.createElement('li');
+      const info = document.createElement('span'); info.className = 'nm';
+      info.textContent = `${rm.isPublic ? rm.title : '비공개 · ' + rm.code} (${rm.players}명${rm.bots ? ` + 봇 ${rm.bots}` : ''})`;
+      const sub = document.createElement('span'); sub.className = 'rm-sub';
+      sub.textContent = `${PHASE_KO[rm.phase] || ''} · ${rm.names.join(', ') || '빈 방'}`;
+      info.append(sub);
+      const del = document.createElement('button'); del.type = 'button'; del.className = 'adm-del'; del.textContent = '삭제';
+      del.addEventListener('click', async () => {
+        if (!confirm(`"${rm.isPublic ? rm.title : rm.code}" 방을 삭제할까요? 안에 있는 ${rm.players}명은 로비로 나가요.`)) return;
+        try { await api('/api/admin/room/delete', { code: rm.code }); $('admRoomMsg').style.color = 'var(--ok)'; $('admRoomMsg').textContent = '방을 삭제했어요.'; }
+        catch (e) { $('admRoomMsg').style.color = 'var(--danger)'; $('admRoomMsg').textContent = e.message; }
+        adminRooms();
+      });
+      li.append(info, del);
+      ul.append(li);
+    }
+    if (!r.rooms.length) { const li = document.createElement('li'); li.textContent = '지금 열린 방이 없어요.'; ul.append(li); }
+  } catch (e) { $('admRoomMsg').style.color = 'var(--danger)'; $('admRoomMsg').textContent = e.message; }
+}
+$('admRoomsRefresh').addEventListener('click', adminRooms);
+setInterval(() => { if (!$('adminCard').hidden && !$('lobby').hidden) adminRooms(); }, 10000);
 let admTimer = null;
 $('admQ').addEventListener('input', () => { clearTimeout(admTimer); admTimer = setTimeout(adminSearch, 300); });
 $('admWarn').addEventListener('click', async () => {
@@ -341,10 +381,11 @@ $('admWarn').addEventListener('click', async () => {
 });
 $('admSave').addEventListener('click', async () => {
   if (!adminSel) return;
-  const owned = [...document.querySelectorAll('.adm-skills input')].filter((c) => c.checked).map((c) => c.dataset.skill);
+  const owned = [...document.querySelectorAll('#admSkills input')].filter((c) => c.checked).map((c) => c.dataset.skill);
+  const skins = [...document.querySelectorAll('#admSkins input')].filter((c) => c.checked).map((c) => c.dataset.skin);
   $('admSave').disabled = true;
   try {
-    const r = await api('/api/admin/user', { nick: adminSel.nick, gems: Number($('admGems').value), owned });
+    const r = await api('/api/admin/user', { nick: adminSel.nick, gems: Number($('admGems').value), owned, skins });
     adminSel = r.profile;
     $('admMsg').style.color = 'var(--ok)';
     $('admMsg').textContent = `${r.profile.nick} 저장했어요 · 보석 ${r.profile.gems}`;
@@ -461,6 +502,7 @@ if (isTouch) { $('keysPc').hidden = true; $('keysTouch').hidden = false; }
 $('playBtn').addEventListener('click', () => enter());
 ['gNick', 'roomcode', 'roomTitle'].forEach((id) => $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') enter(); }));
 $('exitBtn').addEventListener('click', () => { location.reload(); });
+try { const km = sessionStorage.getItem('kickMsg'); if (km) { sessionStorage.removeItem('kickMsg'); $('err').textContent = km; } } catch (_) {}
 
 // ---------------- 방 고르기 (공개 방 목록 · 방 만들기 · 초대 코드) ----------------
 let roomTab = 'list';
@@ -549,6 +591,10 @@ function onMessage(m) {
     if (isTouch) $('touch').hidden = false;
     resize();
     setInterval(() => send({ t: 'ping', c: performance.now() }), 2000);
+  } else if (m.t === 'kicked') {
+    // 관리자가 방을 삭제함: 로비로 돌아가서 안내
+    try { sessionStorage.setItem('kickMsg', m.msg || '방이 삭제됐어요.'); } catch (_) {}
+    inGame = false; location.reload();
   } else if (m.t === 'error') {
     $('err').textContent = m.msg;
     $('playBtn').disabled = false;

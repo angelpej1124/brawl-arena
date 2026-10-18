@@ -112,13 +112,31 @@ async function api(req, res, urlPath) {
       }
       if (req.method === 'POST' && urlPath === '/api/admin/user') {
         const b = await readBody(req);
-        const profile = accounts.adminUpdate(b.nick, { gems: b.gems, owned: b.owned });
-        console.log(`[관리자] ${accounts.nickOf(key)} → ${profile.nick}: 보석 ${profile.gems}, 스킬 ${profile.owned.join(',')}`);
-        // 접속 중이면 바로 알려줌
-        for (const r of rooms.values()) for (const c of r.clients.values()) {
-          if (c.accountKey && accounts.nickOf(c.accountKey) === profile.nick) c.socket.send(JSON.stringify({ t: 'profile', profile }));
+        const profile = accounts.adminUpdate(b.nick, { gems: b.gems, owned: b.owned, skins: b.skins });
+        console.log(`[관리자] ${accounts.nickOf(key)} → ${profile.nick}: 보석 ${profile.gems}, 스킬 ${profile.owned.join(',')}, 스킨 ${profile.skins.join(',') || '없음'}`);
+        // 접속 중이면 바로 알려주고, 게임 중인 캐릭터의 스킨도 바로 바뀜
+        const tkey = accounts.keyOf(profile.nick);
+        for (const r of rooms.values()) for (const [cid, c] of r.clients) {
+          if (c.accountKey !== tkey) continue;
+          c.socket.send(JSON.stringify({ t: 'profile', profile }));
+          const p = r.sim.players.get(cid); if (p) p.skins = accounts.skinsOf(tkey);
         }
         return sendJson(res, 200, { profile });
+      }
+      // 방 목록 (공개·비공개 전부)
+      if (req.method === 'GET' && urlPath === '/api/admin/rooms') {
+        const list = [...rooms.values()].sort((a, b) => b.humans() - a.humans() || a.createdAt - b.createdAt)
+          .map((r) => ({ ...r.summary(), isPublic: r.isPublic, names: [...r.clients.values()].map((c) => c.name) }));
+        return sendJson(res, 200, { rooms: list });
+      }
+      // 방 삭제: 안에 있던 사람은 로비로 돌아가고 안내를 받음
+      if (req.method === 'POST' && urlPath === '/api/admin/room/delete') {
+        const b = await readBody(req);
+        const r = rooms.get(String(b.code || ''));
+        if (!r) return sendJson(res, 404, { error: '그 방은 이미 없어요.' });
+        console.log(`[관리자] ${accounts.nickOf(key)} → 방 삭제 ${r.name} (${r.title || '비공개'}) · ${r.humans()}명`);
+        r.close('관리자가 이 방을 삭제했어요.');
+        return sendJson(res, 200, { ok: true });
       }
       return sendJson(res, 404, { error: '없는 주소예요.' });
     }
@@ -246,7 +264,18 @@ class GameRoom {
     const k = owned.find((x) => x !== p.skill && !(['sword', 'archer'].includes(x) && ['sword', 'archer'].includes(p.skill)));
     if (k) this.sim.setSkill2(id, k);
   }
+  // 방 닫기 (관리자 삭제): 모두에게 알리고 연결을 끊음
+  close(msg) {
+    this.closed = true;
+    clearInterval(this.timer);
+    if (rooms.get(this.name) === this) rooms.delete(this.name);
+    for (const c of this.clients.values()) {
+      try { c.socket.send(JSON.stringify({ t: 'kicked', msg })); c.socket.close(); } catch (_) {}
+    }
+    this.clients.clear();
+  }
   leave(id) {
+    if (this.closed) return;
     this.clients.delete(id);
     this.sim.removePlayer(id);
     if (this.clients.size === 0) { clearInterval(this.timer); rooms.delete(this.name); return; }
