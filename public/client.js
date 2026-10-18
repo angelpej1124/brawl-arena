@@ -1155,7 +1155,8 @@ function drawPlayer(p, time) {
   const cosMat = cosmMatOf(p, light);
   const hatId = p.cs && p.cs[0], hatH = hatId ? HAT_H[hatId] || 0 : 0;
   const leafUp = p.rk && skinOn(p, 'tree') ? 18 : 0;   // 나무: 잎사귀 위에 모자를 얹음
-  if (p.cs && p.cs[1] && !p.rk && !p.vnm) drawCosm(ctx, 'outfit', p.cs[1], f, time, cosMat === 'light' ? null : cosMat, 0);   // 치장품: 옷
+  const tear = hasK(p, 'hulk') && G > 1.02 ? Math.min(1, (G - 1) / 0.9) : 0;   // 헐크: 커질수록 옷이 찢어짐
+  if (p.cs && p.cs[1] && !p.rk && !p.vnm) drawCosm(ctx, 'outfit', p.cs[1], f, time, cosMat === 'light' ? null : cosMat, 0, tear);   // 치장품: 옷
   if (hasK(p, 'hulk') && G > 1.02) {
     // 헐크: 커질수록 초록빛 + 근육 줄
     const hf = (G - 1) / 0.9;
@@ -1214,7 +1215,7 @@ function drawPlayer(p, time) {
     ctx.beginPath(); ctx.moveTo(-10, -PH + 6); ctx.lineTo(-2, -PH / 2); ctx.lineTo(-12, -14); ctx.moveTo(8, -PH + 14); ctx.lineTo(12, -24); ctx.stroke();
   }
   // 바위로 변신하면 옷도 같은 재질(돌·금·강철·나무·크리스탈)로 바뀜
-  if (p.cs && p.cs[1] && p.rk) drawCosm(ctx, 'outfit', p.cs[1], f, time, cosMat, 0);
+  if (p.cs && p.cs[1] && p.rk) drawCosm(ctx, 'outfit', p.cs[1], f, time, cosMat, 0, tear);
   if (p.brn) {
     // 불붙음: 몸 위로 흔들리는 불꽃
     for (let i = 0; i < 3; i++) {
@@ -1269,7 +1270,7 @@ function drawPlayer(p, time) {
     ctx.beginPath(); ctx.arc(0, -PH - 14 - mU, 8, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.moveTo(-4, -PH - 16 - mU); ctx.lineTo(4, -PH - 14 - mU); ctx.lineTo(-4, -PH - 12 - mU); ctx.fill();
     ctx.strokeStyle = carn ? 'rgba(80,0,8,0.85)' : 'rgba(70,64,90,0.8)'; ctx.lineWidth = 2;
-    if (p.cs && p.cs[1]) drawCosm(ctx, 'outfit', p.cs[1], f, time, cosMat, 0);   // 옷도 공생체에 뒤덮임
+    if (p.cs && p.cs[1]) drawCosm(ctx, 'outfit', p.cs[1], f, time, cosMat, 0, tear);   // 옷도 공생체에 뒤덮임
     for (let i = 0; i < 4; i++) { const yy = -PH + 30 + i * 8, ph = time / 200 + i; ctx.beginPath(); ctx.moveTo(-PW / 2 + 2, yy); ctx.quadraticCurveTo(0, yy + Math.sin(ph) * 6, PW / 2 - 2, yy - 2); ctx.stroke(); }
   } else if (p.ctl) {
     // 기생당함: 초록 눈
@@ -1736,8 +1737,8 @@ function drawSmoke(list, time) {
   }
 }
 // ---------------- 치장품 그리기 (몸 좌표계: 발 = (0,0), 머리 꼭대기 = (0,-PH)) ----------------
-const HAT_H = { bunny: 34, tophat: 30, cowboy: 18, horns: 34, brain: 14, cap: 12, straw: 14 };   // 모자 높이
-const HAT_W = { bunny: 15, tophat: 13, cowboy: 14, horns: 8, brain: 17, cap: 18, straw: 15 };    // 모자 몸통 반폭 (뿔이 옆으로 나올 자리)
+const HAT_H = { bunny: 34, tophat: 30, cowboy: 18, horns: 34, brain: 14, cap: 12, straw: 14, wukong: 2, hblack: 8, hblond: 8, hwhite: 8, hbrown: 8, bald: 3, punk: 24 };   // 모자 높이
+const HAT_W = { bunny: 15, tophat: 13, cowboy: 14, horns: 8, brain: 17, cap: 18, straw: 15, wukong: 20, hblack: 19, hblond: 19, hwhite: 19, hbrown: 19, bald: 18, punk: 14 };    // 모자 몸통 반폭 (뿔이 옆으로 나올 자리)
 // 머리 위로 더 솟은 높이 (모자 + 나무 잎사귀 + 천사 고리) — 이름·콤보 등 머리 위 표시를 그만큼 올림
 function headUp(p) {
   const hat = p.cs && p.cs[0] ? HAT_H[p.cs[0]] || 0 : 0;
@@ -1757,15 +1758,37 @@ function cosmMatOf(p, light) {
 const cosmCv = typeof document !== 'undefined' ? document.createElement('canvas') : null;
 const cosmCx = cosmCv && cosmCv.getContext('2d');
 // 치장품을 따로 그린 뒤 그 모양 그대로 재질을 입혀서 몸에 붙임
-function drawCosm(g, kind, id, f, time, mat, dy) {
+function drawCosm(g, kind, id, f, time, mat, dy, tear) {
   const draw = (gg) => (kind === 'hat' ? drawHat(gg, id, f, time) : drawOutfit(gg, id, f, time));
-  if (!mat || !cosmCx) { g.save(); g.translate(0, dy); draw(g); g.restore(); return; }
+  if ((!mat && !(tear > 0)) || !cosmCx) { g.save(); g.translate(0, dy); draw(g); g.restore(); return; }
   const S = 3, OX = 50, OY = PH + 60, W = 100, H = PH + 80;   // 몸 좌표 x -50..50, y -(PH+60)..20
   if (cosmCv.width !== W * S || cosmCv.height !== H * S) { cosmCv.width = W * S; cosmCv.height = H * S; }
   const c = cosmCx;
   c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1; c.clearRect(0, 0, W * S, H * S);
   c.setTransform(S, 0, 0, S, OX * S, OY * S);
   draw(c);
+  if (tear > 0) {
+    // 헐크 옷 찢어짐: 커질수록 찢긴 구멍이 늘고 커지며, 아랫단과 솔기도 너덜너덜해짐
+    c.globalCompositeOperation = 'destination-out';
+    const holes = [[-9, -22, 0.1], [10, -14, 0.25], [-12, -8, 0.4], [6, -26, 0.5], [0, -11, 0.6], [-5, -27, 0.72], [13, -24, 0.82], [-14, -18, 0.9]];
+    for (const [hx, hy, at] of holes) {
+      if (tear < at) continue;
+      const r = 2.5 + (tear - at) * 9;
+      c.beginPath();
+      for (let k = 0; k < 9; k++) { const a = (k / 9) * Math.PI * 2, rr = r * (k % 2 ? 0.45 : 1) * (1 + ((k * 7 + hx) % 3) * 0.15); c.lineTo(hx + Math.cos(a) * rr * 1.2, hy + Math.sin(a) * rr); }
+      c.closePath(); c.fill();
+    }
+    // 아랫단이 찢겨 올라감
+    const hem = tear * 10;
+    c.beginPath(); c.moveTo(-30, 10);
+    for (let x = -24; x <= 24; x += 4) c.lineTo(x, -hem * (0.5 + ((x / 4) & 1) * 0.5) - ((x * 13) % 5));
+    c.lineTo(30, 10); c.closePath(); c.fill();
+    // 어깨 솔기가 터짐
+    if (tear > 0.55) { const w = (tear - 0.55) * 14; for (const sd of [-1, 1]) { c.beginPath(); c.moveTo(sd * 20, -31); c.lineTo(sd * (20 - w), -26); c.lineTo(sd * (20 - w * 0.4), -21); c.lineTo(sd * (20 - w), -15); c.lineTo(sd * 24, -12); c.closePath(); c.fill(); } }
+    c.globalCompositeOperation = 'source-atop';
+    // 찢긴 가장자리 실밥
+    c.strokeStyle = 'rgba(255,255,255,0.35)'; c.lineWidth = 0.8;
+  }
   c.globalCompositeOperation = 'source-atop';
   const T = -PH - 50, B = 10;
   const lg = (stops) => { const gr = c.createLinearGradient(-30, T, 30, B); stops.forEach(([o, col]) => gr.addColorStop(o, col)); return gr; };
@@ -1852,6 +1875,67 @@ function drawOutfitInner(g, id, f, time) {
     g.strokeStyle = '#e8c860'; g.lineWidth = 1; for (let k = 0; k < 3; k++) { g.beginPath(); g.moveTo(-2, top + 6 + k * 4); g.lineTo(2, top + 4 + k * 4); g.stroke(); }
     g.fillStyle = '#e8c860'; g.beginPath(); g.arc(f * 11, top + 9, 3, 0, Math.PI * 2); g.fill();
     g.fillStyle = '#2a3c6e'; g.fillRect(-PW / 2, -10, PW, 10);
+  } else if (id === 'tracksuit') {
+    // 파란 추리닝: 지퍼 + 양옆 흰 줄 + 깃
+    g.fillStyle = '#2f5fd0'; g.fillRect(-PW / 2, top, PW, PH - 31);
+    g.fillStyle = '#ffffff'; g.fillRect(-PW / 2 + 2, top, 3, PH - 31); g.fillRect(PW / 2 - 5, top, 3, PH - 31);
+    g.fillStyle = '#244ba8'; g.beginPath(); g.moveTo(-8, top); g.lineTo(8, top); g.lineTo(5, top + 5); g.lineTo(-5, top + 5); g.closePath(); g.fill();
+    g.strokeStyle = '#c8d4f0'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(0, top + 2); g.lineTo(0, -2); g.stroke();
+    g.fillStyle = '#c8d4f0'; g.fillRect(-1.5, top + 8, 3, 4);
+    g.strokeStyle = '#244ba8'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(-PW / 2, -8); g.lineTo(PW / 2, -8); g.stroke();
+  } else if (id === 'tank') {
+    // 난닝구 + 검은 추리닝 바지
+    g.fillStyle = '#1b1b20'; g.fillRect(-PW / 2, -13, PW, 13);
+    g.fillStyle = '#ffffff'; g.fillRect(-PW / 2 + 2, -13, 2, 13); g.fillRect(PW / 2 - 4, -13, 2, 13);
+    g.fillStyle = '#f7f7f2'; g.beginPath();
+    g.moveTo(-12, top - 2); g.lineTo(-8, top - 2); g.quadraticCurveTo(0, top + 9, 8, top - 2); g.lineTo(12, top - 2);
+    g.quadraticCurveTo(13, top + 8, PW / 2, top + 11); g.lineTo(PW / 2, -12); g.lineTo(-PW / 2, -12); g.lineTo(-PW / 2, top + 11); g.quadraticCurveTo(-13, top + 8, -12, top - 2);
+    g.closePath(); g.fill();
+    g.strokeStyle = 'rgba(0,0,0,0.12)'; g.lineWidth = 1; g.stroke();
+    g.strokeStyle = 'rgba(0,0,0,0.08)'; for (let x = -14; x <= 14; x += 4) { g.beginPath(); g.moveTo(x, top + 10); g.lineTo(x, -13); g.stroke(); }   // 골지
+  } else if (id === 'luxury') {
+    // 명품: 하얀 옷에 금빛 무늬 + 굵은 금 목걸이와 보석 펜던트
+    g.fillStyle = '#fbfaf6'; g.fillRect(-PW / 2, top, PW, PH - 31);
+    g.fillStyle = 'rgba(200,160,60,0.45)';
+    for (let yy = top + 4; yy < 0; yy += 7) for (let xx = -PW / 2 + ((yy / 7) % 2 ? 3 : 7); xx < PW / 2; xx += 8) { g.beginPath(); g.moveTo(xx, yy - 2); g.lineTo(xx + 2, yy); g.lineTo(xx, yy + 2); g.lineTo(xx - 2, yy); g.closePath(); g.fill(); }
+    g.strokeStyle = '#d9a514'; g.lineWidth = 3; g.beginPath(); g.moveTo(-11, top); g.quadraticCurveTo(0, top + 15, 11, top); g.stroke();
+    g.strokeStyle = '#fff1a0'; g.lineWidth = 1; g.setLineDash([2, 2]); g.beginPath(); g.moveTo(-11, top); g.quadraticCurveTo(0, top + 15, 11, top); g.stroke(); g.setLineDash([]);
+    g.fillStyle = '#d9a514'; g.beginPath(); g.arc(0, top + 10, 4, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#5ad8ff'; g.beginPath(); g.moveTo(0, top + 7); g.lineTo(2.5, top + 10); g.lineTo(0, top + 13); g.lineTo(-2.5, top + 10); g.closePath(); g.fill();
+    const tw = (Math.sin(time / 160) + 1) / 2; g.fillStyle = `rgba(255,255,255,${tw})`; g.fillRect(-1, top + 8, 1.5, 1.5);
+  } else if (id === 'taekwondo' || id === 'aikido' || id === 'judo') {
+    // 도복: 여민 깃 + 띠 (태권도 흰색, 합기도 검정, 유도 파랑)
+    const C = { taekwondo: ['#f7f7f4', '#1b1b20', '#1b1b20'], aikido: ['#1e1e24', '#3a3a44', '#f2f2f2'], judo: ['#1f5fc8', '#174a9c', '#1b1b20'] }[id];
+    g.fillStyle = C[0]; g.fillRect(-PW / 2, top, PW, PH - 31);
+    g.strokeStyle = C[1]; g.lineWidth = 4; g.lineCap = 'butt';
+    g.beginPath(); g.moveTo(-9, top - 1); g.lineTo(5, top + 17); g.stroke();
+    g.beginPath(); g.moveTo(9, top - 1); g.lineTo(-1, top + 11); g.stroke();
+    g.strokeStyle = id === 'taekwondo' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.1)'; g.lineWidth = 1; g.beginPath(); g.moveTo(5, top + 17); g.lineTo(5, -14); g.stroke();
+    g.fillStyle = C[2]; g.fillRect(-PW / 2, -14, PW, 4);
+    g.beginPath(); g.moveTo(f * 3, -12); g.lineTo(f * 1, -3); g.lineTo(f * 4, -3); g.lineTo(f * 6, -11); g.closePath(); g.fill();
+    g.beginPath(); g.moveTo(f * 5, -12); g.lineTo(f * 9, -4); g.lineTo(f * 12, -5); g.lineTo(f * 7, -12); g.closePath(); g.fill();
+  } else if (id === 'hoodie') {
+    // 흰 후드티 + 청바지
+    g.fillStyle = '#3a63a8'; g.fillRect(-PW / 2, -13, PW, 13);
+    g.strokeStyle = '#2a4a80'; g.lineWidth = 1; g.beginPath(); g.moveTo(0, -13); g.lineTo(0, 0); g.stroke();
+    g.strokeStyle = '#e8b04a'; g.setLineDash([1.5, 1.5]); g.beginPath(); g.moveTo(-PW / 2 + 3, -13); g.lineTo(-PW / 2 + 3, 0); g.moveTo(PW / 2 - 3, -13); g.lineTo(PW / 2 - 3, 0); g.stroke(); g.setLineDash([]);
+    g.fillStyle = '#f5f5f7'; g.fillRect(-PW / 2, top, PW, PH - 31 - 12);
+    g.fillStyle = '#e2e2e8'; g.beginPath(); g.moveTo(-13, top); g.quadraticCurveTo(0, top + 8, 13, top); g.quadraticCurveTo(0, top + 3, -13, top); g.fill();   // 후드 테두리
+    g.strokeStyle = '#c8c8d0'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(-4, top + 4); g.lineTo(-5, top + 13); g.moveTo(4, top + 4); g.lineTo(5, top + 13); g.stroke();   // 끈
+    g.strokeStyle = '#d4d4dc'; g.beginPath(); g.moveTo(-9, -15); g.lineTo(-7, top + 17); g.lineTo(7, top + 17); g.lineTo(9, -15); g.stroke();   // 앞주머니
+    g.fillStyle = '#d4d4dc'; g.fillRect(-PW / 2, -15, PW, 2.5);
+  } else if (id === 'pajama') {
+    // 하늘색 잠옷에 빨강 세모·노랑 네모·초록 동그라미
+    g.fillStyle = '#8ed2f5'; g.fillRect(-PW / 2, top, PW, PH - 31);
+    const sh = [[-12, top + 6, 0], [9, top + 9, 1], [-4, top + 16, 2], [12, top + 21, 0], [-14, top + 23, 1], [3, top + 26, 2], [-8, -5, 0], [10, -4, 1]];
+    for (const [x, y, k] of sh) {
+      if (k === 0) { g.fillStyle = '#e8323c'; g.beginPath(); g.moveTo(x, y - 3); g.lineTo(x + 3, y + 2.5); g.lineTo(x - 3, y + 2.5); g.closePath(); g.fill(); }
+      else if (k === 1) { g.fillStyle = '#ffd23f'; g.fillRect(x - 2.5, y - 2.5, 5, 5); }
+      else { g.fillStyle = '#3cc85a'; g.beginPath(); g.arc(x, y, 2.6, 0, Math.PI * 2); g.fill(); }
+    }
+    g.fillStyle = '#ffffff'; g.beginPath(); g.moveTo(-9, top); g.lineTo(0, top + 6); g.lineTo(9, top); g.lineTo(6, top - 1); g.lineTo(0, top + 3); g.lineTo(-6, top - 1); g.closePath(); g.fill();
+    g.fillStyle = '#ffffff'; for (const yy of [top + 10, top + 17, top + 24]) { g.beginPath(); g.arc(0, yy, 1.4, 0, Math.PI * 2); g.fill(); }
+    g.strokeStyle = '#6ab8e0'; g.lineWidth = 1; g.beginPath(); g.moveTo(0, top + 6); g.lineTo(0, -12); g.stroke();
   } else if (id === 'baby') {
     g.fillStyle = '#ffffff'; g.beginPath(); g.moveTo(-PW / 2, -14); g.quadraticCurveTo(0, -20, PW / 2, -14); g.lineTo(PW / 2, -2); g.quadraticCurveTo(0, 3, -PW / 2, -2); g.closePath(); g.fill();
     g.strokeStyle = '#dcdcdc'; g.lineWidth = 1; g.stroke();
@@ -1859,9 +1943,52 @@ function drawOutfitInner(g, id, f, time) {
     g.fillStyle = '#fff'; for (const [dx, dy] of [[-4, top + 4], [3, top + 7]]) { g.beginPath(); g.arc(dx, dy, 1.6, 0, Math.PI * 2); g.fill(); }
   }
 }
+const HAIR = { hblack: ['#1d1b22', '#4a4656'], hblond: ['#f2c94a', '#fff0a8'], hwhite: ['#e9e9ef', '#ffffff'], hbrown: ['#7a4a24', '#a8703e'] };
 function drawHat(g, id, f, time) {
   const t = -PH;   // 머리 꼭대기
-  if (id === 'bunny') {
+  if (HAIR[id]) {
+    // 머리카락: 정수리를 덮고, 앞머리는 보는 방향으로 삐죽, 뒷머리는 귀 아래까지
+    const [c1, c2] = HAIR[id];
+    g.fillStyle = c1; g.beginPath();
+    g.moveTo(-f * 21, t + 22);                      // 뒷머리 아래
+    g.quadraticCurveTo(-f * 23, t - 6, 0, t - 8);   // 뒤통수 → 정수리
+    g.quadraticCurveTo(f * 21, t - 7, f * 22, t + 6);
+    for (let k = 0; k < 6; k++) { const x = f * (22 - k * 7); g.lineTo(x - f * 3, t + 12 - (k % 2) * 2); g.lineTo(x - f * 6, t + 7); }   // 앞머리 삐죽
+    g.lineTo(-f * 16, t + 8); g.lineTo(-f * 17, t + 22); g.closePath(); g.fill();
+    if (id !== 'hblack') { g.strokeStyle = 'rgba(0,0,0,0.18)'; g.lineWidth = 1; g.stroke(); }
+    g.strokeStyle = c2; g.lineWidth = 2; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(-f * 8, t - 4); g.quadraticCurveTo(f * 2, t - 6, f * 10, t - 2); g.stroke();   // 윤기
+    g.beginPath(); g.moveTo(-f * 14, t); g.quadraticCurveTo(-f * 17, t + 6, -f * 17, t + 12); g.stroke();
+  } else if (id === 'bald') {
+    // 탈모: 정수리는 비고 옆머리만 남음 + 반짝이는 정수리
+    g.fillStyle = '#26232b';
+    for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(sd * 21, t + 20); g.quadraticCurveTo(sd * 23, t + 3, sd * 15, t + 1); g.quadraticCurveTo(sd * 18, t + 6, sd * 16, t + 16); g.closePath(); g.fill(); }
+    g.strokeStyle = '#26232b'; g.lineWidth = 1.2; g.lineCap = 'round';
+    for (const x of [-3, 2]) { g.beginPath(); g.moveTo(x, t + 1); g.quadraticCurveTo(x + 3, t - 6, x + 7, t - 4); g.stroke(); }   // 남은 몇 가닥
+    g.fillStyle = 'rgba(255,255,255,0.55)'; g.beginPath(); g.ellipse(-4, t + 4, 6, 2.2, -0.2, 0, Math.PI * 2); g.fill();
+  } else if (id === 'punk') {
+    // 양아치: 탈색한 노란 머리를 높이 세워 앞으로 쭉 뺀 머리 + 짧게 민 옆머리
+    g.fillStyle = '#3a2a1a'; g.beginPath(); g.ellipse(0, t + 5, 20.5, 8, 0, Math.PI, Math.PI * 2); g.fill();   // 짧게 민 머리(뿌리)
+    const hg = g.createLinearGradient(0, t + 4, f * 26, t - 22);
+    hg.addColorStop(0, '#5a3a1c'); hg.addColorStop(0.35, '#f0b640'); hg.addColorStop(1, '#ffe27a');
+    g.fillStyle = hg; g.beginPath();
+    g.moveTo(-f * 18, t + 6); g.quadraticCurveTo(-f * 16, t - 14, f * 4, t - 20);
+    g.quadraticCurveTo(f * 22, t - 26, f * 32, t - 14);   // 앞으로 튀어나온 끝
+    g.quadraticCurveTo(f * 24, t - 12, f * 22, t - 6);
+    g.quadraticCurveTo(f * 20, t + 2, f * 14, t + 6); g.closePath(); g.fill();
+    g.strokeStyle = 'rgba(150,90,20,0.7)'; g.lineWidth = 1.2;
+    for (let k = 0; k < 4; k++) { g.beginPath(); g.moveTo(-f * (12 - k * 6), t + 4); g.quadraticCurveTo(f * (k * 6), t - 16 - k, f * (20 + k * 3), t - 14 - k * 1.5); g.stroke(); }
+  } else if (id === 'wukong') {
+    // 손오공 머리띠: 이마를 두른 금테 + 양옆 동그랗게 말린 장식
+    const gg = g.createLinearGradient(0, t + 4, 0, t + 11);
+    gg.addColorStop(0, '#fff3a6'); gg.addColorStop(0.5, '#f0b81e'); gg.addColorStop(1, '#a8740a');
+    g.fillStyle = gg; g.fillRect(-21, t + 5, 42, 6);
+    g.strokeStyle = '#8a5a00'; g.lineWidth = 1; g.strokeRect(-21, t + 5, 42, 6);
+    g.strokeStyle = '#f0b81e'; g.lineWidth = 2.5; g.lineCap = 'round';
+    for (const sd of [-1, 1]) { g.beginPath(); g.arc(sd * 23, t + 8, 4, sd > 0 ? -Math.PI / 2 : Math.PI * 1.5, sd > 0 ? Math.PI : 0, sd < 0); g.stroke(); }
+    g.fillStyle = '#d8323c'; g.beginPath(); g.arc(f * 4, t + 8, 2.2, 0, Math.PI * 2); g.fill();
+    const tw = (Math.sin(time / 200) + 1) / 2; g.fillStyle = `rgba(255,255,255,${0.4 + tw * 0.5})`; g.fillRect(-15 + tw * 26, t + 6, 3, 2);
+  } else if (id === 'bunny') {
     for (const sx of [-9, 9]) {
       g.save(); g.translate(sx, t + 4); g.rotate(sx * 0.02 + Math.sin(time / 400 + sx) * 0.06);
       g.fillStyle = '#ffffff'; g.beginPath(); g.ellipse(0, -16, 6, 18, 0, 0, Math.PI * 2); g.fill();
