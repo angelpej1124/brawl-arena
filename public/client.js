@@ -35,12 +35,12 @@ const SKILLS = {
   blackflash: { name: '흑섬', desc: '공격이 맞는 순간에 맞춰 Q를 누르면 넉백↑ (강공격은 0.7초 스턴까지). 타이밍이 틀리면 아무 일도 없음', cd: '쿨타임 없음' },
   lightning: { name: '번개', desc: '가까운 적 3명에게 번개를 내리쳐 3초 스턴', cd: '쿨 13초' },
   undying:  { name: '불사', desc: '목숨이 5개가 됨 (패시브)', cd: '패시브' },
-  hulk:     { name: '헐크', desc: '퍼센트가 오를수록 몸·사거리↑, 날리는 힘 최대 2배, 속도·받는 넉백↓. 퍼센트가 내려가면 다시 작아짐 (패시브)', cd: '패시브' },
+  hulk:     { name: '헐크', desc: '퍼센트가 오를수록(110%에서 최대) 몸·사거리↑, 날리는 힘 최대 2.8배, 속도·받는 넉백↓. 퍼센트가 내려가면 다시 작아짐 (패시브)', cd: '패시브' },
   fire:     { name: '화염', desc: '공격에 불이 붙어 맞은 상대가 2번 더 밀림. Q는 불태우며 돌진 (맞으면 4번 더 밀림)', cd: '쿨 9초' },
   ice:      { name: '얼음', desc: '때리면 상대 얼음 게이지가 참. 가득 차면 2초 얼어붙음. Q는 4초 눈보라 (모두의 게이지가 계속 참)', cd: '쿨 12초' },
   error:    { name: '에러', desc: '랜덤한 적 1명의 화면이 5초간 끊기고 조작이 제멋대로 됨 (걸린 사람은 깨진 화면 효과)', cd: '쿨 12초' },
   sun:      { name: '태양', desc: '6초간 태양의 힘: 빨라지고, 평타에 불이 붙고, 넉백이 세짐', cd: '쿨 11초' },
-  wind:     { name: '바람', desc: '공격에 바람이 붙어 더 날아감. Q는 앞으로 나아가며 휩쓸어 가는 소용돌이', cd: '쿨 10초' },
+  wind:     { name: '바람', desc: '공격에 바람이 붙어 더 날아감. Q는 앞으로 나아가며 휩쓸어 가는 소용돌이', cd: '쿨 11초' },
   archer:   { name: '궁수', desc: '강공격을 누르고 있으면 시위를 당김(1초면 최대), 놓으면 발사. Q는 다음 화살이 벽을 피해 쫓아가는 유도 화살', cd: '쿨 13초' },
   time:     { name: '시간', desc: '첫 Q로 지금 순간을 저장, 다시 Q를 누르면 모두 그 순간으로 되돌림 (위치·퍼센트·목숨·상대 쿨타임·맞은 효과 등, 내 쿨타임만 그대로). 탈락하면 못 씀', cd: '되돌린 뒤 쿨 20초' },
   combo:    { name: '콤보', desc: '때릴 때마다 콤보가 쌓임. Q는 콤보만큼 강하고 넓은 스매시 (죽어도 유지, 스매시하면 초기화)', cd: '콤보 1 이상' },
@@ -51,6 +51,9 @@ const SKILLS = {
   turret:   { name: '터렛', desc: '적을 자동으로 쏘는 터렛 설치 (최대 3개, 4번 맞으면 부서짐)', cd: '쿨 12초' },
   ninja:    { name: '닌자', desc: '쿠나이를 듦. 약공격은 쿠나이 베기, 강공격은 딜레이 없이 쿠나이를 똑바로 던짐 (던진 뒤 0.4초 뒤 다시). Q는 통나무를 남기고 랜덤한 안전한 곳으로 순간이동', cd: '쿨 13초' },
   gamble:   { name: '도박', desc: '사거리·주는 넉백·받는 넉백·점프·속도·크기가 각각 0.0~2.0배로 랜덤. 판이 시작되면 자동으로 굴림 (그래서 바로는 못 씀). 죽어도 유지', cd: '쿨 20초' },
+  shield:   { name: '방패', desc: '방패를 듦. 약공격은 방패 막기(앞에서 오는 공격), 강공격은 방패 휘두르기(넉백↑). Q를 누르고 있다 놓으면 방패를 던짐(오래 누를수록 멀리). 맞히거나 벽에 부딪히면 튕겨 돌아오고, 가까이 가면 주움(나만). 장외로 떨어지면 10초 뒤 다시 생김. 방패가 없으면 보통 공격', cd: '누르고 있다 놓기' },
+  tentacle: { name: '촉수', desc: '등 뒤 촉수 4개를 H·J·K·L로 하나씩 뻗어 공격 (약/강 대신). Q는 아래 촉수(K·L)로 땅을 짚고 8초간 중력 없이 WASD로 이동, 넉백 거의 없음 (맨 밑 바닥 아래로는 못 감, 그동안 K·L 공격·점멸·화염 돌진 불가)', cd: '쿨 18초' },
+  ghost:    { name: '귀신', desc: '목숨을 다 잃으면 마지막 5초간 귀신이 됨 (중력·벽 무시, WASD 이동, 안 맞음). 그동안 한 명을 3번 때리면 그 사람도 장외 → 마지막 상대였다면 귀신이 승리 (패시브)', cd: '패시브' },
   starlight: { name: '별빛', desc: '별 카운트(처음 1개, 10초마다·죽을 때마다 +1, 최대 5)를 모두 써서 하늘에서 사선으로 별비를 쏟음. 별이 많을수록 별이 많고 크고 세게 밀어냄', cd: '별 1개 이상' },
 };
 const SKILL_COLOR = {
@@ -60,8 +63,11 @@ const SKILL_COLOR = {
   sword: '#cfe3ff', blackflash: '#c0263a', lightning: '#ffe94a', undying: '#ffd27a',
   hulk: '#5fd35a', fire: '#ff5a1f', ice: '#8fdcff', turret: '#a7b2c4', error: '#39ff88', sun: '#ffc21a',
   wind: '#b8f2e6', archer: '#c98b4a', time: '#7c9cff', combo: '#ff5fa2', reflect: '#e0f0ff', invert: '#c2185b', atom: '#5ad8ff', mine: '#8a8f6a',
-  ninja: '#5b6b8a', gamble: '#3fd07a', starlight: '#ffe27a',
+  ninja: '#5b6b8a', gamble: '#3fd07a', starlight: '#ffe27a', shield: '#c9a24a', tentacle: '#3a2a4a', ghost: '#d8d8f0',
 };
+// 더블 모드에서 같이 못 쓰는 조합 (서버 game.js와 같음)
+const WEAPONS = ['sword', 'archer', 'ninja', 'shield', 'tentacle'];
+const conflictsK = (a, b) => a !== b && ((WEAPONS.includes(a) && WEAPONS.includes(b)) || (a === 'tentacle' && b === 'fly') || (a === 'fly' && b === 'tentacle'));
 const SKILL_IDS = Object.keys(SKILLS);
 const MAPS = window.BRAWL_MAPS;   // maps.js (서버와 같은 맵 정보)
 let STAGE = MAPS[0];               // 지금 판의 맵
@@ -69,7 +75,7 @@ const COLORS = ['#ff5a5f', '#3fa7ff', '#ffc93c', '#4cd97b', '#c77dff', '#ff8c42'
 const BOT_NAMES = ['봇 철수', '봇 영희', '봇 바둑이', '봇 민수', '봇 지수'];
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const approach = (v, t, s) => (v < t ? Math.min(v + s, t) : Math.max(v - s, t));
-const EMPTY_INPUT = () => ({ l: 0, r: 0, u: 0, d: 0, a: 0, h: 0, s: 0, e: 0, x: 0 });
+const EMPTY_INPUT = () => ({ l: 0, r: 0, u: 0, d: 0, a: 0, h: 0, s: 0, e: 0, x: 0, t1: 0, t2: 0, t3: 0, t4: 0 });
 const TEAMS = [null, { name: '빨강팀', color: '#ff4d4d' }, { name: '파랑팀', color: '#3f8cff' }, { name: '초록팀', color: '#3ccf6e' }, { name: '노랑팀', color: '#ffd23f' }];
 // 키 배치 (서버와 같은 규칙): Q=스킬1, E=스킬2 / 자석이 있으면 Q·E 자석, R 나머지
 function slotsOf(p) {
@@ -678,12 +684,16 @@ function applyKey(k, v) {
   input[k] = v;
   send({ t: 'input', ...input });
 }
+// 촉수: H·J·K·L이 촉수 1~4 (원래 J·K·L의 약/강/스킬 대신)
+const TENT_KEYS = { KeyH: 't1', KeyJ: 't2', KeyK: 't3', KeyL: 't4' };
+const keyHeld = {};   // 누른 키가 어떤 입력으로 들어갔는지 (뗄 때 같은 걸 뗌)
+function iHaveTentacle() { const me = latest && latest.p.find((q) => q.id === myId); return !!me && (me.sk === 'tentacle' || me.sk2 === 'tentacle'); }
 addEventListener('keydown', (e) => {
   if (!$('lobby').hidden) return;
-  const k = KEYMAP[e.code];
-  if (k) { e.preventDefault(); setKey(k, 1); }
+  const k = (iHaveTentacle() && TENT_KEYS[e.code]) || KEYMAP[e.code];
+  if (k) { e.preventDefault(); keyHeld[e.code] = k; setKey(k, 1); }
 });
-addEventListener('keyup', (e) => { const k = KEYMAP[e.code]; if (k) setKey(k, 0); });
+addEventListener('keyup', (e) => { const k = keyHeld[e.code] || KEYMAP[e.code]; delete keyHeld[e.code]; if (k) setKey(k, 0); });
 addEventListener('blur', () => Object.keys(input).forEach((k) => setKey(k, 0)));
 
 // 터치: 여러 손가락 동시 입력, 버튼 사이로 미끄러져도 따라감
@@ -747,6 +757,28 @@ function onEvent(ev) {
     particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.5, max: 0.5, r: 220, c: '255,255,255' });
     shake = 22;
     banners.push({ text: `${ev.n} 장외!`, life: 1.2, max: 1.2, small: true });
+  } else if (ev.k === 'block') {
+    // 방패로 막음: 금빛 불꽃
+    for (let i = 0; i < 10; i++) { const a = Math.random() * Math.PI * 2, sp = 120 + Math.random() * 200; particles.push({ x: ev.x, y: ev.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.3, max: 0.3, c: i % 2 ? '#ffe27a' : '#ffffff', r: 3 }); }
+    particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.25, max: 0.25, r: 36, c: '255,230,140' });
+  } else if (ev.k === 'shclang') {
+    for (let i = 0; i < 6; i++) { const a = Math.random() * Math.PI * 2, sp = 100 + Math.random() * 160; particles.push({ x: ev.x, y: ev.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.25, max: 0.25, c: '#ffe27a', r: 3 }); }
+  } else if (ev.k === 'shlost') {
+    banners.push({ text: '방패가 떨어졌어요 · 10초 뒤 다시 생겨요', life: 1.6, max: 1.6, small: true, color: '#c9a24a' });
+  } else if (ev.k === 'shback' && ev.pid === myId) {
+    banners.push({ text: '방패가 돌아왔어요', life: 1.2, max: 1.2, small: true, color: '#c9a24a' });
+  } else if (ev.k === 'anchor') {
+    for (let i = 0; i < 12; i++) particles.push({ x: ev.x + (Math.random() - 0.5) * 50, y: ev.y, vx: (Math.random() - 0.5) * 240, vy: -Math.random() * 200, life: 0.4, max: 0.4, c: '#6a5a7a', r: 5 });
+  } else if (ev.k === 'ghost') {
+    banners.push({ text: `👻 ${ev.n} 귀신이 됐다! (5초)`, life: 1.8, max: 1.8, small: true, color: '#d8d8f0' });
+    for (let i = 0; i < 20; i++) { const a = Math.random() * Math.PI * 2, sp = 60 + Math.random() * 140; particles.push({ x: ev.x, y: ev.y - 30, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.7, max: 0.7, c: 'rgba(220,220,255,0.8)', r: 6, nograv: true }); }
+  } else if (ev.k === 'ghostmark') {
+    for (let i = 0; i < 8; i++) { const a = Math.random() * Math.PI * 2, sp = 50 + Math.random() * 90; particles.push({ x: ev.x, y: ev.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 40, life: 0.5, max: 0.5, c: '#b07aff', r: 4, nograv: true }); }
+  } else if (ev.k === 'ghostkill') {
+    banners.push({ text: `👻 ${ev.by}이(가) ${ev.n}을(를) 데려갔다!`, life: 2, max: 2, small: true, color: '#b07aff' });
+    particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.6, max: 0.6, r: 140, c: '176,122,255' });
+  } else if (ev.k === 'ghostend') {
+    for (let i = 0; i < 14; i++) { const a = Math.random() * Math.PI * 2, sp = 40 + Math.random() * 100; particles.push({ x: ev.x, y: ev.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 60, life: 0.8, max: 0.8, c: 'rgba(230,230,255,0.7)', r: 7, nograv: true }); }
   } else if (ev.k === 'kawarimi') {
     // 닌자 바꿔치기: 사라진 자리와 나타난 자리에 연기 (스노우: 눈가루)
     for (const [px, py] of [[ev.x, ev.y], [ev.tx, ev.ty]]) {
@@ -1110,8 +1142,9 @@ function drawPlayer(p, time) {
   const light = isClone && p.ow === myId; // 내 분신은 연한 색으로
   ctx.globalAlpha = baseAlpha * (p.inv && Math.floor(time / 80) % 2 === 0 ? 0.45 : 1);
   const x = p.x, y = p.y, f = p.f || 1;
-  ctx.fillStyle = 'rgba(0,0,0,0.25)';
   const G = p.sz || (p.gt ? 2 : 1);
+  if (p.gh) { drawGhost(p, x, y, performance.now(), G); finishPlayer(p, x, y, G, light, ownerId, baseAlpha, isClone, time); return; }
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
   ctx.beginPath(); ctx.ellipse(x, y + 2, 22 * G, 5 * G, 0, 0, Math.PI * 2); ctx.fill();
   if (latest && latest.md && latest.md[0] && !isClone && TEAMS[p.tm]) {
     // 팀 모드: 발밑에 팀 색 고리
@@ -1215,6 +1248,7 @@ function drawPlayer(p, time) {
     ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(0, 0, 46, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
+  if (p.tc) drawTentacles(p, f, time, G);   // 촉수: 몸 뒤에
   ctx.fillStyle = p.hs ? '#ffffff' : p.c;
   roundRect(-PW / 2, -PH, PW, PH, 12); ctx.fill();
   if (p.el && skinOn(p, 'solar') && !p.hs) {
@@ -1429,9 +1463,11 @@ function drawPlayer(p, time) {
     ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(fx, fy, fr, 0, Math.PI * 2); ctx.fill();
   }
   if (hasK(p, 'ninja')) drawKunaiHand(p, f, fx, fy, time);
+  if (p.shd && p.shd[0] && !(p.shd[2] > 0) && !p.shd[1]) drawShieldHand(p, f, fx, fy, time);
   ctx.fillStyle = p.c; ctx.strokeStyle = '#1a1030'; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.arc(fx, fy, p.at === 2 ? 13 : 10, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   if (light) { ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.beginPath(); ctx.arc(fx, fy, 10, 0, Math.PI * 2); ctx.fill(); }
+  if (p.shd && p.shd[0] && (p.shd[2] > 0 || p.shd[1])) drawShieldHand(p, f, fx, fy, time);   // 막기·던지기 자세는 주먹 위에
   ctx.restore();
   finishPlayer(p, x, y, G, light, ownerId, baseAlpha, isClone, time);
 }
@@ -1528,7 +1564,8 @@ function drawSword(p, f, time, rubM = 1, otherM = 1) {
   const dark = skinOn(p, 'darkness');   // 어둠의 검사 스킨
   const holy = skinOn(p, 'holyknight'); // 빛의 기사 스킨
   const blueHot = (hasK(p, 'fire') && skinOn(p, 'bluefire') && !p.sun) || (p.sun && skinOn(p, 'supernova') && (!hasK(p, 'fire') || skinOn(p, 'bluefire')));
-  const glow = blueHot ? 'rgba(60,140,255,0.95)' : hot ? 'rgba(255,120,30,0.95)' : cold ? 'rgba(140,220,255,0.95)' : fxs ? fxColor(fxs, 0.95, time) : null;
+  const saber = saberColor(p);          // 광선검 스킨 (색)
+  const glow = saber ? saber : blueHot ? 'rgba(60,140,255,0.95)' : hot ? 'rgba(255,120,30,0.95)' : cold ? 'rgba(140,220,255,0.95)' : fxs ? fxColor(fxs, 0.95, time) : null;
   // 베기 궤적 (어둠의 검사: 검보라 초승달이 여러 겹)
   if (p.ap === 2 && p.at === 1) {
     if (holy) {
@@ -1541,7 +1578,7 @@ function drawSword(p, f, time, rubM = 1, otherM = 1) {
         ctx.beginPath(); ctx.moveTo(hx, hy); ctx.arc(hx, hy, L + 26 - k * 10, f > 0 ? -1.3 + k * 0.1 : Math.PI - 0.4, f > 0 ? 0.4 : Math.PI + 1.3 - k * 0.1); ctx.closePath(); ctx.fill();
       }
     } else {
-      ctx.fillStyle = hot ? 'rgba(255,170,80,0.45)' : cold ? 'rgba(170,230,255,0.45)' : 'rgba(220,235,255,0.45)';
+      ctx.fillStyle = saber ? hexA(saber, 0.4) : hot ? 'rgba(255,170,80,0.45)' : cold ? 'rgba(170,230,255,0.45)' : 'rgba(220,235,255,0.45)';
       ctx.beginPath(); ctx.moveTo(hx, hy); ctx.arc(hx, hy, L + 18, f > 0 ? -1.2 : Math.PI - 0.3, f > 0 ? 0.3 : Math.PI + 1.2); ctx.closePath(); ctx.fill();
     }
   }
@@ -1550,8 +1587,8 @@ function drawSword(p, f, time, rubM = 1, otherM = 1) {
     const R = 125 * 1.25 * otherM * rubM;
     const g = ctx.createRadialGradient(0, -PH / 2, 20, 0, -PH / 2, R);
     g.addColorStop(0, 'rgba(220,235,255,0)');
-    g.addColorStop(0.75, holy ? 'rgba(255,230,140,0.35)' : dark ? 'rgba(60,15,90,0.45)' : hot ? 'rgba(255,170,80,0.25)' : cold ? 'rgba(170,230,255,0.25)' : 'rgba(220,235,255,0.25)');
-    g.addColorStop(1, holy ? 'rgba(255,250,210,0.9)' : dark ? 'rgba(170,80,255,0.85)' : hot ? 'rgba(255,200,120,0.75)' : cold ? 'rgba(200,240,255,0.75)' : 'rgba(240,248,255,0.75)');
+    g.addColorStop(0.75, saber ? hexA(saber, 0.3) : holy ? 'rgba(255,230,140,0.35)' : dark ? 'rgba(60,15,90,0.45)' : hot ? 'rgba(255,170,80,0.25)' : cold ? 'rgba(170,230,255,0.25)' : 'rgba(220,235,255,0.25)');
+    g.addColorStop(1, saber ? hexA(saber, 0.85) : holy ? 'rgba(255,250,210,0.9)' : dark ? 'rgba(170,80,255,0.85)' : hot ? 'rgba(255,200,120,0.75)' : cold ? 'rgba(200,240,255,0.75)' : 'rgba(240,248,255,0.75)');
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.moveTo(0, -PH / 2); ctx.arc(0, -PH / 2, R, Math.PI + 0.05, -0.05 + Math.PI * 2); ctx.closePath(); ctx.fill();
     ctx.strokeStyle = holy ? 'rgba(255,220,90,0.95)' : dark ? 'rgba(200,130,255,0.95)' : 'rgba(255,255,255,0.8)'; ctx.lineWidth = 3;
@@ -1564,7 +1601,7 @@ function drawSword(p, f, time, rubM = 1, otherM = 1) {
       ctx.beginPath(); ctx.moveTo(0, -PH / 2); ctx.lineTo(ex, ey); ctx.stroke();
       ctx.save(); ctx.translate(ex, ey); ctx.rotate(a2);
       if (glow) { ctx.shadowColor = glow; ctx.shadowBlur = 16; }
-      ctx.fillStyle = holy ? '#fffbe6' : dark ? '#1a0f26' : hot ? '#ffe2b0' : cold ? '#dff5ff' : '#e8f0ff'; ctx.strokeStyle = holy ? '#e8b830' : dark ? '#b46bff' : '#5a6a88'; ctx.lineWidth = 2;
+      ctx.fillStyle = saber ? '#ffffff' : holy ? '#fffbe6' : dark ? '#1a0f26' : hot ? '#ffe2b0' : cold ? '#dff5ff' : '#e8f0ff'; ctx.strokeStyle = saber || (holy ? '#e8b830' : dark ? '#b46bff' : '#5a6a88'); ctx.lineWidth = saber ? 3 : 2;
       ctx.beginPath(); ctx.moveTo(6, -4); ctx.lineTo(6 + L, -2); ctx.lineTo(12 + L, 0); ctx.lineTo(6 + L, 3); ctx.lineTo(6, 4); ctx.closePath(); ctx.fill(); ctx.stroke();
       ctx.restore();
       ctx.fillStyle = p.c; ctx.beginPath(); ctx.arc(ex, ey, 9, 0, Math.PI * 2); ctx.fill();
@@ -1574,6 +1611,19 @@ function drawSword(p, f, time, rubM = 1, otherM = 1) {
   ctx.save(); ctx.translate(hx, hy); ctx.scale(f, 1); ctx.rotate(ang);
   if (glow) { ctx.shadowColor = glow; ctx.shadowBlur = 16; } else if (dark) { ctx.shadowColor = 'rgba(160,70,255,0.95)'; ctx.shadowBlur = 14; }
   else if (holy) { ctx.shadowColor = 'rgba(255,230,120,1)'; ctx.shadowBlur = 22; }
+  if (saber) {
+    // 광선검: 빛나는 색 칼날(가운데는 흰색) + 금속 손잡이
+    ctx.shadowColor = saber; ctx.shadowBlur = 22;
+    ctx.strokeStyle = saber; ctx.lineWidth = 9; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(12 + L, 0); ctx.stroke();
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(12 + L, 0); ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#9aa3b2'; ctx.fillRect(-8, -3.5, 20, 7); ctx.fillStyle = '#3a3f4a'; ctx.fillRect(-2, -3.5, 3, 7); ctx.fillRect(5, -3.5, 2, 7);
+    ctx.fillStyle = saber; ctx.fillRect(9, -2, 2, 4);
+    ctx.restore();
+    ctx.fillStyle = p.c; ctx.strokeStyle = '#1a1030'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(hx, hy, 9, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    return;
+  }
   ctx.fillStyle = holy ? '#fffbe6' : dark ? '#1a0f26' : hot ? '#ffe2b0' : cold ? '#dff5ff' : '#e8f0ff'; ctx.strokeStyle = holy ? '#e8b830' : dark ? '#b46bff' : '#5a6a88'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(10, -4); ctx.lineTo(10 + L, -2); ctx.lineTo(16 + L, 0); ctx.lineTo(10 + L, 3); ctx.lineTo(10, 4); ctx.closePath(); ctx.fill(); ctx.stroke();
   ctx.shadowBlur = 0;
@@ -1583,6 +1633,121 @@ function drawSword(p, f, time, rubM = 1, otherM = 1) {
   ctx.restore();
   ctx.fillStyle = p.c; ctx.strokeStyle = '#1a1030'; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.arc(hx, hy, 9, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+}
+// 광선검 스킨 색
+function saberColor(p) { for (const id of (p && p.sn) || []) { const sk = SKIN_INFO.SKINS[id]; if (sk && sk.blade) return sk.blade; } return null; }
+// '#rrggbb' → 'rgba(r,g,b,a)'
+function hexA(hex, a) { const n = parseInt(String(hex).slice(1, 7), 16); return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`; }
+// ---------------- 촉수 (등 뒤 4개) ----------------
+function drawTentacles(p, f, time, G) {
+  const deep = skinOn(p, 'deepsea'), mech = skinOn(p, 'mecharm');
+  const L = 150 * (p.rb ? 2 : 1) * (p.bf ? 1.3 : 1) * (p.gt ? 1.6 : 1) * (p.gm ? p.gm[0] : 1) * (hasK(p, 'hulk') && G > 1 ? 1 + 0.8 * Math.min(1, (G - 1) / 0.9) / G : 1);
+  const tc = p.tc || [0, 0, 0, 0, 0, 0, 0, 0];
+  for (let i = 3; i >= 0; i--) {
+    const ext = tc[i * 2], ang = tc[i * 2 + 1];
+    const ox = -f * PW * 0.28, oy = -PH * 0.62 + i * 7;      // 등 뒤 뿌리
+    let pts;
+    if (p.an && i >= 2) {
+      // 땅을 짚은 아래 촉수: 무릎처럼 굽혀 바닥까지
+      const gd = p.an[1] / (G || 1), sx = (i === 2 ? -1 : 1) * 26;
+      pts = [[ox, oy], [ox + sx * 0.6, oy + 10], [sx, gd * 0.45], [sx * 1.3, gd]];
+    } else if (ext > 0.02) {
+      const tx = f * Math.cos(ang) * L * ext, ty = -PH * 0.55 + Math.sin(ang) * L * ext;
+      pts = [[ox, oy], [ox - f * 14, oy - 26 + i * 6], [tx * 0.55, ty - 30 * (1 - ext) - 10], [tx, ty]];
+    } else {
+      // 쉬는 중: 등 뒤로 늘어져 꿈틀
+      const w = Math.sin(time / 260 + i * 1.7) * 6;
+      pts = [[ox, oy], [ox - f * 20, oy - 14 + i * 6], [ox - f * 34, oy - 2 + i * 9 + w], [ox - f * (40 + i * 3), oy + 14 + i * 10 + w * 1.4]];
+    }
+    if (mech) { drawMechArm(pts, f, time, i, ext); continue; }
+    // 굵기가 점점 가늘어지는 촉수
+    const N = 14;
+    let prev = pts[0];
+    for (let k = 1; k <= N; k++) {
+      const t = k / N, u = 1 - t;
+      const x = u * u * u * pts[0][0] + 3 * u * u * t * pts[1][0] + 3 * u * t * t * pts[2][0] + t * t * t * pts[3][0];
+      const y = u * u * u * pts[0][1] + 3 * u * u * t * pts[1][1] + 3 * u * t * t * pts[2][1] + t * t * t * pts[3][1];
+      ctx.strokeStyle = deep ? `rgb(${Math.round(70 + 60 * t)},${Math.round(30 + 20 * t)},${Math.round(120 + 70 * t)})` : `rgb(${Math.round(26 + 22 * t)},${Math.round(20 + 14 * t)},${Math.round(34 + 26 * t)})`;
+      ctx.lineWidth = 9 - 6 * t; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(prev[0], prev[1]); ctx.lineTo(x, y); ctx.stroke();
+      if (deep && k % 3 === 0) { ctx.fillStyle = `rgba(120,255,240,${0.55 + 0.35 * Math.sin(time / 200 + k + i)})`; ctx.beginPath(); ctx.arc(x, y, 1.8, 0, Math.PI * 2); ctx.fill(); }
+      else if (!deep && k % 4 === 0) { ctx.fillStyle = 'rgba(120,90,150,0.6)'; ctx.beginPath(); ctx.arc(x, y + 1.5, 1.4, 0, Math.PI * 2); ctx.fill(); }
+      prev = [x, y];
+    }
+  }
+}
+// 기계 팔 스킨: 같은 곡선을 따라 금속 마디 + 관절 + 유압 피스톤, 끝에 두 손가락 집게
+function drawMechArm(pts, f, time, i, ext) {
+  const at = (t) => { const u = 1 - t; return [u * u * u * pts[0][0] + 3 * u * u * t * pts[1][0] + 3 * u * t * t * pts[2][0] + t * t * t * pts[3][0], u * u * u * pts[0][1] + 3 * u * u * t * pts[1][1] + 3 * u * t * t * pts[2][1] + t * t * t * pts[3][1]]; };
+  const N = 5, joints = [];
+  for (let k = 0; k <= N; k++) joints.push(at(k / N));
+  for (let k = 0; k < N; k++) {
+    const [x1, y1] = joints[k], [x2, y2] = joints[k + 1], w = 8 - k * 0.9;
+    ctx.strokeStyle = '#3a3f4a'; ctx.lineWidth = w + 3; ctx.lineCap = 'butt'; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    ctx.strokeStyle = k % 2 ? '#ffc21a' : '#ff8a1a'; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    // 유압 피스톤 (마디 옆 은색 막대)
+    const nx = -(y2 - y1), ny = x2 - x1, nl = Math.hypot(nx, ny) || 1, o = w * 0.7;
+    ctx.strokeStyle = '#c8d0dc'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(x1 + nx / nl * o, y1 + ny / nl * o); ctx.lineTo((x1 + x2) / 2 + nx / nl * o, (y1 + y2) / 2 + ny / nl * o); ctx.stroke();
+  }
+  for (let k = 0; k < N; k++) { const [x, y] = joints[k]; ctx.fillStyle = '#2a2e36'; ctx.beginPath(); ctx.arc(x, y, 4.2 - k * 0.4, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#9aa3b2'; ctx.beginPath(); ctx.arc(x, y, 1.6, 0, Math.PI * 2); ctx.fill(); }
+  // 집게: 끝 방향으로 두 손가락 (뻗을 때 벌어짐)
+  const [ex, ey] = joints[N], [px2, py2] = joints[N - 1], ang = Math.atan2(ey - py2, ex - px2), open = 0.25 + 0.45 * (ext || 0);
+  ctx.save(); ctx.translate(ex, ey); ctx.rotate(ang);
+  ctx.fillStyle = '#3a3f4a'; ctx.fillRect(-3, -4, 6, 8);
+  ctx.strokeStyle = '#9aa3b2'; ctx.lineWidth = 2.6; ctx.lineCap = 'round';
+  for (const sd of [-1, 1]) { ctx.beginPath(); ctx.moveTo(2, sd * 3); ctx.lineTo(8, sd * (3 + open * 7)); ctx.lineTo(13, sd * (1 + open * 3)); ctx.stroke(); }
+  ctx.restore();
+}
+// ---------------- 방패 (손에 든 모습) ----------------
+function drawShieldShape(r, rim, time) {
+  ctx.fillStyle = '#8a5a2b'; ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = rim; ctx.lineWidth = r * 0.22; ctx.beginPath(); ctx.arc(0, 0, r * 0.88, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = '#5a3a18'; ctx.lineWidth = 1.5; for (const a of [-0.5, 0, 0.5]) { ctx.beginPath(); ctx.moveTo(Math.sin(a) * r * 0.75, -r * 0.7); ctx.lineTo(Math.sin(a) * r * 0.75, r * 0.7); ctx.stroke(); }
+  const g = ctx.createRadialGradient(-r * 0.12, -r * 0.12, 1, 0, 0, r * 0.32); g.addColorStop(0, '#fff3c0'); g.addColorStop(1, '#c9a24a');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, r * 0.3, 0, Math.PI * 2); ctx.fill();
+}
+function drawShieldHand(p, f, fx, fy, time) {
+  const d = p.shd;
+  if (!d || !d[0]) return;
+  if (d[1]) {
+    // 막는 중: 몸 앞에 크게 세움 + 빛
+    ctx.save(); ctx.translate(f * (PW / 2 + 8), -PH / 2); ctx.scale(0.55, 1);
+    ctx.shadowColor = 'rgba(255,230,140,0.9)'; ctx.shadowBlur = 16; drawShieldShape(28, '#c9a24a', time); ctx.restore(); ctx.shadowBlur = 0;
+  } else if (d[2] > 0) {
+    // 던지려고 뒤로 당기는 중 (충전 링)
+    ctx.save(); ctx.translate(-f * (PW / 2 + 6), -PH * 0.62); drawShieldShape(18, '#c9a24a', time); ctx.restore();
+    ctx.strokeStyle = 'rgba(255,207,63,0.9)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(-f * (PW / 2 + 6), -PH * 0.62, 24, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * d[2]); ctx.stroke();
+  } else {
+    ctx.save(); ctx.translate(fx + f * 4, fy); ctx.scale(0.6, 1); drawShieldShape(19, '#c9a24a', time); ctx.restore();
+  }
+}
+// 던진 방패
+function drawThrownShields(state, now) {
+  const age = Math.max(-0.07, (now - state.time - INTERP_DELAY) / 1000);
+  for (const q of state.shw || []) {
+    const x = q.x + q.vx * age, y = q.y + q.vy * age, s2 = q.s || 1;
+    const owner = state.p.find((pp) => pp.id === q.o);
+    ctx.save(); ctx.translate(x, y); ctx.scale(s2, s2);
+    if (q.g) { ctx.scale(1, 0.4); drawShieldShape(18, owner ? owner.c : '#c9a24a', now); }
+    else { ctx.rotate(now / 40 * (q.vx >= 0 ? 1 : -1)); ctx.scale(1, 0.75); drawShieldShape(18, owner ? owner.c : '#c9a24a', now); }
+    ctx.restore();
+  }
+}
+// ---------------- 귀신 ----------------
+function drawGhost(p, x, y, time, G) {
+  const bob = Math.sin(time / 220) * 5, f = p.f || 1;
+  ctx.save(); ctx.translate(x, y + bob); ctx.scale(G, G);
+  ctx.globalAlpha = 0.72;
+  const g = ctx.createLinearGradient(0, -PH - 8, 0, 6); g.addColorStop(0, '#ffffff'); g.addColorStop(1, 'rgba(210,215,255,0.5)');
+  ctx.fillStyle = g; ctx.beginPath();
+  ctx.moveTo(-PW / 2 - 2, -6); ctx.lineTo(-PW / 2 - 2, -PH + 18); ctx.quadraticCurveTo(-PW / 2 - 2, -PH - 6, 0, -PH - 6); ctx.quadraticCurveTo(PW / 2 + 2, -PH - 6, PW / 2 + 2, -PH + 18); ctx.lineTo(PW / 2 + 2, -6);
+  for (let k = 0; k < 4; k++) { const xx = PW / 2 + 2 - (k + 0.5) * ((PW + 4) / 4), dip = Math.sin(time / 120 + k) * 3; ctx.quadraticCurveTo(xx + 3, 8 + dip, xx - (PW + 4) / 8, -6); }
+  ctx.closePath(); ctx.fill();
+  ctx.globalAlpha = 1; ctx.strokeStyle = p.c; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = '#1a1030';
+  for (const ex of [4, 16]) { ctx.beginPath(); ctx.ellipse(f * ex - (f < 0 ? 0 : 0), -PH + 22, 4, 6, 0, 0, Math.PI * 2); ctx.fill(); }
+  ctx.beginPath(); ctx.ellipse(f * 10, -PH + 36, 4, 5, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
 }
 // 태양계 스킨 행성: 0 수성 1 금성 2 지구 3 화성 4 목성 5 토성 6 천왕성 7 해왕성
 const PLANETS = [
@@ -1656,6 +1821,15 @@ function finishPlayer(p, x, y, G, light, ownerId, baseAlpha, isClone, time) {
     const sh = ((time / 3) % (mh + 30)) - 15;
     ctx.beginPath(); ctx.moveTo(mx + 2, my + sh); ctx.lineTo(mx + mw - 2, my + sh - 10); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(mx + 3, my + sh + 12); ctx.lineTo(mx + mw - 3, my + sh + 4); ctx.stroke();
+  }
+  if (p.mk > 0) {
+    // 귀신 표식: 3개 차면 장외
+    const n = p.mk, sy4 = y - PH * G - 56 - (p.b ? 12 : 0);
+    for (let i = 0; i < 3; i++) {
+      const sx4 = x + (i - 1) * 16;
+      ctx.fillStyle = i < n ? 'rgba(170,90,255,0.95)' : 'rgba(255,255,255,0.25)';
+      ctx.beginPath(); ctx.arc(sx4, sy4, 6, Math.PI, 0); ctx.lineTo(sx4 + 6, sy4 + 7); ctx.lineTo(sx4 + 2, sy4 + 4); ctx.lineTo(sx4 - 2, sy4 + 7); ctx.lineTo(sx4 - 6, sy4 + 4); ctx.closePath(); ctx.fill();
+    }
   }
   if (p.scn && !isClone && p.scn[0] > 0) {
     // 별빛: 모은 별 카운트를 머리 위에 작은 별로
@@ -1791,6 +1965,9 @@ function skillStatus(p) {
   if (k === 'time' && p.ts) return { ready: !(p.cd > 0), text: '저장됨' };
   if (k === 'combo') return { ready: p.cb > 0, text: `콤보 ${p.cb || 0}` };
   if (k === 'archer' && p.hm) return { ready: true, text: '유도 준비' };
+  if (k === 'shield') { const d = p.shd || [1, 0, 0, 0]; return d[2] > 0 ? { ready: true, text: `던지기 ${Math.round(d[2] * 100)}%` } : d[0] ? { ready: true, text: '방패 있음' } : { ready: false, text: d[3] > 0 ? `${d[3]}초 뒤 복귀` : '방패 줍기' }; }
+  if (k === 'tentacle' && p.an) return { ready: true, text: `지탱 ${p.an[0]}s` };
+  if (k === 'ghost') return p.gh ? { ready: true, text: `귀신 ${p.gh}s` } : { ready: true, text: '패시브' };
   if (k === 'starlight') { const n = p.scn ? p.scn[0] : 0; return { ready: n >= 1 && !(p.cd > 0), text: '★'.repeat(n) + '☆'.repeat(5 - n) }; }
   if (k === 'parasite') return p.ins ? { ready: true, text: `기생 중 ${p.pt}s` } : { ready: p.pr > 0, text: p.pr > 0 ? `가능 ${p.pr}명` : '3번 때리기' };
   return { ready: !(p.cd > 0), text: t(p.cd) };
@@ -1976,7 +2153,8 @@ function drawBow(p, f, time, rubM = 1, otherM = 1) {
   const fxs = fxOf(p);
   // 불(화염·태양)·얼음이면 활이 빛남, 스킨 이펙트도 반영
   const blueHot = (hasK(p, 'fire') && skinOn(p, 'bluefire') && !p.sun) || (p.sun && skinOn(p, 'supernova') && (!hasK(p, 'fire') || skinOn(p, 'bluefire')));
-  const glow = blueHot ? 'rgba(60,140,255,0.95)' : (hasK(p, 'fire') || p.sun) ? 'rgba(255,120,30,0.95)' : hasK(p, 'ice') ? 'rgba(140,220,255,0.95)' : fxs ? fxColor(fxs, 0.95, time) : null;
+  const fireBow = skinOn(p, 'firebow');   // 불화살 스킨: 활이 불로 (불 피해는 없음)
+  const glow = fireBow ? 'rgba(255,110,20,0.95)' : blueHot ? 'rgba(60,140,255,0.95)' : (hasK(p, 'fire') || p.sun) ? 'rgba(255,120,30,0.95)' : hasK(p, 'ice') ? 'rgba(140,220,255,0.95)' : fxs ? fxColor(fxs, 0.95, time) : null;
   if (p.at === 1 && p.ap === 2) {
     ctx.fillStyle = fxs ? fxColor(fxs, 0.4, time) : 'rgba(255,240,210,0.4)';
     ctx.beginPath(); ctx.moveTo(hx - f * 20, hy); ctx.arc(hx - f * 20, hy, 62 * otherM, f > 0 ? -0.9 : Math.PI - 0.5, f > 0 ? 0.5 : Math.PI + 0.9); ctx.closePath(); ctx.fill();
@@ -1989,8 +2167,17 @@ function drawBow(p, f, time, rubM = 1, otherM = 1) {
   else if (glow) { ctx.shadowColor = glow; ctx.shadowBlur = 14; }
   else if (elf) { ctx.shadowColor = 'rgba(170,80,255,0.9)'; ctx.shadowBlur = 12; }
   else if (leaf) { ctx.shadowColor = 'rgba(120,230,100,0.8)'; ctx.shadowBlur = 10; }
-  ctx.strokeStyle = elf ? '#1c1028' : leaf ? '#6b4423' : '#8a5a2b'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+  ctx.strokeStyle = fireBow ? '#ff7a1a' : elf ? '#1c1028' : leaf ? '#6b4423' : '#8a5a2b'; ctx.lineWidth = 5; ctx.lineCap = 'round';
   ctx.beginPath(); ctx.arc(-14, 0, 30, -1.1, 1.1); ctx.stroke();
+  if (fireBow) {
+    // 활대를 따라 일렁이는 불꽃
+    ctx.shadowBlur = 0;
+    for (let t = -1.0; t <= 1.0; t += 0.25) {
+      const bx = -14 + Math.cos(t) * 30, by = Math.sin(t) * 30, h3 = 7 + Math.sin(time / 60 + t * 9) * 3;
+      ctx.fillStyle = (Math.round(t * 4) % 2) ? 'rgba(255,200,60,0.9)' : 'rgba(255,90,20,0.85)';
+      ctx.beginPath(); ctx.moveTo(bx - 3, by); ctx.quadraticCurveTo(bx + 2, by - h3 * 0.5, bx - 1, by - h3); ctx.quadraticCurveTo(bx + 5, by - h3 * 0.4, bx + 3, by); ctx.fill();
+    }
+  }
   if (leaf) {
     // 활대에 감긴 덩굴과 잎
     ctx.shadowBlur = 0; ctx.strokeStyle = '#3f9a3a'; ctx.lineWidth = 1.5;
@@ -2034,8 +2221,27 @@ function shadeHex(hex, k) {
 }
 function drawTurrets(state, now) {
   for (const m of state.mn || []) {
-    // 지뢰: 주인 색 고리 + 깜빡이는 불빛 (설치 직후엔 흐림)
     ctx.globalAlpha = m.a ? 1 : 0.5;
+    if (m.sk === 'g') {
+      // 은행: 노란 은행 열매 두세 알 + 주인 색 꼭지
+      for (const [dx, dy, r] of [[-7, -5, 6], [5, -6, 6.5], [0, -11, 5.5]]) {
+        const gg = ctx.createRadialGradient(m.x + dx - 2, m.y + dy - 2, 1, m.x + dx, m.y + dy, r);
+        gg.addColorStop(0, '#fff3a0'); gg.addColorStop(1, '#d8a820');
+        ctx.fillStyle = gg; ctx.beginPath(); ctx.ellipse(m.x + dx, m.y + dy, r, r * 0.85, 0, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.strokeStyle = m.c; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.ellipse(m.x, m.y - 6, 15, 8, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = 'rgba(170,190,80,0.35)'; ctx.beginPath(); ctx.arc(m.x + Math.sin(now / 300) * 4, m.y - 20 - (now / 40) % 10, 4, 0, Math.PI * 2); ctx.fill();   // 냄새
+      ctx.globalAlpha = 1; continue;
+    }
+    if (m.sk === 'b') {
+      // 장난감 블록: 위에 동그란 돌기가 있는 블록 (주인 색)
+      ctx.fillStyle = m.c; ctx.fillRect(m.x - 13, m.y - 10, 26, 10);
+      ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.fillRect(m.x - 13, m.y - 3, 26, 3);
+      for (const dx of [-7, 0, 7]) { ctx.fillStyle = m.c; ctx.fillRect(m.x + dx - 3, m.y - 14, 6, 4); ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(m.x + dx - 3, m.y - 14, 6, 1.5); }
+      ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 1; ctx.strokeRect(m.x - 13, m.y - 10, 26, 10);
+      ctx.globalAlpha = 1; continue;
+    }
+    // 지뢰: 주인 색 고리 + 깜빡이는 불빛 (설치 직후엔 흐림)
     ctx.fillStyle = '#4a4d3a'; ctx.beginPath(); ctx.ellipse(m.x, m.y - 4, 15, 6, 0, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#6a6e52'; ctx.beginPath(); ctx.ellipse(m.x, m.y - 7, 11, 4, 0, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = m.c; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(m.x, m.y - 4, 17, 7, 0, 0, Math.PI * 2); ctx.stroke();
@@ -2164,15 +2370,17 @@ function drawSlashes(state, now) {
     const x = s.x + s.vx * Math.max(-0.07, age), y = s.y, f = s.vx > 0 ? 1 : -1;
     ctx.save(); ctx.translate(x, y); ctx.scale(f, 1);
     const g = ctx.createLinearGradient(-60, 0, 30, 0);
-    if (s.ho) { g.addColorStop(0, 'rgba(255,240,170,0)'); g.addColorStop(1, 'rgba(255,248,210,0.98)'); }
+    if (s.lc) { g.addColorStop(0, hexA(s.lc, 0)); g.addColorStop(1, hexA(s.lc, 0.95)); ctx.shadowColor = s.lc; }
+    else if (s.ho) { g.addColorStop(0, 'rgba(255,240,170,0)'); g.addColorStop(1, 'rgba(255,248,210,0.98)'); }
     else if (s.d) { g.addColorStop(0, 'rgba(40,10,60,0)'); g.addColorStop(1, 'rgba(30,8,45,0.95)'); }
     else { g.addColorStop(0, 'rgba(200,225,255,0)'); g.addColorStop(1, 'rgba(240,248,255,0.95)'); }
     ctx.fillStyle = g;
     if (s.d) { ctx.shadowColor = 'rgba(170,80,255,0.95)'; ctx.shadowBlur = 18; }
     if (s.ho) { ctx.shadowColor = 'rgba(255,220,90,1)'; ctx.shadowBlur = 22; }
+    if (s.lc) ctx.shadowBlur = 22;
     ctx.beginPath(); ctx.moveTo(-10, -46); ctx.quadraticCurveTo(46, 0, -10, 46); ctx.quadraticCurveTo(18, 0, -10, -46); ctx.fill();
     ctx.shadowBlur = 0;
-    ctx.strokeStyle = s.ho ? 'rgba(255,215,80,0.95)' : s.d ? 'rgba(190,110,255,0.95)' : 'rgba(255,255,255,0.9)'; ctx.lineWidth = 2;
+    ctx.strokeStyle = s.lc ? '#ffffff' : s.ho ? 'rgba(255,215,80,0.95)' : s.d ? 'rgba(190,110,255,0.95)' : 'rgba(255,255,255,0.9)'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(-10, -46); ctx.quadraticCurveTo(46, 0, -10, 46); ctx.stroke();
     ctx.restore();
   }
@@ -2224,7 +2432,7 @@ function renderSkillChips(current, boxId = 'skillChips', msg = 'skill', other = 
     b.title = `${SKILLS[k].desc}. ${SKILLS[k].cd}` + (k === other ? ' (다른 칸에서 쓰는 중 · 누르면 서로 바뀜)' : '');
     if (k === other) b.style.opacity = '.5';
     // 더블 모드: 검사와 궁수는 같이 못 씀
-    if (other && ((k === 'sword' && other === 'archer') || (k === 'archer' && other === 'sword'))) { b.disabled = true; b.style.opacity = '.35'; b.title = '검사와 궁수는 같이 쓸 수 없어요'; }
+    if (other && conflictsK(k, other)) { b.disabled = true; b.style.opacity = '.35'; b.title = '같이 쓸 수 없는 조합이에요 (검사·궁수·닌자·방패·촉수끼리, 촉수와 비행)'; }
     b.addEventListener('click', (e) => { e.currentTarget.blur(); send({ t: msg, skill: k }); });
     box.append(b);
   }
@@ -2241,7 +2449,9 @@ function updateRoomPanel(m) {
   const [ready, need] = m.rdy || [0, 0];
   const host = m.host === myId;
   const md = m.md || [0, 0];
-  const key = [me.c, me.sk, me.sk2, me.rd, host, ready, need, m.p.length, [...taken].join(), (account.profile && account.profile.owned.join()) || '',
+  const prof = account.profile;
+  const key = [me.c, me.sk, me.sk2, me.rd, host, ready, need, m.p.length, [...taken].join(), (prof && prof.owned.join()) || '',
+    prof ? (prof.skins || []).join() + JSON.stringify(prof.skinSel || {}) : '', m.p.filter((p) => p.b).map((p) => p.id + p.sk + (p.sk2 || '')).join(),
     md.join(), m.p.map((p) => p.id + ':' + p.tm + ':' + p.n).join()].join('|');
   if (key === panelKey) return;
   panelKey = key;
@@ -2281,6 +2491,50 @@ function updateRoomPanel(m) {
   const sl = slotsOf(me);
   $('keysNote').hidden = !md[1];
   if (md[1]) $('keysNote').textContent = sl.x ? `자석 당기기 Q · 밀기 E · ${SKILLS[validSkill(sl.x)].name} R` : `${SKILLS[validSkill(me.sk)].name} Q · ${me.sk2 ? SKILLS[validSkill(me.sk2)].name : '?'} E`;
+  // 스킨 (내 스킬의 가진 스킨 중에서 바로 바꾸기)
+  const mySkills = [me.sk, md[1] ? me.sk2 : null].filter(Boolean);
+  const skinBox = $('skinChips'); skinBox.textContent = '';
+  let anySkin = false;
+  for (const k of mySkills) {
+    const owned = Object.entries(SKIN_INFO.SKINS).filter(([id, sk]) => sk.skill === k && prof && (prof.skins || []).includes(id));
+    if (!owned.length) continue;
+    anySkin = true;
+    const cur = (prof.skinSel || {})[k] || null;
+    for (const [id, nm] of [[null, `${SKILLS[k].name} 기본`], ...owned.map(([id, sk]) => [id, sk.name])]) {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'chip' + (cur === id ? ' on' : '');
+      const dot = document.createElement('i'); dot.style.background = id ? SKIN_INFO.SKINS[id].color : SKILL_COLOR[k];
+      b.append(dot, nm);
+      b.addEventListener('click', async (e) => {
+        e.currentTarget.blur();
+        try { const r = await api('/api/skin/equip', { skill: k, skin: id }); account.profile = r.profile; renderAccount(); panelKey = ''; } catch (err) { banners.push({ text: err.message, life: 1.5, max: 1.5, small: true }); }
+      });
+      skinBox.append(b);
+    }
+  }
+  $('skinRow').hidden = !anySkin;
+  // 봇 스킬 (방장만): 봇마다 스킬을 고르거나 랜덤
+  const bots = m.p.filter((p) => p.b && !p.dm);
+  $('botRow').hidden = !host || !bots.length;
+  const bl = $('botList'); bl.textContent = '';
+  if (host) for (const bot of bots) {
+    const pill = document.createElement('div'); pill.className = 'bp';
+    const nm = document.createElement('span'); nm.textContent = bot.n.replace('봇 ', ''); pill.append(nm);
+    const mkSel = (cur, field, other) => {
+      const sel = document.createElement('select'); sel.setAttribute('aria-label', `${bot.n} ${field === 'skill' ? '스킬' : '스킬2'}`);
+      const r = document.createElement('option'); r.value = 'random'; r.textContent = '🎲 랜덤'; sel.append(r);
+      for (const k of SKILL_IDS) {
+        const o = document.createElement('option'); o.value = k; o.textContent = SKILLS[k].name;
+        if (other && (k === other || conflictsK(k, other))) o.disabled = true;
+        if (k === cur) o.selected = true;
+        sel.append(o);
+      }
+      sel.addEventListener('change', () => send({ t: 'botskill', id: bot.id, [field]: sel.value }));
+      return sel;
+    };
+    pill.append(mkSel(bot.sk, 'skill', null));
+    if (md[1]) pill.append(mkSel(bot.sk2, 'skill2', bot.sk));
+    bl.append(pill);
+  }
   const btn = $('readyBtn');
   if (host) {
     const teamsOk = !md[0] || new Set(m.p.map((p) => p.tm)).size >= 2;
@@ -2315,7 +2569,7 @@ function frame(now) {
         let ready = !(cd > 0), txt = cd > 0 ? cd.toFixed(1) : keyName;
         if (kk === 'empower') { ready = meS.chg >= 100 || meS.bf; txt = meS.bf ? '강화' : `${meS.chg || 0}%`; }
         if (kk === 'parasite') { ready = meS.pr > 0 || meS.ins; txt = meS.ins ? '나가기' : `${meS.pr || 0}명`; }
-        if (kk === 'undying' || kk === 'hulk') { ready = true; txt = '패시브'; }
+        if (kk === 'undying' || kk === 'hulk' || kk === 'ghost') { ready = true; txt = '패시브'; }
         if (kk === 'combo') { ready = meS.cb > 0; txt = `${meS.cb || 0}콤보`; }
         const nm = k === 'magnet2' ? '밀기' : sl.e === 'magnet2' && k === 'magnet' ? '당기기' : SKILLS[kk].name;
         if (nameEl.textContent !== nm) nameEl.textContent = nm;
@@ -2323,6 +2577,11 @@ function frame(now) {
         cdEl.textContent = txt;
         el.classList.toggle('cool', !ready);
       };
+      // 촉수: 약=위 촉수, 강=아래 촉수 / 방패: 약=막기
+      const tent = meS.sk === 'tentacle' || meS.sk2 === 'tentacle', shd = (meS.sk === 'shield' || meS.sk2 === 'shield') && meS.shd && meS.shd[0];
+      const la = tent ? '촉수↑' : shd ? '막기' : '약', lh = tent ? '촉수↓' : '강';
+      if ($('touch').querySelector('.tb-a').textContent !== la) $('touch').querySelector('.tb-a').textContent = la;
+      if ($('touch').querySelector('.tb-h').textContent !== lh) $('touch').querySelector('.tb-h').textContent = lh;
       btn($('tSkill'), $('tSkillName'), $('tSkillCd'), sl.s, 'Q');
       btn($('tSkill2'), $('tSkill2Name'), $('tSkill2Cd'), sl.e, 'E');
       btn($('tSkill3'), $('tSkill3Name'), $('tSkill3Cd'), sl.x, 'R');
@@ -2373,6 +2632,7 @@ function frame(now) {
     }
     drawArrowsWinds(latest, now);
     drawLogsStars(latest, now);
+    drawThrownShields(latest, now);
     interpolatedPlayers('cl').forEach((c) => drawPlayer(c, now));
     players.filter((p) => p.id !== myId).forEach((p) => drawPlayer(p, now));
     players.filter((p) => p.id === myId).forEach((p) => drawPlayer(p, now));

@@ -9,7 +9,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { handleUpgrade } = require('./ws');
-const { Sim, CONFIG, SKILL_IDS, BOT_NAMES, validSkill, cleanInput } = require('./game');
+const { Sim, CONFIG, SKILL_IDS, BOT_NAMES, validSkill, cleanInput, conflicts } = require('./game');
 const accounts = require('./accounts');
 
 const PORT = process.env.PORT || 3000;
@@ -261,7 +261,7 @@ class GameRoom {
     const p = this.sim.players.get(id), c = this.clients.get(id);
     if (!p || !c || p.skill2) return;
     const owned = c.accountKey ? accounts.ownedOf(c.accountKey) : accounts.BASE_SKILLS;
-    const k = owned.find((x) => x !== p.skill && !(['sword', 'archer', 'ninja'].includes(x) && ['sword', 'archer', 'ninja'].includes(p.skill)));
+    const k = owned.find((x) => x !== p.skill && !conflicts(x, p.skill));
     if (k) this.sim.setSkill2(id, k);
   }
   // 방 닫기 (관리자 삭제): 모두에게 알리고 연결을 끊음
@@ -412,6 +412,10 @@ server.on('upgrade', (req, sock) => {
         const err = room.sim.setSkill(id, skill);
         if (err) return notice(err);
         if (c.accountKey) accounts.setSkill(c.accountKey, skill);
+      } else if (m.t === 'botskill' && room) {
+        if (id !== room.hostId) return notice('봇 스킬은 방장만 정할 수 있어요.');
+        const err = room.sim.setBotSkill(String(m.id || ''), m.skill ? String(m.skill) : null, m.skill2 ? String(m.skill2) : null);
+        if (err) return notice(err);
       } else if (m.t === 'skill2' && room) {
         const skill = validSkill(m.skill);
         const c = room.clients.get(id);
