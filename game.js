@@ -2243,7 +2243,9 @@ function botThink(sim, b) {
     for (const o of [...sim.players.values(), ...sim.clones.values()]) {
       // 무적(다시 나온 직후)인 상대도 인식은 함 — 귀신만 빼고
       if (!sim.foe(b, o) || !o.alive || o.inside || o.ghostT > 0 || o.frozen > 0) continue;
-      if (o.stealth > 0) continue;
+      b.seen = b.seen || {};
+      if (o.stealth > 0) { if (b.seen[o.id] && !b.seen[o.id].hid) b.seen[o.id].hid = sim.time; continue; }   // 은신: 사라진 순간을 기억
+      b.seen[o.id] = { x: o.x, y: o.y, hid: 0 };
       // 연기 속에 있는 상대는 봇도 볼 수 없음
       if (sim.smokes.some((s) => Math.hypot(o.x - s.x, o.y - bh(o) / 2 - s.y) < s.r * 0.75)) continue;
       let d = Math.abs(o.x - b.x) + Math.abs(o.y - b.y);
@@ -2359,6 +2361,27 @@ function botThink(sim, b) {
       if (b.waitHit > 0) { b.waitHit--; } else if (b.archHold > 0) { /* 시위 당기는 중 */ } else if (Math.abs(dx) < 80 && Math.abs(dy) < 50 && b.facing === side && !b.attack && b.botCd <= 0) {
         if (target.damage > 70 && Math.random() < 0.5) inp.h = 1; else inp.a = 1;
         b.botCd = 14 + Math.floor(Math.random() * 18);
+      }
+    }
+    // ---- 은신한 상대만 남았으면: 마지막으로 본 자리 근처를 돌아다니며 허공을 때려 봄 (사람처럼) ----
+    if (!target) {
+      const lost = Object.entries(b.seen || {}).map(([id, v]) => ({ o: sim.players.get(id), v }))
+        .filter(({ o, v }) => o && o.alive && o.stealth > 0 && sim.foe(b, o) && v.hid)
+        .sort((p1, p2) => Math.abs(p1.v.x - b.x) - Math.abs(p2.v.x - b.x))[0];
+      if (lost) {
+        const since = sim.time - lost.v.hid, spread = Math.min(420, 90 + since * 110);   // 시간이 지날수록 넓게 찾음
+        if (!b.searchT || b.searchT <= 0 || b.searchX == null) {
+          b.searchX = clamp(lost.v.x + (Math.random() * 2 - 1) * spread, st.left + 30, st.right - 30);
+          b.searchT = 25 + Math.floor(Math.random() * 35);
+        }
+        b.searchT--;
+        const sdx = b.searchX - b.x;
+        if (Math.abs(sdx) > 18) { if (sdx > 0) inp.r = 1; else inp.l = 1; }
+        else { b.searchT = Math.min(b.searchT, 6); if (Math.random() < 0.5) inp.r = 1; else inp.l = 1; }   // 도착하면 뒤돌아봄
+        if (b.botCd > 0) b.botCd--;
+        if (!b.attack && b.botCd <= 0 && Math.random() < 0.22) { if (Math.random() < 0.3) inp.h = 1; else inp.a = 1; b.botCd = 8 + Math.floor(Math.random() * 16); }
+        if (b.grounded && Math.random() < 0.02) wantJump = true;
+        if (b.grounded && lost.v.y < b.y - 120 && Math.random() < 0.04) wantJump = true;
       }
     }
     // ---- 위험 피하기 (사람처럼) ----
