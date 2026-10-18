@@ -998,7 +998,7 @@ function drawPlayer(p, time) {
     reach = p.ap === 1 ? -6 : p.ap === 2 ? full : full * 0.4;
   }
   const fx = f * (PW / 2 + 4 + reach), fy = -PH / 2 - 2;
-  if (hasK(p, 'archer') && !hasK(p, 'sword') && !(p.at === 1 && p.ap === 2)) {
+  if (hasK(p, 'archer') && !hasK(p, 'sword')) {
     drawBow(p, f, time);
     ctx.restore();
     finishPlayer(p, x, y, G, light, ownerId, baseAlpha, isClone, time);
@@ -1097,10 +1097,17 @@ function drawSword(p, f, time, rubM = 1, otherM = 1) {
 }
 function finishPlayer(p, x, y, G, light, ownerId, baseAlpha, isClone, time) {
   if (p.pa) {
-    // 반사 대기: 몸 앞의 빛나는 방패
-    ctx.strokeStyle = 'rgba(220,240,255,0.95)'; ctx.lineWidth = 4;
-    ctx.beginPath(); ctx.arc(x, y - PH * G / 2, 40 * G, 0, Math.PI * 2); ctx.stroke();
-    ctx.fillStyle = 'rgba(200,230,255,0.18)'; ctx.fill();
+    // 반사 대기: 몸 앞에 세운 거울 (은색 테두리 + 비치는 유리 + 반짝임)
+    const f2 = p.f || 1, mw = 16 * G, mh = 84 * G;
+    const mx = x + f2 * (PW / 2 + 12) * G - mw / 2, my = y - PH * G / 2 - mh / 2;
+    const gl = ctx.createLinearGradient(mx, my, mx + mw, my + mh);
+    gl.addColorStop(0, 'rgba(200,225,255,0.85)'); gl.addColorStop(0.45, 'rgba(255,255,255,0.95)'); gl.addColorStop(0.55, 'rgba(160,190,230,0.8)'); gl.addColorStop(1, 'rgba(220,235,255,0.85)');
+    ctx.fillStyle = gl; roundRect(mx, my, mw, mh, 6 * G); ctx.fill();
+    ctx.strokeStyle = '#c9a24a'; ctx.lineWidth = 3; roundRect(mx, my, mw, mh, 6 * G); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.95)'; ctx.lineWidth = 2;
+    const sh = ((time / 3) % (mh + 30)) - 15;
+    ctx.beginPath(); ctx.moveTo(mx + 2, my + sh); ctx.lineTo(mx + mw - 2, my + sh - 10); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(mx + 3, my + sh + 12); ctx.lineTo(mx + mw - 3, my + sh + 4); ctx.stroke();
   }
   if (p.rv) {
     // 반전: 머리 위 악마 표시 (빨간 얼굴 + 뿔)
@@ -1347,9 +1354,16 @@ function drawArrowsWinds(state, now) {
 }
 // 활 (몸 좌표계): 시위를 당기면 줄이 뒤로 가고 화살이 걸림
 function drawBow(p, f, time) {
-  const hx = f * (PW / 2 + 8), hy = -PH / 2 - 2;
+  // 약공격: 활을 앞으로 휘둘러 때림
+  const swing = p.at === 1 ? (p.ap === 1 ? -0.6 : p.ap === 2 ? 0.5 : 0.2) : 0;
+  const push = p.at === 1 ? (p.ap === 1 ? -4 : p.ap === 2 ? 26 : 10) : 0;
+  const hx = f * (PW / 2 + 8 + push), hy = -PH / 2 - 2;
+  if (p.at === 1 && p.ap === 2) {
+    ctx.fillStyle = 'rgba(255,240,210,0.4)';
+    ctx.beginPath(); ctx.moveTo(f * PW / 2, hy); ctx.arc(f * PW / 2, hy, 62, f > 0 ? -0.9 : Math.PI - 0.5, f > 0 ? 0.5 : Math.PI + 0.9); ctx.closePath(); ctx.fill();
+  }
   const pull = p.dr || 0;
-  ctx.save(); ctx.translate(hx, hy); ctx.scale(f, 1);
+  ctx.save(); ctx.translate(hx, hy); ctx.scale(f, 1); ctx.rotate(swing);
   if (p.hm) { ctx.shadowColor = 'rgba(150,130,255,0.95)'; ctx.shadowBlur = 14; }
   ctx.strokeStyle = '#8a5a2b'; ctx.lineWidth = 5; ctx.lineCap = 'round';
   ctx.beginPath(); ctx.arc(-14, 0, 30, -1.1, 1.1); ctx.stroke();
