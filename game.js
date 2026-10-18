@@ -76,7 +76,7 @@ const SKILLS = {
   //       맞거나 벽에 부딪히면 살짝 튕겨 돌아옴. 내가 가까이 가면 주움. 장외로 떨어지면 10초 뒤 다시 생김
   shield:   { name: '방패', blockTime: 0.45, blockGap: 0.2, bashKB: 1.25, full: 1, minSpeed: 520, maxSpeed: 1300, flyMin: 0.22, flyMax: 0.75,
               gravity: 1500, dmg: 9, baseKB: 360, growthKB: 9, back: 0.35, respawn: 10, pickR: 60 },
-  // 촉수: 등 뒤 촉수 4개를 H·J·K·L로 하나씩 뻗어 공격. Q = 아래 촉수 2개(K·L)로 땅을 짚고 8초간 중력 없이 이동 (맨 밑 바닥까지만, 넉백 거의 없음)
+  // 촉수: 등 뒤 촉수 4개. 약공격(J)=위 촉수 2개, 강공격(K)=아래 촉수 2개를 번갈아 뻗어 공격. Q = 아래 촉수 2개(K·L)로 땅을 짚고 8초간 중력 없이 이동 (맨 밑 바닥까지만, 넉백 거의 없음)
   tentacle: { name: '촉수', cd: 18, anchor: 8, reach: 150, out: 0.13, hold: 0.07, back: 0.16, gap: 0.42, dmg: 6, baseKB: 250, growthKB: 9, anchorKB: 0.2, speed: 360 },
   // 귀신: 목숨이 다 없어지면 5초간 귀신(중력·벽 무시, WASD 이동, 안 맞음). 한 명을 3번 때리면 그 사람도 장외
   ghost:    { name: '귀신', time: 5, marks: 3, speed: 430 },
@@ -1267,14 +1267,14 @@ class Sim {
         if (sh.fly > 0) sh.fly -= dt; else sh.vy = Math.min(sh.vy + s.gravity * dt, CONFIG.MAX_FALL);
         sh.x += sh.vx * dt; sh.y += sh.vy * dt;
         const bounce = () => { sh.vx = -sh.vx * s.back; sh.vy = -260; sh.fly = 0; sh.bounced = true; };
-        if (this.solidAt(sh.x + Math.sign(sh.vx) * 16, sh.y)) { bounce(); sh.x -= Math.sign(sh.vx) * -4; this.ev({ k: 'shclang', x: r0(sh.x), y: r0(sh.y) }); }
-        else if (sh.vy >= 0) { const ly = this.landingY(sh.x, prevY + 14, sh.y + 14); if (ly != null) { sh.y = ly - 14; sh.vx = 0; sh.vy = 0; sh.ground = true; } }
+        if (this.solidAt(sh.x + Math.sign(sh.vx) * 24, sh.y)) { bounce(); sh.x -= Math.sign(sh.vx) * -4; this.ev({ k: 'shclang', x: r0(sh.x), y: r0(sh.y) }); }
+        else if (sh.vy >= 0) { const ly = this.landingY(sh.x, prevY + 20, sh.y + 20); if (ly != null) { sh.y = ly - 20; sh.vx = 0; sh.vy = 0; sh.ground = true; } }
         if (!sh.bounced && !sh.ground && this.phase !== 'countdown' && this.phase !== 'ended') {
           const def = { damage: s.dmg, baseKB: s.baseKB * (0.7 + 0.5 * sh.c), growthKB: s.growthKB, lift: 0.4 };
           for (const o of list) {
             if (!this.foe(sh, o) || !o.alive || o.inside || o.frozen > 0 || o.invincible > 0) continue;
             const ow = bw(o), oh = bh(o);
-            if (Math.abs(o.x - sh.x) < ow / 2 + 16 && sh.y > o.y - oh - 14 && sh.y < o.y + 14) {
+            if (Math.abs(o.x - sh.x) < ow / 2 + 24 && sh.y > o.y - oh - 22 && sh.y < o.y + 22) {
               const dir = Math.sign(sh.vx) || 1;
               this.applyHit(owner, o, def, sh.c > 0.7 ? 'heavy' : 'light', { dir });
               this.elementHit(owner, o, 'light', dir);

@@ -52,7 +52,7 @@ const SKILLS = {
   ninja:    { name: '닌자', desc: '쿠나이를 듦. 약공격은 쿠나이 베기, 강공격은 딜레이 없이 쿠나이를 똑바로 던짐 (던진 뒤 0.4초 뒤 다시). Q는 통나무를 남기고 랜덤한 안전한 곳으로 순간이동', cd: '쿨 13초' },
   gamble:   { name: '도박', desc: '사거리·주는 넉백·받는 넉백·점프·속도·크기가 각각 0.0~2.0배로 랜덤. 판이 시작되면 자동으로 굴림 (그래서 바로는 못 씀). 죽어도 유지', cd: '쿨 20초' },
   shield:   { name: '방패', desc: '방패를 듦. 약공격은 방패 막기(앞에서 오는 공격), 강공격은 방패 휘두르기(넉백↑). Q를 누르고 있다 놓으면 방패를 던짐(오래 누를수록 멀리). 맞히거나 벽에 부딪히면 튕겨 돌아오고, 가까이 가면 주움(나만). 장외로 떨어지면 10초 뒤 다시 생김. 방패가 없으면 보통 공격', cd: '누르고 있다 놓기' },
-  tentacle: { name: '촉수', desc: '등 뒤 촉수 4개를 H·J·K·L로 하나씩 뻗어 공격 (약/강 대신). Q는 아래 촉수(K·L)로 땅을 짚고 8초간 중력 없이 WASD로 이동, 넉백 거의 없음 (맨 밑 바닥 아래로는 못 감, 그동안 K·L 공격·점멸·화염 돌진 불가)', cd: '쿨 18초' },
+  tentacle: { name: '촉수', desc: '등 뒤 촉수 4개. 약공격(J)은 위 촉수 2개, 강공격(K)은 아래 촉수 2개를 번갈아 뻗어 공격. Q는 아래 촉수 2개로 땅을 짚고 8초간 중력 없이 WASD로 이동, 넉백 거의 없음 (맨 밑 바닥 아래로는 못 감, 그동안 아래 촉수 공격·점멸·화염 돌진 불가 — K도 위 촉수로)', cd: '쿨 18초' },
   ghost:    { name: '귀신', desc: '목숨을 다 잃으면 마지막 5초간 귀신이 됨 (중력·벽 무시, WASD 이동, 안 맞음). 그동안 한 명을 3번 때리면 그 사람도 장외 → 마지막 상대였다면 귀신이 승리 (패시브)', cd: '패시브' },
   starlight: { name: '별빛', desc: '별 카운트(처음 1개, 10초마다·죽을 때마다 +1, 최대 5)를 모두 써서 하늘에서 사선으로 별비를 쏟음. 별이 많을수록 별이 많고 크고 세게 밀어냄', cd: '별 1개 이상' },
 };
@@ -690,7 +690,7 @@ const keyHeld = {};   // 누른 키가 어떤 입력으로 들어갔는지 (뗄 
 function iHaveTentacle() { const me = latest && latest.p.find((q) => q.id === myId); return !!me && (me.sk === 'tentacle' || me.sk2 === 'tentacle'); }
 addEventListener('keydown', (e) => {
   if (!$('lobby').hidden) return;
-  const k = (iHaveTentacle() && TENT_KEYS[e.code]) || KEYMAP[e.code];
+  const k = KEYMAP[e.code];   // 촉수도 J(위 촉수)·K(아래 촉수) 두 개로
   if (k) { e.preventDefault(); keyHeld[e.code] = k; setKey(k, 1); }
 });
 addEventListener('keyup', (e) => { const k = keyHeld[e.code] || KEYMAP[e.code]; delete keyHeld[e.code]; if (k) setKey(k, 0); });
@@ -1678,24 +1678,37 @@ function drawTentacles(p, f, time, G) {
 }
 // 기계 팔 스킨: 같은 곡선을 따라 금속 마디 + 관절 + 유압 피스톤, 끝에 두 손가락 집게
 function drawMechArm(pts, f, time, i, ext) {
+  // 기계 팔 스킨: 매끈한 흰색 공상과학 로봇 팔 — 둥근 흰 장갑 마디 + 청록 빛 관절 + 끝의 둥근 집게
   const at = (t) => { const u = 1 - t; return [u * u * u * pts[0][0] + 3 * u * u * t * pts[1][0] + 3 * u * t * t * pts[2][0] + t * t * t * pts[3][0], u * u * u * pts[0][1] + 3 * u * u * t * pts[1][1] + 3 * u * t * t * pts[2][1] + t * t * t * pts[3][1]]; };
-  const N = 5, joints = [];
-  for (let k = 0; k <= N; k++) joints.push(at(k / N));
+  const N = 4, J = [];
+  for (let k = 0; k <= N; k++) J.push(at(k / N));
+  const pulse = 0.6 + 0.4 * Math.sin(time / 180 + i);
   for (let k = 0; k < N; k++) {
-    const [x1, y1] = joints[k], [x2, y2] = joints[k + 1], w = 8 - k * 0.9;
-    ctx.strokeStyle = '#3a3f4a'; ctx.lineWidth = w + 3; ctx.lineCap = 'butt'; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
-    ctx.strokeStyle = k % 2 ? '#ffc21a' : '#ff8a1a'; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
-    // 유압 피스톤 (마디 옆 은색 막대)
-    const nx = -(y2 - y1), ny = x2 - x1, nl = Math.hypot(nx, ny) || 1, o = w * 0.7;
-    ctx.strokeStyle = '#c8d0dc'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(x1 + nx / nl * o, y1 + ny / nl * o); ctx.lineTo((x1 + x2) / 2 + nx / nl * o, (y1 + y2) / 2 + ny / nl * o); ctx.stroke();
+    const [x1, y1] = J[k], [x2, y2] = J[k + 1], w = 10 - k * 1.6;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#7d8798'; ctx.lineWidth = w + 3; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    ctx.strokeStyle = '#f2f5fa'; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    const nx = -(y2 - y1), ny = x2 - x1, nl = Math.hypot(nx, ny) || 1;
+    ctx.strokeStyle = 'rgba(255,255,255,0.95)'; ctx.lineWidth = 1.6; ctx.beginPath();
+    ctx.moveTo(x1 + nx / nl * w * 0.25, y1 + ny / nl * w * 0.25); ctx.lineTo(x2 + nx / nl * w * 0.25, y2 + ny / nl * w * 0.25); ctx.stroke();
+    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+    ctx.strokeStyle = `rgba(60,220,230,${0.5 + 0.4 * pulse})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(mx - nx / nl * w * 0.35, my - ny / nl * w * 0.35); ctx.lineTo(mx + nx / nl * w * 0.35, my + ny / nl * w * 0.35); ctx.stroke();
   }
-  for (let k = 0; k < N; k++) { const [x, y] = joints[k]; ctx.fillStyle = '#2a2e36'; ctx.beginPath(); ctx.arc(x, y, 4.2 - k * 0.4, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#9aa3b2'; ctx.beginPath(); ctx.arc(x, y, 1.6, 0, Math.PI * 2); ctx.fill(); }
-  // 집게: 끝 방향으로 두 손가락 (뻗을 때 벌어짐)
-  const [ex, ey] = joints[N], [px2, py2] = joints[N - 1], ang = Math.atan2(ey - py2, ex - px2), open = 0.25 + 0.45 * (ext || 0);
+  for (let k = 0; k < N; k++) {
+    const [x, y] = J[k], r = 5.2 - k * 0.7;
+    ctx.fillStyle = '#4a5262'; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r * 0.8); g.addColorStop(0, '#e8ffff'); g.addColorStop(1, `rgba(40,210,225,${0.6 + 0.3 * pulse})`);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r * 0.6, 0, Math.PI * 2); ctx.fill();
+  }
+  const [ex, ey] = J[N], [px2, py2] = J[N - 1], ang = Math.atan2(ey - py2, ex - px2), open = 0.2 + 0.6 * (ext || 0);
   ctx.save(); ctx.translate(ex, ey); ctx.rotate(ang);
-  ctx.fillStyle = '#3a3f4a'; ctx.fillRect(-3, -4, 6, 8);
-  ctx.strokeStyle = '#9aa3b2'; ctx.lineWidth = 2.6; ctx.lineCap = 'round';
-  for (const sd of [-1, 1]) { ctx.beginPath(); ctx.moveTo(2, sd * 3); ctx.lineTo(8, sd * (3 + open * 7)); ctx.lineTo(13, sd * (1 + open * 3)); ctx.stroke(); }
+  ctx.fillStyle = '#f2f5fa'; ctx.strokeStyle = '#7d8798'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(0, 0, 4.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  for (const sd of [-1, 1]) {
+    ctx.save(); ctx.rotate(sd * open);
+    ctx.fillStyle = '#f2f5fa'; ctx.beginPath(); ctx.moveTo(2, sd * 1.5); ctx.quadraticCurveTo(9, sd * 5, 13, sd * 1); ctx.quadraticCurveTo(9, sd * 2, 2, sd * 4); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
+  ctx.fillStyle = `rgba(60,220,230,${0.7 + 0.3 * pulse})`; ctx.beginPath(); ctx.arc(0, 0, 1.8, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
 }
 // ---------------- 방패 (손에 든 모습) ----------------
@@ -1711,14 +1724,14 @@ function drawShieldHand(p, f, fx, fy, time) {
   if (!d || !d[0]) return;
   if (d[1]) {
     // 막는 중: 몸 앞에 크게 세움 + 빛
-    ctx.save(); ctx.translate(f * (PW / 2 + 8), -PH / 2); ctx.scale(0.55, 1);
-    ctx.shadowColor = 'rgba(255,230,140,0.9)'; ctx.shadowBlur = 16; drawShieldShape(28, '#c9a24a', time); ctx.restore(); ctx.shadowBlur = 0;
+    ctx.save(); ctx.translate(f * (PW / 2 + 10), -PH / 2); ctx.scale(0.55, 1);
+    ctx.shadowColor = 'rgba(255,230,140,0.9)'; ctx.shadowBlur = 16; drawShieldShape(40, '#c9a24a', time); ctx.restore(); ctx.shadowBlur = 0;
   } else if (d[2] > 0) {
     // 던지려고 뒤로 당기는 중 (충전 링)
-    ctx.save(); ctx.translate(-f * (PW / 2 + 6), -PH * 0.62); drawShieldShape(18, '#c9a24a', time); ctx.restore();
-    ctx.strokeStyle = 'rgba(255,207,63,0.9)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(-f * (PW / 2 + 6), -PH * 0.62, 24, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * d[2]); ctx.stroke();
+    ctx.save(); ctx.translate(-f * (PW / 2 + 8), -PH * 0.62); drawShieldShape(26, '#c9a24a', time); ctx.restore();
+    ctx.strokeStyle = 'rgba(255,207,63,0.9)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(-f * (PW / 2 + 8), -PH * 0.62, 33, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * d[2]); ctx.stroke();
   } else {
-    ctx.save(); ctx.translate(fx + f * 4, fy); ctx.scale(0.6, 1); drawShieldShape(19, '#c9a24a', time); ctx.restore();
+    ctx.save(); ctx.translate(fx + f * 6, fy); ctx.scale(0.6, 1); drawShieldShape(28, '#c9a24a', time); ctx.restore();
   }
 }
 // 던진 방패
@@ -1728,8 +1741,8 @@ function drawThrownShields(state, now) {
     const x = q.x + q.vx * age, y = q.y + q.vy * age, s2 = q.s || 1;
     const owner = state.p.find((pp) => pp.id === q.o);
     ctx.save(); ctx.translate(x, y); ctx.scale(s2, s2);
-    if (q.g) { ctx.scale(1, 0.4); drawShieldShape(18, owner ? owner.c : '#c9a24a', now); }
-    else { ctx.rotate(now / 40 * (q.vx >= 0 ? 1 : -1)); ctx.scale(1, 0.75); drawShieldShape(18, owner ? owner.c : '#c9a24a', now); }
+    if (q.g) { ctx.scale(1, 0.4); drawShieldShape(26, owner ? owner.c : '#c9a24a', now); }
+    else { ctx.rotate(now / 40 * (q.vx >= 0 ? 1 : -1)); ctx.scale(1, 0.75); drawShieldShape(26, owner ? owner.c : '#c9a24a', now); }
     ctx.restore();
   }
 }

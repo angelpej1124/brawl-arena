@@ -32,7 +32,7 @@
     shadowice:   { skill: 'ice', name: '어둠', desc: '눈보라 대신 어둠이 깔리고, 검은 게이지가 차면 어둠에 잠식됨', color: '#2a2238' },
     steel:       { skill: 'rock', name: '강철', desc: '바위 대신 반짝이는 강철 몸', color: '#9fb0c4' },
     yinyang:     { skill: 'magnet', name: '음양', desc: '당기기·밀기 때 커다란 흑백 음양 무늬가 돎', color: '#1a1a1a' },
-    mecharm:     { skill: 'tentacle', name: '기계 팔', desc: '촉수가 주황·노랑 금속 마디와 유압 피스톤, 집게 손이 달린 로봇 팔로', color: '#ff9a1a' },
+    mecharm:     { skill: 'tentacle', name: '기계 팔', desc: '촉수가 매끈한 흰색 로봇 팔로 (청록 빛 관절, 둥근 집게)', color: '#3cdce6' },
     deepsea:     { skill: 'tentacle', name: '심해', desc: '보랏빛으로 빛나는 심해 생물 촉수 (청록 발광 점)', color: '#7a4ac8' },
     ginkgo:      { skill: 'mine', name: '은행', desc: '지뢰 대신 노란 은행 열매를 뿌림', color: '#e8c84a' },
     blocks:      { skill: 'mine', name: '블록', desc: '지뢰 대신 밟으면 아픈 장난감 블록을 뿌림', color: '#e53935' },
