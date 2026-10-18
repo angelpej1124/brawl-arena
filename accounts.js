@@ -142,8 +142,11 @@ const ADMIN_NICKS = String(process.env.ADMIN_NICKS || '').split(',').map((n) => 
 function upgrade(a, key) {
   let changed = false;
   if (!Array.isArray(a.skins)) { a.skins = []; changed = true; }          // 산 스킨
-  if (!Array.isArray(a.cosm)) { a.cosm = []; changed = true; }            // 가진 치장품 ('hat:bunny' 형식)
-  if (!a.cosmSel || typeof a.cosmSel !== 'object') { a.cosmSel = {}; changed = true; }   // 카테고리별 장착
+  // 치장품 시스템 삭제: 뽑았던 치장품 1개당 보석 70개를 돌려주고 기록을 지움
+  if ('cosm' in a || 'cosmSel' in a) {
+    if (Array.isArray(a.cosm) && a.cosm.length) a.gems = (Number.isFinite(a.gems) ? a.gems : GEMS.START) + a.cosm.length * 70;
+    delete a.cosm; delete a.cosmSel; changed = true;
+  }
   if (!a.skinSel || typeof a.skinSel !== 'object') { a.skinSel = {}; changed = true; }   // 능력별 장착 스킨
   if (!Number.isFinite(a.gems)) { a.gems = GEMS.START; changed = true; }
   if (!Array.isArray(a.owned)) { a.owned = [...BASE_SKILLS]; changed = true; }
@@ -165,7 +168,6 @@ function publicProfile(a) {
     nick: a.nick, wins: a.wins, games: a.games, kos: a.kos, skill: a.skill,
     gems: a.gems, owned: [...a.owned], admin: !!a.admin,
     skins: [...(a.skins || [])], skinSel: { ...(a.skinSel || {}) },
-    cosm: [...(a.cosm || [])], cosmSel: { ...(a.cosmSel || {}) },
     nickWarn: a.nickWarn || null,   // 닉네임 경고 (사유). 있으면 닉네임을 바꿔야 게임 가능
   };
 }
@@ -287,37 +289,6 @@ function equipSkin(key, skill, id) {
   a.skinSel[skill] = id; save();
   return { profile: publicProfile(a) };
 }
-// ---------- 치장품 (뽑기 70보석, 카테고리별 하나씩 장착) ----------
-const COSM = require('./public/cosmetics.js');
-function cosmGacha(key) {
-  const a = store.accounts[key];
-  if (!a) throw new Error('로그인이 필요해요.');
-  if (a.gems < COSM.COST) throw new Error(`보석이 모자라요. 치장품 뽑기는 ${COSM.COST}개예요.`);
-  a.gems -= COSM.COST;
-  const pick = COSM.ALL[crypto.randomInt(COSM.ALL.length)];
-  const tag = pick.cat + ':' + pick.id;
-  const dup = a.cosm.includes(tag);
-  if (dup) a.gems += COSM.DUP_REFUND; else a.cosm.push(tag);
-  save();
-  return { cat: pick.cat, item: pick.id, dup, refund: dup ? COSM.DUP_REFUND : 0, profile: publicProfile(a) };
-}
-function cosmEquip(key, cat, item) {
-  const a = store.accounts[key];
-  if (!a) throw new Error('로그인이 필요해요.');
-  if (!COSM.COSMETICS[cat]) throw new Error('없는 카테고리예요.');
-  if (!item) { delete a.cosmSel[cat]; save(); return { profile: publicProfile(a) }; }
-  if (!COSM.COSMETICS[cat].items[item]) throw new Error('없는 치장품이에요.');
-  if (!a.cosm.includes(cat + ':' + item)) throw new Error('아직 뽑지 않은 치장품이에요.');
-  a.cosmSel[cat] = item; save();
-  return { profile: publicProfile(a) };
-}
-function cosmOf(key) {
-  const a = key && store.accounts[key];
-  if (!a) return {};
-  const out = {};
-  for (const [cat, item] of Object.entries(a.cosmSel || {})) if (a.cosm.includes(cat + ':' + item)) out[cat] = item;
-  return out;
-}
 // 게임에 쓸 장착 스킨 (능력 -> 스킨 id)
 function skinsOf(key) {
   const a = key && store.accounts[key];
@@ -421,6 +392,6 @@ setInterval(() => {
 
 module.exports = {
   init, storage: () => storageName, signup, login, logout, fromToken, profileOf, nickOf, isTaken,
-  owns, ownedOf, setSkill, record, buySkin, equipSkin, skinsOf, adminWarn, changeNick, cosmGacha, cosmEquip, cosmOf, ranking, cleanNick, gacha, isAdmin, adminList, adminUpdate,
+  owns, ownedOf, setSkill, record, buySkin, equipSkin, skinsOf, adminWarn, changeNick, ranking, cleanNick, gacha, isAdmin, adminList, adminUpdate,
   GEMS, GACHA, BASE_SKILLS, ALL_SKILLS,
 };

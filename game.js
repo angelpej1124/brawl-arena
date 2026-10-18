@@ -85,7 +85,7 @@ const cleanInput = (i) => ({
 const TEAMS = [null, { name: '빨강팀', color: '#ff4d4d' }, { name: '파랑팀', color: '#3f8cff' }, { name: '초록팀', color: '#3ccf6e' }, { name: '노랑팀', color: '#ffd23f' }];
 // 시간 되돌리기로 되돌리는 값들
 // 시간 되돌리기 때 그대로 두는 것 (나머지 상태는 전부 되돌림)
-const TIME_SKIP = new Set(['id', 'name', 'color', 'bot', 'dummy', 'team', 'skins', 'cosm', 'skill', 'skill2', 'wins', 'ready', 'mapMid',
+const TIME_SKIP = new Set(['id', 'name', 'color', 'bot', 'dummy', 'team', 'skins', 'skill', 'skill2', 'wins', 'ready', 'mapMid',
   'input', 'prevInput', 'rawInput', 'attack', 'errHold', 'kos', 'botKos']);
 // 스킨: 지금 쓰는 능력에 장착된 스킨만
 const SKIN_DB = require('./public/skins.js').SKINS;
@@ -118,7 +118,6 @@ class Player {
     this.id = id; this.name = name; this.color = color; this.bot = !!bot; this.skill = validSkill(skill);
     this.skill2 = null; this.team = 1;
     this.skins = {};              // 장착 스킨 (능력 -> 스킨 id), 보이는 것만 바뀜
-    this.cosm = {};               // 치장품 { hat, outfit }
     this.input = EMPTY_INPUT(); this.prevInput = EMPTY_INPUT();
     this.inMatch = false; this.wins = 0; this.stocks = 0; this.kos = 0; this.botKos = 0;
     this.hulkS = 1;
@@ -1654,7 +1653,6 @@ class Sim {
         ft: ten(p.flyT), rt: ten(p.rockT), bt: ten(p.buffT),
         chg: has(p, 'empower') ? (p.charged ? 100 : Math.floor((p.stillT / SKILLS.empower.charge) * 100)) : 0,
         pr: has(p, 'parasite') ? Object.values(p.parHits).filter((n) => n >= SKILLS.parasite.hitsNeeded).length : 0,
-        cs: p.cosm && (p.cosm.hat || p.cosm.outfit) ? [p.cosm.hat || 0, p.cosm.outfit || 0] : 0,
         isd: p.iceSand ? 1 : 0, iau: p.iceAur ? 1 : 0, idk: p.iceDark ? 1 : 0, slm: p.slow > 0 && p.slowMud ? 1 : 0, sn: activeSkins(p), bb: p.burnN > 0 && p.burnBlue ? 1 : 0,
         ins: p.inside ? 1 : 0, phost: p.parHost, pt: ten(p.parT), ctl: p.controller, rd: p.ready ? 1 : 0,
       })),
@@ -1662,7 +1660,7 @@ class Sim {
         id: c.id, ow: c.ownerId, n: c.name, c: c.color, x: r0(c.x), y: r0(c.y), f: c.facing,
         g: c.grounded ? 1 : 0, vx: r0(c.vx), vy: r0(c.vy), al: 1, at: 0, ap: 0,
         sk: c.skill, sk2: c.skill2, sn: this.players.get(c.ownerId) ? activeSkins(this.players.get(c.ownerId)) : [],
-        cs: (() => { const o = this.players.get(c.ownerId); return o && o.cosm && (o.cosm.hat || o.cosm.outfit) ? [o.cosm.hat || 0, o.cosm.outfit || 0] : 0; })(), hs: c.hitstun > 0 || c.stunT > 0 ? 1 : 0, b: c.bot ? 1 : 0, inv: 0, ...status(c),
+        hs: c.hitstun > 0 || c.stunT > 0 ? 1 : 0, b: c.bot ? 1 : 0, inv: 0, ...status(c),
       })),
     };
   }

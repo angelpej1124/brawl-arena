@@ -85,15 +85,6 @@ async function api(req, res, urlPath) {
       }
       return sendJson(res, 200, { profile: r.profile });
     }
-    if (req.method === 'POST' && (urlPath === '/api/cosm/gacha' || urlPath === '/api/cosm/equip')) {
-      const key = accounts.fromToken(bearer(req));
-      if (!key) return sendJson(res, 401, { error: '로그인이 필요해요.' });
-      if (urlPath === '/api/cosm/gacha' && limited(ip, 'cgacha', 60, 60000)) return sendJson(res, 429, { error: '너무 빨리 뽑고 있어요. 잠시 후 다시 해 주세요.' });
-      const b = await readBody(req);
-      const r = urlPath === '/api/cosm/gacha' ? accounts.cosmGacha(key) : accounts.cosmEquip(key, String(b.cat || ''), b.item ? String(b.item) : null);
-      for (const room of rooms.values()) for (const [cid, c] of room.clients) if (c.accountKey === key) { const p = room.sim.players.get(cid); if (p) p.cosm = accounts.cosmOf(key); }
-      return sendJson(res, 200, r);
-    }
     if (req.method === 'POST' && (urlPath === '/api/skin/buy' || urlPath === '/api/skin/equip')) {
       const key = accounts.fromToken(bearer(req));
       if (!key) return sendJson(res, 401, { error: '로그인이 필요해요.' });
@@ -242,7 +233,7 @@ class GameRoom {
     }
     this.clients.set(id, { socket, accountKey, name });
     const p = this.sim.addPlayer(id, name, false, skill);
-    if (p) { p.skins = accounts.skinsOf(accountKey); p.cosm = accounts.cosmOf(accountKey); }
+    if (p) p.skins = accounts.skinsOf(accountKey);
     if (!this.hostId) this.hostId = id;
     if (this.sim.doubleMode) this.giveSkill2(id);
     return true;
@@ -275,13 +266,6 @@ class GameRoom {
       else name = BOT_NAMES.find((n) => !used.has(n)) || '봇';
       const p = this.sim.addPlayer((dummy ? 'dum' : 'bot') + nextId++, name, true, dummy ? 'slow' : SKILL_IDS[Math.floor(Math.random() * SKILL_IDS.length)]);
       if (p && dummy) p.dummy = true;
-      // 봇은 가끔 치장품을 입고 나옴 (모자 60%, 옷 50%)
-      if (p && !dummy) {
-        const C = require('./public/cosmetics.js').COSMETICS, pick = (o) => { const k = Object.keys(o); return k[Math.floor(Math.random() * k.length)]; };
-        p.cosm = {};
-        if (Math.random() < 0.6) p.cosm.hat = pick(C.hat.items);
-        if (Math.random() < 0.5) p.cosm.outfit = pick(C.outfit.items);
-      }
     } else {
       // 봇 빼기는 봇만, 더미 빼기는 더미만
       const bot = this.sim.list().reverse().find((p) => p.bot && !!p.dummy === !!dummy);
