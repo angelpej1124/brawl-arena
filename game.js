@@ -613,6 +613,8 @@ class Sim {
     this.updateWater(dt);
     for (const f of this.flashes) f.t -= dt;
     this.flashes = this.flashes.filter((f) => f.t > 0);
+    // 판이 끝나면 귀신 상태도 바로 풀림 (대기실까지 귀신으로 남지 않게)
+    if (this.phase !== 'playing') for (const p of list) if (p.ghostT > 0) { p.ghostT = 0; p.invincible = 0; }
     for (const p of list) { if (p.ghostT > 0) { p.ghostT -= dt; p.invincible = Math.max(p.invincible, 0.1); if (p.ghostT <= 0) this.endGhost(p); } }
     this.updateWinds(targets, dt);
     for (const p of list) if (p.alive && !p.inside) this.checkBlast(p);
@@ -1042,7 +1044,7 @@ class Sim {
         pts.push([r0(o.x), r0(o.y)]);
       }
       p.skillCd = s.cd;
-      this.ev({ k: 'bolt', x: r0(cx), y: r0(cy), pts, h: cands.filter((e) => !e.o.clone).length, pid: p.id });
+      this.ev({ k: 'bolt', x: r0(cx), y: r0(cy), pts, h: cands.filter((e) => !e.o.clone).length, pid: p.id, th: skinOn(p, 'thunder') ? 1 : 0 });
     } else if (k === 'fire') {
       const s = SKILLS.fire;
       const inp = p.input;
@@ -2134,7 +2136,7 @@ class Sim {
       this.clones.delete(p.id); this.removeTurrets(p.id);
       this.ev({ k: 'ghost', x: r0(p.x), y: r0(p.y), n: p.name, pid: p.id });
     }
-    else { p.alive = false; this.clones.delete(p.id); this.removeTurrets(p.id); this.checkWinner(); }
+    else { p.ghostT = 0; p.alive = false; this.clones.delete(p.id); this.removeTurrets(p.id); this.checkWinner(); }
   }
 
   // 귀신 시간이 끝나면 진짜 탈락

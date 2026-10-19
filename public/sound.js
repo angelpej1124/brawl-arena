@@ -139,7 +139,7 @@
     jump: (o) => S.jump(o, false), jump2: (o) => S.jump(o, true), slash: (o) => S.slash(o),
     explode: (o) => S.boom(o), boom: (o) => S.boom(o), smash: (o) => S.boom(o),
     freeze: (o) => S.freeze(o), iced: (o) => S.ice(o), blizzard: (o) => S.whoosh(o, false),
-    bolt: (o) => S.bolt(o), thunk: (o) => S.thud(o), blink: (o) => S.blink(o), swap: (o) => S.blink(o),
+    bolt: (o, ev) => { S.bolt(o); if (ev && ev.th) { tone('sine', 55, 28, 1.4, 0.7, o); noise('lowpass', 300, 80, 1.3, 0.6, { ...o, atk: 0.05 }); } }, thunk: (o) => S.thud(o), blink: (o) => S.blink(o), swap: (o) => S.blink(o),
     pull: (o) => S.pull(o), push: (o) => S.push(o), quake: (o) => S.quake(o), rock: (o) => S.thud(o),
     wind: (o) => S.wind(o), windend: (o) => S.gust(o), fdash: (o, e) => S.fire(o, e.b), fly: (o) => S.whoosh(o, true), engine: (o) => S.whoosh(o, true),
     clone: (o) => S.poof(o), poof: (o) => S.poof(o), stealth: (o) => S.down(o), slow: (o) => S.down(o),

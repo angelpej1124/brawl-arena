@@ -917,7 +917,7 @@ function onEvent(ev) {
     }
     for (const [r, l] of [[ev.p === 2 ? 200 : 150, 0.5], [ev.p === 2 ? 130 : 95, 0.35], [60, 0.25]]) particles.push({ ring: true, x: ev.x, y: ev.y, life: l, max: l, r, c: '60,255,140' });
     particles.push({ ring: true, fill: true, x: ev.x, y: ev.y, life: 0.3, max: 0.3, r: 120, c: '200,255,220', grow: true });
-    shake = Math.max(shake, ev.p === 2 ? 26 : 18); lightFlash = 0.15;
+    shake = Math.max(shake, ev.p === 2 ? 26 : 18); lightFlash = 0.15; lightBlue = false;
     banners.push({ text: '원 포 올!', life: 1.2, max: 1.2, small: true, color: '#3dff8a' });
   } else if (ev.k === 'bfq') {
     // 흑섬 발동: 검붉은 번쩍임 (이것만으로는 아무 일도 없음)
@@ -937,16 +937,17 @@ function onEvent(ev) {
     shake = Math.max(shake, ev.p === 2 ? 20 : 14);
     banners.push({ text: '흑섬!', life: 1, max: 1, small: true, color: '#ff3355' });
   } else if (ev.k === 'bolt') {
-    particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.35, max: 0.35, r: 60, c: '255,233,74' });
+    const th = ev.th;   // 천둥 스킨: 파란 천둥
+    particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.35, max: 0.35, r: 60, c: th ? '80,150,255' : '255,233,74' });
     for (const [x, y] of ev.pts || []) {
-      particles.push({ strike: true, x, y, life: 0.45, max: 0.45, seed: Math.random() * 1000 });
+      particles.push({ strike: true, x, y, life: th ? 0.55 : 0.45, max: th ? 0.55 : 0.45, seed: Math.random() * 1000, th });
       for (let i = 0; i < 14; i++) {
         const a = Math.random() * Math.PI * 2, sp = 100 + Math.random() * 300;
-        particles.push({ x, y: y - 30, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.4, max: 0.4, c: i % 2 ? '#fff6a8' : '#ffe94a', r: 4, nograv: true });
+        particles.push({ x, y: y - 30, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.4, max: 0.4, c: th ? (i % 2 ? '#cfe4ff' : '#3a8bff') : (i % 2 ? '#fff6a8' : '#ffe94a'), r: 4, nograv: true });
       }
     }
-    if (ev.pts && ev.pts.length) { shake = Math.max(shake, 14); lightFlash = 0.25; }
-    if (ev.h > 0) banners.push({ text: `번개! ${ev.h}명 스턴`, life: 1.2, max: 1.2, small: true, color: '#ffe94a' });
+    if (ev.pts && ev.pts.length) { shake = Math.max(shake, th ? 18 : 14); lightFlash = 0.25; lightBlue = !!th; }
+    if (ev.h > 0) banners.push({ text: `${th ? '천둥' : '번개'}! ${ev.h}명 스턴`, life: 1.2, max: 1.2, small: true, color: th ? '#6aaeff' : '#ffe94a' });
   } else if (ev.k === 'slash') {
     for (let i = 0; i < 8; i++) particles.push({ x: ev.x, y: ev.y + (Math.random() - 0.5) * 50, vx: ev.f * (200 + Math.random() * 200), vy: (Math.random() - 0.5) * 80, life: 0.3, max: 0.3, c: '#e6f1ff', r: 4, nograv: true });
   } else if (ev.k === 'fdash') {
@@ -1112,6 +1113,11 @@ function drawBackground(time) {
 }
 function drawStage() {
   const th = STAGE.theme;
+  for (const t of STAGE.trunks || []) {   // 배경 나무 줄기 (통과 가능)
+    ctx.fillStyle = '#4a2f14'; ctx.fillRect(t.x, t.y, t.w, t.h);
+    ctx.fillStyle = 'rgba(0,0,0,0.25)'; for (let y = t.y + 14; y < t.y + t.h; y += 22) ctx.fillRect(t.x + 6, y, t.w - 12, 3);
+    ctx.fillStyle = 'rgba(255,220,160,0.12)'; ctx.fillRect(t.x + 4, t.y, 6, t.h);
+  }
   for (const s of STAGE.solids) {
     const thin = s.w < 80; // 성벽 기둥
     ctx.fillStyle = th.dirt; roundRect(s.x, s.y, s.w, s.h + (thin ? 0 : 40), thin ? 6 : 14); ctx.fill();
@@ -2021,7 +2027,8 @@ function drawParticles(dt) {
       let x = p.x, seed = p.seed;
       const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
       ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-      for (const [w, col] of [[14, `rgba(255,240,120,${a * 0.35})`], [5, `rgba(255,255,230,${a})`]]) {
+      const layers = p.th ? [[22, `rgba(40,110,255,${a * 0.3})`], [11, `rgba(70,150,255,${a * 0.6})`], [4, `rgba(225,240,255,${a})`]] : [[14, `rgba(255,240,120,${a * 0.35})`], [5, `rgba(255,255,230,${a})`]];
+      for (const [w, col] of layers) {
         ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(p.x + (rnd() - 0.5) * 60, top);
         seed = p.seed;
         for (let y = top; y <= p.y - 30; y += 40) { x = p.x + (rnd() - 0.5) * 50; ctx.lineTo(x, y); }
@@ -2185,7 +2192,7 @@ function drawSmoke(list, time) {
     }
   }
 }
-let freezeFlash = 0, lightFlash = 0, errHold = 0, rewindT = 0, rewindG = false;
+let freezeFlash = 0, lightFlash = 0, lightBlue = false, errHold = 0, rewindT = 0, rewindG = false;
 // 화살 + 바람 소용돌이
 function drawArrowsWinds(state, now) {
   const age = Math.max(-0.07, (now - state.time - INTERP_DELAY) / 1000);
@@ -2760,7 +2767,7 @@ function frame(now) {
       ctx.rotate(-(1 - k) * Math.PI * 6); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -70); ctx.moveTo(0, 0); ctx.lineTo(45, 0); ctx.stroke();
       ctx.restore(); rewindT -= dt;
     }
-    if (lightFlash > 0) { ctx.fillStyle = `rgba(255,250,200,${Math.min(0.3, lightFlash)})`; ctx.fillRect(-400, -400, STAGE.width + 800, STAGE.height + 800); lightFlash -= dt; }
+    if (lightFlash > 0) { ctx.fillStyle = lightBlue ? `rgba(150,195,255,${Math.min(0.3, lightFlash)})` : `rgba(255,250,200,${Math.min(0.3, lightFlash)})`; ctx.fillRect(-400, -400, STAGE.width + 800, STAGE.height + 800); lightFlash -= dt; }
     ctx.restore();
     ctx.save(); ctx.translate(offX, offY); ctx.scale(scale, scale);
     if (meE && meE.er) drawGlitch();
