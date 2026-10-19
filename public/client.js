@@ -53,6 +53,8 @@ const SKILLS = {
   gamble:   { name: '도박', desc: '사거리·주는 넉백·받는 넉백·점프·속도·크기가 각각 0.0~2.0배로 랜덤. 판이 시작되면 자동으로 굴림 (그래서 바로는 못 씀). 죽어도 유지', cd: '쿨 20초' },
   shield:   { name: '방패', desc: '방패를 듦. 약공격은 방패 막기(앞에서 오는 공격), 강공격은 방패 휘두르기(넉백↑). Q를 누르고 있다 놓으면 방패를 던짐(오래 누를수록 멀리). 맞히거나 벽에 부딪히면 튕겨 돌아오고, 가까이 가면 주움(나만). 장외로 떨어지면 10초 뒤 다시 생김. 방패가 없으면 보통 공격', cd: '누르고 있다 놓기' },
   tentacle: { name: '촉수', desc: '등 뒤 촉수 4개. 약공격(J)은 위 촉수 2개, 강공격(K)은 아래 촉수 2개를 번갈아 뻗어 공격 (촉수마다 따로 쿨 1.5초). Q는 아래 촉수 2개로 땅을 짚고 8초간 중력 없이 WASD로 이동, 넉백 거의 없음 (맨 밑 바닥 아래로는 못 감, 그동안 아래 촉수 공격·점멸·화염 돌진 불가 — K도 위 촉수로)', cd: '쿨 18초' },
+  flash:    { name: '섬광', desc: '내 자리에서 섬광이 터져 주변을 살짝 밀어내고, 가까울수록 상대 화면이 오래 하얘짐. 터진 자리엔 4초간 빛 자국이 남아 나 말고는 그 안이 안 보임', cd: '쿨 10초' },
+  flood:    { name: '홍수', desc: 'Q마다 아래에서 물이 차오름 (여러 번 쓰면 더 높이). 나는 물속을 자유롭게 헤엄치고, 다른 사람은 느려지고 공격·점프가 약해짐(물속 점프는 무한). 머리가 잠기면 숨방울 10개가 1초에 하나씩 줄고 다 떨어지면 가라앉음. 물속에선 불 무효·터렛 고장·번개 스턴↑·얼음 게이지↑·투사체와 돌진이 느려짐', cd: '쿨 12초' },
   ghost:    { name: '귀신', desc: '목숨을 다 잃으면 마지막 5초간 귀신이 됨 (중력·벽 무시, WASD 이동, 안 맞음). 그동안 한 명을 3번 때리면 그 사람도 장외 → 마지막 상대였다면 귀신이 승리 (패시브)', cd: '패시브' },
   starlight: { name: '별빛', desc: '별 카운트(처음 1개, 10초마다·죽을 때마다 +1, 최대 5)를 모두 써서 하늘에서 사선으로 별비를 쏟음. 별이 많을수록 별이 많고 크고 세게 밀어냄', cd: '별 1개 이상' },
 };
@@ -63,7 +65,7 @@ const SKILL_COLOR = {
   sword: '#cfe3ff', blackflash: '#c0263a', lightning: '#ffe94a', undying: '#ffd27a',
   hulk: '#5fd35a', fire: '#ff5a1f', ice: '#8fdcff', turret: '#a7b2c4', error: '#39ff88', sun: '#ffc21a',
   wind: '#b8f2e6', archer: '#c98b4a', time: '#7c9cff', combo: '#ff5fa2', reflect: '#e0f0ff', invert: '#c2185b', atom: '#5ad8ff', mine: '#8a8f6a',
-  ninja: '#5b6b8a', gamble: '#3fd07a', starlight: '#ffe27a', shield: '#c9a24a', tentacle: '#3a2a4a', ghost: '#d8d8f0',
+  ninja: '#5b6b8a', gamble: '#3fd07a', starlight: '#ffe27a', shield: '#c9a24a', tentacle: '#3a2a4a', ghost: '#d8d8f0', flash: '#fff6b0', flood: '#3a9ad8',
 };
 // 더블 모드에서 같이 못 쓰는 조합 (서버 game.js와 같음)
 const WEAPONS = ['sword', 'archer', 'ninja', 'shield', 'tentacle'];
@@ -757,6 +759,16 @@ function onEvent(ev) {
     particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.5, max: 0.5, r: 220, c: '255,255,255' });
     shake = 22;
     banners.push({ text: `${ev.n} 장외!`, life: 1.2, max: 1.2, small: true });
+  } else if (ev.k === 'flash') {
+    particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.5, max: 0.5, r: 300, c: '255,250,210' });
+    for (let i = 0; i < 26; i++) { const a = Math.random() * Math.PI * 2, sp = 200 + Math.random() * 500; particles.push({ x: ev.x, y: ev.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.4, max: 0.4, c: i % 2 ? '#ffffff' : '#fff3a0', r: 4, nograv: true }); }
+    shake = Math.max(shake, 10);
+  } else if (ev.k === 'flood') {
+    banners.push({ text: ev.lava ? '용암이 차오른다!' : '홍수!', life: 1.3, max: 1.3, small: true, color: ev.lava ? '#ff8a3d' : '#7fc8ff' });
+  } else if (ev.k === 'boing') {
+    for (let i = 0; i < 6; i++) particles.push({ x: ev.x + (Math.random() - 0.5) * 30, y: ev.y, vx: (Math.random() - 0.5) * 200, vy: -Math.random() * 200, life: 0.3, max: 0.3, c: i % 2 ? '#ff3b4a' : '#2a7af0', r: 3 });
+  } else if (ev.k === 'fizz') {
+    for (let i = 0; i < 8; i++) particles.push({ x: ev.x + (Math.random() - 0.5) * 20, y: ev.y, vx: (Math.random() - 0.5) * 60, vy: -60 - Math.random() * 80, life: 0.6, max: 0.6, c: 'rgba(230,230,240,0.7)', r: 6, nograv: true });
   } else if (ev.k === 'kickout') {
     banners.push({ text: `${ev.n}님이 방에서 나갔어요 (추방)`, life: 1.8, max: 1.8, small: true, color: '#ffb3b3' });
   } else if (ev.k === 'randskill') {
@@ -1128,6 +1140,52 @@ function drawStage() {
     ctx.fillStyle = 'rgba(0,0,0,0.25)'; roundRect(p.x + 4, p.y + 6, p.w, 14, 7); ctx.fill();
     ctx.fillStyle = th.plat; roundRect(p.x, p.y, p.w, 14, 7); ctx.fill();
     ctx.fillStyle = th.platHi; ctx.fillRect(p.x + 8, p.y + 2, p.w - 16, 3);
+  }
+}
+// 트램펄린: 다리 + 빨강·파랑 테두리 + 출렁이는 매트
+function drawTramps(time) {
+  for (const t of STAGE.tramps || []) {
+    const sag = (latest && latest.p.some((q) => q.x > t.x && q.x < t.x + t.w && Math.abs(q.y - t.y) < 30)) ? 8 : 2 + Math.sin(time / 300 + t.x) * 1;
+    ctx.strokeStyle = '#3a3f4a'; ctx.lineWidth = 4;
+    for (const lx of [t.x + 8, t.x + t.w - 8]) { ctx.beginPath(); ctx.moveTo(lx, t.y); ctx.lineTo(lx - 6, t.y + 26); ctx.moveTo(lx, t.y); ctx.lineTo(lx + 6, t.y + 26); ctx.stroke(); }
+    ctx.fillStyle = '#1a1a24'; ctx.beginPath(); ctx.moveTo(t.x + 4, t.y); ctx.quadraticCurveTo(t.x + t.w / 2, t.y + sag * 2, t.x + t.w - 4, t.y); ctx.lineTo(t.x + t.w - 4, t.y + 4); ctx.quadraticCurveTo(t.x + t.w / 2, t.y + sag * 2 + 4, t.x + 4, t.y + 4); ctx.fill();
+    const segs = Math.max(4, Math.floor(t.w / 18));
+    for (let i = 0; i < segs; i++) { ctx.fillStyle = i % 2 ? '#2a7af0' : '#ff3b4a'; const x1 = t.x + (i / segs) * t.w; ctx.fillRect(x1, t.y - 4, t.w / segs + 0.5, 6); }
+    ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.fillRect(t.x + 2, t.y - 4, t.w - 4, 1.5);
+  }
+}
+// 홍수 물(용암): 반투명이라 안이 다 보임
+function drawWater(state, time) {
+  if (!state.wt) return;
+  const [wy, lava] = state.wt, W2 = STAGE.width + 800, H2 = STAGE.height + 800;
+  const g = ctx.createLinearGradient(0, wy, 0, STAGE.height + 200);
+  if (lava) { g.addColorStop(0, 'rgba(255,150,40,0.5)'); g.addColorStop(1, 'rgba(200,40,10,0.68)'); }
+  else { g.addColorStop(0, 'rgba(80,170,240,0.38)'); g.addColorStop(1, 'rgba(20,60,150,0.6)'); }
+  ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(-400, H2);
+  for (let x = -400; x <= W2 - 400; x += 24) ctx.lineTo(x, wy + Math.sin(x / 60 + time / 400) * 5);
+  ctx.lineTo(W2 - 400, H2); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = lava ? 'rgba(255,230,120,0.9)' : 'rgba(220,245,255,0.85)'; ctx.lineWidth = 3; ctx.beginPath();
+  for (let x = -400; x <= W2 - 400; x += 24) ctx.lineTo(x, wy + Math.sin(x / 60 + time / 400) * 5);
+  ctx.stroke();
+  // 물방울·용암 거품
+  ctx.fillStyle = lava ? 'rgba(255,220,120,0.6)' : 'rgba(230,248,255,0.5)';
+  for (let i = 0; i < 18; i++) { const bx = (i * 173 + time / 20) % STAGE.width, by = wy + 20 + ((i * 97 + time / 15) % Math.max(40, STAGE.height - wy)); ctx.beginPath(); ctx.arc(bx, STAGE.height + wy - by + 40 > wy ? by : wy + 30, 2 + (i % 3), 0, Math.PI * 2); ctx.fill(); }
+}
+// 섬광 자국: 내 것(또는 우리 팀 것)은 테두리만, 남의 것은 안이 안 보이게 하얗게
+function drawFlashZones(state, time) {
+  const me = state.p.find((q) => q.id === myId);
+  for (const f of state.fz || []) {
+    const mine = f.o === myId || (state.md && state.md[0] && me && f.tm === me.tm);
+    if (mine) {
+      ctx.strokeStyle = `rgba(255,250,200,${0.5 * f.a})`; ctx.lineWidth = 2; ctx.setLineDash([8, 6]);
+      ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+      continue;
+    }
+    const g = ctx.createRadialGradient(f.x, f.y, f.r * 0.2, f.x, f.y, f.r * 1.15);
+    g.addColorStop(0, `rgba(255,255,250,${0.99 * f.a})`); g.addColorStop(0.75, `rgba(255,252,225,${0.97 * f.a})`); g.addColorStop(1, 'rgba(255,250,210,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(f.x, f.y, f.r * 1.15, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = `rgba(255,240,150,${0.35 * f.a})`;
+    for (let i = 0; i < 6; i++) { const a = time / 600 + i; ctx.beginPath(); ctx.arc(f.x + Math.cos(a) * f.r * 0.6, f.y + Math.sin(a * 1.3) * f.r * 0.5, f.r * 0.25, 0, Math.PI * 2); ctx.fill(); }
   }
 }
 function drawPlayer(p, time) {
@@ -1838,6 +1896,16 @@ function finishPlayer(p, x, y, G, light, ownerId, baseAlpha, isClone, time) {
     const sh = ((time / 3) % (mh + 30)) - 15;
     ctx.beginPath(); ctx.moveTo(mx + 2, my + sh); ctx.lineTo(mx + mw - 2, my + sh - 10); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(mx + 3, my + sh + 12); ctx.lineTo(mx + mw - 3, my + sh + 4); ctx.stroke();
+  }
+  if (p.br != null) {
+    // 숨방울: 남은 개수만큼 (머리 위)
+    const sy5 = y - PH * G - 28 - (p.b ? 12 : 0);
+    for (let i = 0; i < 10; i++) {
+      const sx5 = x - 40 + i * 9;
+      ctx.strokeStyle = 'rgba(220,245,255,0.9)'; ctx.lineWidth = 1.2;
+      ctx.fillStyle = i < p.br ? 'rgba(170,225,255,0.85)' : 'rgba(255,255,255,0.08)';
+      ctx.beginPath(); ctx.arc(sx5, sy5, 3.6, 0, Math.PI * 2); ctx.fill(); if (i < p.br) ctx.stroke();
+    }
   }
   if (p.mk > 0) {
     // 귀신 표식: 3개 차면 장외
@@ -2658,6 +2726,7 @@ function frame(now) {
     if (rot) { ctx.translate(canvas.width / 2, canvas.height / 2); ctx.rotate(rot); ctx.translate(-canvas.width / 2, -canvas.height / 2); }
     ctx.scale(scale * STAGE.zoom, scale * STAGE.zoom);
     drawStage();
+    drawTramps(now);
     drawSlashes(latest, now);
     drawTurrets(latest, now);
     for (const q of latest.p) if (q.ts) {
@@ -2676,6 +2745,8 @@ function frame(now) {
     interpolatedPlayers('cl').forEach((c) => drawPlayer(c, now));
     players.filter((p) => p.id !== myId).forEach((p) => drawPlayer(p, now));
     players.filter((p) => p.id === myId).forEach((p) => drawPlayer(p, now));
+    drawWater(latest, now);
+    drawFlashZones(latest, now);
     drawParticles(dt);
     drawSmoke(latest.sm || [], now);
     drawBlizzard(latest, dt, now);
@@ -2693,6 +2764,8 @@ function frame(now) {
     ctx.restore();
     ctx.save(); ctx.translate(offX, offY); ctx.scale(scale, scale);
     if (meE && meE.er) drawGlitch();
+    const meB = latest.p.find((q) => q.id === myId);
+    if (meB && meB.bl) { ctx.fillStyle = `rgba(255,255,248,${Math.min(0.97, meB.bl / 0.9)})`; ctx.fillRect(-2000, -2000, 6000, 6000); }   // 섬광에 눈부심: 화면이 하얗게
     drawHUD(latest, players);
     drawPhase(latest, players, dt);
     ctx.restore();

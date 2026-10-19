@@ -80,6 +80,11 @@ const SKILLS = {
   tentacle: { name: '촉수', cd: 18, anchor: 8, reach: 150, out: 0.13, hold: 0.07, back: 0.16, gap: 1.5, dmg: 6, baseKB: 250, growthKB: 9, anchorKB: 0.2, speed: 360 },
   // 귀신: 목숨이 다 없어지면 5초간 귀신(중력·벽 무시, WASD 이동, 안 맞음). 한 명을 3번 때리면 그 사람도 장외
   ghost:    { name: '귀신', time: 5, marks: 3, speed: 430 },
+  // 섬광: 내 자리에서 섬광이 터짐 → 주변을 살짝 밀고, 가까울수록 오래 화면이 하얘짐. 터진 자리엔 몇 초간 (나 말고는) 안이 안 보이는 빛 자국
+  flash:    { name: '섬광', cd: 10, radius: 210, zoneTime: 4, kbR: 260, kb: 300, blindR: 700, blindMax: 3 },
+  // 홍수: Q마다 아래에서 물이 참 (여러 번 쓰면 더 높이). 홍수 사용자는 헤엄치고, 다른 사람은 느려지고 숨이 참
+  flood:    { name: '홍수', cd: 12, rise: 120, maxAbove: 280, riseSpeed: 140, hold: 9, recede: 22, breath: 10,
+              moveMul: 0.55, jumpMul: 0.7, atkMul: 0.6, swim: 1.15, proj: 0.45, dash: 0.5, stunMul: 1.6, iceMul: 1.6 },
   turret:   { name: '터렛', cd: 12, max: 3, hp: 4, range: 560, fireEvery: 0.9, bulletSpeed: 820, bulletLife: 0.9, dmg: 3, baseKB: 210, growthKB: 5 },
 };
 const SKILL_IDS = Object.keys(SKILLS);
@@ -171,9 +176,12 @@ class Player {
     this.parT = 0; this.parOrigin = null;
     this.inside = false;          // 기생 중이라 몸이 사라진 상태
     this.controller = null;       // 나를 조종 중인 기생자 id
+    this.breath = 10; this.blindT = 0;
     this.shieldHeld = true; this.shieldBack = 0; this.blockT = 0; this.blockGapT = 0; this.shCharge = 0;   // 방패
     this.tents = [0, 1, 2, 3].map(() => ({ t: 0, cd: 0, ang: 0, hit: null })); this.anchorT = 0; this.anchorFloor = 0;   // 촉수
     this.ghostT = 0; this.gMarks = {};   // 귀신
+    this.breath = SKILLS.flood.breath; this.blindT = 0;   // 홍수 숨 · 섬광에 눈부심
+    this.boingAt = -9;
   }
 }
 
@@ -190,6 +198,8 @@ class Sim {
     this.mines = [];         // 지뢰
     this.logs = [];          // 닌자 통나무(눈사람)
     this.shields = [];       // 던진 방패
+    this.flashes = [];       // 섬광 자국 { owner, x, y, r, t }
+    this.water = null;       // 홍수 물 { y, target, lastFill, lava }
     this.starRain = [];      // 별빛: 내리는 중인 별비 { owner, n, left, timer, dir, cx }
     this.starBits = [];      // 별빛: 떨어지는 별 하나하나
     this.winds = [];         // 바람 소용돌이
@@ -404,7 +414,7 @@ class Sim {
   }
   clearField() {
     this.clones.clear(); this.smokes = []; this.slashes = [];
-    this.turrets = []; this.bullets = []; this.blizzards = []; this.arrows = []; this.winds = []; this.timeSaves = new Map(); this.mines = []; this.logs = []; this.starRain = []; this.starBits = []; this.shields = [];
+    this.turrets = []; this.bullets = []; this.blizzards = []; this.arrows = []; this.winds = []; this.timeSaves = new Map(); this.mines = []; this.logs = []; this.starRain = []; this.starBits = []; this.shields = []; this.flashes = []; this.water = null;
   }
   removeTurrets(id) {
     this.turrets = this.turrets.filter((t) => t.owner !== id);
@@ -418,7 +428,7 @@ class Sim {
   // x 위치 아래(또는 같은 높이)에 있는 가장 가까운 땅/발판
   surfaceBelow(x, y) {
     let best = null;
-    for (const s of [...this.stage.solids, ...this.stage.platforms]) {
+    for (const s of [...this.stage.solids, ...this.stage.platforms, ...(this.stage.tramps || [])]) {
       if (x >= s.x - 4 && x <= s.x + s.w + 4 && s.y >= y - 4 && (!best || s.y < best.y)) best = s;
     }
     return best;
@@ -445,6 +455,17 @@ class Sim {
     if (p.skill === 'gamble') p.skillCd = SKILLS.gamble.cd; else p.skillCdB = SKILLS.gamble.cd;
     const g = p.gam;
     this.ev({ k: 'gamble', x: r0(p.x), y: r0(p.y - bh(p) / 2), pid: p.id, n: p.name, auto: auto ? 1 : 0, v: [g.reach, g.kbOut, g.kbIn, g.jump, g.speed, g.size] });
+  }
+  // ---------------- 홍수 물 ----------------
+  inWater(p) { return !!this.water && p.y - bh(p) * 0.5 > this.water.y; }          // 몸 가운데가 물에 잠김
+  headUnder(p) { return !!this.water && p.y - bh(p) > this.water.y + 4; }         // 머리까지 잠김
+  waterK(y) { return this.water && y > this.water.y ? SKILLS.flood.proj : 1; }    // 물속 투사체 속도
+  updateWater(dt) {
+    const w = this.water; if (!w) return;
+    const s = SKILLS.flood;
+    if (this.time - w.lastFill > s.hold) w.target += s.recede * dt;
+    w.y = approach(w.y, w.target, s.riseSpeed * dt);
+    if (w.target >= this.stage.height + 40 && w.y >= this.stage.height + 39) this.water = null;
   }
   // x 위치에서 y 아래로 가장 가까운 땅 높이 (빗면 포함). 없으면 null
   groundBelow(x, y) {
@@ -589,6 +610,9 @@ class Sim {
     this.updateLogs(dt);
     this.updateStars(targets, dt);
     this.updateShields(targets, dt);
+    this.updateWater(dt);
+    for (const f of this.flashes) f.t -= dt;
+    this.flashes = this.flashes.filter((f) => f.t > 0);
     for (const p of list) { if (p.ghostT > 0) { p.ghostT -= dt; p.invincible = Math.max(p.invincible, 0.1); if (p.ghostT <= 0) this.endGhost(p); } }
     this.updateWinds(targets, dt);
     for (const p of list) if (p.alive && !p.inside) this.checkBlast(p);
@@ -610,7 +634,7 @@ class Sim {
       mines: structuredClone(this.mines), turrets: structuredClone(this.turrets), bullets: structuredClone(this.bullets), slashes: structuredClone(this.slashes),
       arrows: structuredClone(this.arrows), winds: structuredClone(this.winds), smokes: structuredClone(this.smokes),
       blizzards: structuredClone(this.blizzards), logs: structuredClone(this.logs), starRain: structuredClone(this.starRain),
-      starBits: this.starBits.map((b) => ({ ...b, hit: [...b.hit] })), shields: structuredClone(this.shields),
+      starBits: this.starBits.map((b) => ({ ...b, hit: [...b.hit] })), shields: structuredClone(this.shields), flashes: structuredClone(this.flashes), water: this.water ? { ...this.water } : null,
     };
   }
   restoreWorld(snap, caster) {
@@ -647,6 +671,8 @@ class Sim {
     this.starRain = structuredClone(snap.starRain || []).filter((r) => this.players.has(r.owner));
     this.starBits = (snap.starBits || []).filter((b) => this.players.has(b.owner)).map((b) => ({ ...b, hit: new Set(b.hit) }));
     this.shields = structuredClone(snap.shields || []).filter((q) => this.players.has(q.owner));
+    this.flashes = structuredClone(snap.flashes || []);
+    this.water = snap.water ? { ...snap.water } : null;
   }
 
   tickTimers(p, dt) {
@@ -691,6 +717,10 @@ class Sim {
       p.hulkS = approach(p.hulkS || 1, target, h.grow * dt);
     } else p.hulkS = 1;
 
+    if (p.blindT > 0) p.blindT = Math.max(0, p.blindT - dt);
+    // 홍수: 홍수 사용자 말고는 머리가 잠기면 숨방울이 1초에 하나씩 줄어듦 (나오면 다시 참)
+    if (!has(p, 'flood') && this.headUnder(p)) p.breath = Math.max(0, p.breath - dt);
+    else p.breath = Math.min(SKILLS.flood.breath, p.breath + 3 * dt);
     if (p.blockT > 0) p.blockT = Math.max(0, p.blockT - dt);
     if (p.blockGapT > 0) p.blockGapT = Math.max(0, p.blockGapT - dt);
     if (p.anchorT > 0) p.anchorT = Math.max(0, p.anchorT - dt);
@@ -723,6 +753,8 @@ class Sim {
     if (p.sunT > 0) moveMul *= SKILLS.sun.speedMul;
     if (p.drawT > 0) moveMul *= 0.45;                     // 시위 당기는 중엔 느림
     if (p.gam) { moveMul *= p.gam.speed; jumpMul *= p.gam.jump; }   // 도박: 속도·점프력
+    const wet = this.inWater(p), swimmer = wet && has(p, 'flood') && !p.clone, drown = wet && !swimmer && p.breath <= 0;
+    if (wet && !swimmer) { moveMul *= SKILLS.flood.moveMul; jumpMul *= SKILLS.flood.jumpMul; if (!drown) p.jumpsLeft = Math.max(p.jumpsLeft, 1); }   // 물속: 느림, 점프 약하지만 무한
     const canFight = this.phase === 'playing' || this.phase === 'waiting';
     const flying = p.flyT > 0;
 
@@ -736,7 +768,7 @@ class Sim {
       const speed = CONFIG.RUN_SPEED * moveMul * (heavyLock && p.grounded ? 0.25 : 1);
       p.vx = approach(p.vx, dir * speed, (p.grounded ? CONFIG.GROUND_ACCEL : CONFIG.AIR_ACCEL) * Math.min(1, moveMul) * dt);
       if (dir !== 0 && !attacking) p.facing = dir;
-      if (pressed('u') && !flying && !(p.anchorT > 0) && !(p.ghostT > 0)) {
+      if (pressed('u') && !flying && !(p.anchorT > 0) && !(p.ghostT > 0) && !drown && !swimmer) {
         if (p.grounded) {
           p.vy = -CONFIG.JUMP_SPEED * jumpMul; p.grounded = false;
           this.ev({ k: 'jump', x: r0(p.x), y: r0(p.y), pid: p.ownerId || p.id });
@@ -800,15 +832,27 @@ class Sim {
       if (p.y > p.anchorFloor) { p.y = p.anchorFloor; if (p.vy > 0) p.vy = 0; }
       return;
     }
+    if (swimmer && p.hitstun <= 0 && !(p.fdashT > 0)) {
+      // 홍수 사용자: 물속을 자유롭게 헤엄 (수면에서 위로 누르면 물 밖으로 뛰어오름)
+      const sp = CONFIG.RUN_SPEED * SKILLS.flood.swim * moveMul;
+      p.vx = approach(p.vx, dir * sp, 3000 * dt);
+      if (inp.u && pressed('u') && p.y - bh(p) < this.water.y + 24) { p.vy = -CONFIG.JUMP_SPEED * 0.95; }
+      else p.vy = approach(p.vy, ((inp.d ? 1 : 0) - (inp.u ? 1 : 0)) * sp, 3000 * dt);
+      this.moveAndCollide(p, dt);
+      return;
+    }
     if (p.fdashT > 0) {
-      // 화염 돌진: 수평으로 쭉 (중력 없음)
+      // 화염 돌진: 수평으로 쭉 (중력 없음) — 물속이면 느림
       p.fdashT -= dt;
-      p.vx = p.facing * SKILLS.fire.dashSpeed; p.vy = 0;
+      p.vx = p.facing * SKILLS.fire.dashSpeed * (wet ? SKILLS.flood.dash : 1); p.vy = 0;
     } else if (flying) {
       // 비행: 점프 키를 누르고 있으면 올라가고, 떼면 천천히 내려감
       const s = SKILLS.fly;
       const target = inp.u && p.flyDownT <= 0 && p.hitstun <= 0 ? -s.up : s.down;
       p.vy = approach(p.vy, target, 2600 * dt);
+    } else if (wet) {
+      // 물속: 천천히 가라앉음. 숨이 다 떨어지면 점점 더 빨리 가라앉음
+      p.vy = drown ? approach(p.vy, 260, 900 * dt) : Math.min(p.vy + CONFIG.GRAVITY * 0.35 * dt, 240);
     } else {
       p.vy = Math.min(p.vy + CONFIG.GRAVITY * dt, CONFIG.MAX_FALL);
     }
@@ -857,7 +901,8 @@ class Sim {
       const len = Math.hypot(dx, dy); dx /= len; dy /= len;
       const x0 = p.x, y0 = p.y;
       let bx = p.x, by = p.y;
-      for (let t = 10; t <= s.distance; t += 10) {
+      const dist = s.distance * (this.inWater(p) ? SKILLS.flood.dash : 1);   // 물속이면 짧게
+      for (let t = 10; t <= dist; t += 10) {
         const nx = x0 + dx * t, ny = y0 + dy * t;
         if (this.insideSolid(nx, ny)) break;
         bx = nx; by = ny;
@@ -990,7 +1035,7 @@ class Sim {
       const pts = [];
       for (const { o } of cands) {
         o.damage = Math.min(o.damage + s.damage, 999);
-        o.stunT = Math.max(o.stunT || 0, s.stun);
+        o.stunT = Math.max(o.stunT || 0, s.stun * (this.inWater(o) ? SKILLS.flood.stunMul : 1));   // 물속이면 더 오래
         o.attack = null; o.vx = 0; if (o.vy < 0) o.vy = 0;
         o.lastHitBy = p.id; o.lastHitAt = this.tickCount;
         if (o.clone) this.hitClone(o);
@@ -1067,6 +1112,29 @@ class Sim {
       const s = SKILLS.atom;
       p.eBoostT = s.boost; p.skillCd = s.cd;
       this.ev({ k: 'atomq', x: r0(p.x), y: r0(cy), pid: p.id });
+    } else if (k === 'flash') {
+      const s = SKILLS.flash;
+      this.flashes.push({ id: ++this.evSeq, owner: p.id, team: p.team, x: r0(cx), y: r0(cy), r: s.radius, t: s.zoneTime, max: s.zoneTime });
+      for (const o of others()) {
+        if (o.invincible > 0) continue;
+        const d = Math.hypot(o.x - cx, o.y - bh(o) / 2 - cy);
+        if (d < s.kbR && !(o.rockT > 0)) {   // 살짝 밀려남
+          const dir = Math.sign(o.x - cx) || 1, k2 = s.kb * (1 - d / s.kbR * 0.5) * (o.anchorT > 0 ? SKILLS.tentacle.anchorKB : 1);
+          o.vx = dir * k2; o.vy = Math.min(o.vy, -k2 * 0.6); o.grounded = false; o.hitstun = Math.max(o.hitstun, 0.18); o.attack = null;
+          o.lastHitBy = p.id; o.lastHitAt = this.tickCount;
+        }
+        if (!o.clone && d < s.blindR) o.blindT = Math.max(o.blindT || 0, s.blindMax * (1 - d / s.blindR) + 0.4);   // 가까울수록 오래 눈부심
+      }
+      p.skillCd = s.cd;
+      this.ev({ k: 'flash', x: r0(cx), y: r0(cy), pid: p.id });
+    } else if (k === 'flood') {
+      // 아래에서 물이 차오름 (또 쓰면 더 높이)
+      const s = SKILLS.flood, bottom = this.stage.height + 40, top = this.stage.floor - s.maxAbove;
+      if (!this.water) this.water = { y: bottom, target: bottom, lastFill: 0, lava: false };
+      this.water.target = Math.max(top, Math.min(this.water.target, bottom) - s.rise - (this.water.target >= bottom ? bottom - this.stage.floor - 20 : 0));
+      this.water.lastFill = this.time; this.water.lava = skinOn(p, 'lava');
+      p.skillCd = s.cd;
+      this.ev({ k: 'flood', x: r0(p.x), y: r0(this.water.target), pid: p.id, lava: this.water.lava ? 1 : 0 });
     } else if (k === 'tentacle') {
       // 아래 촉수 2개(K·L)로 땅을 짚음: 8초간 중력 없이 이동. 가장 낮은 땅 높이 아래로는 못 내려감
       const s = SKILLS.tentacle;
@@ -1300,7 +1368,7 @@ class Sim {
       if (!sh.ground) {
         const prevY = sh.y;
         if (sh.fly > 0) sh.fly -= dt; else sh.vy = Math.min(sh.vy + s.gravity * dt, CONFIG.MAX_FALL);
-        sh.x += sh.vx * dt; sh.y += sh.vy * dt;
+        { const k = this.waterK(sh.y); sh.x += sh.vx * dt * k; sh.y += sh.vy * dt * k; }
         const bounce = () => { sh.vx = -sh.vx * s.back; sh.vy = -260; sh.fly = 0; sh.bounced = true; };
         if (this.solidAt(sh.x + Math.sign(sh.vx) * 24, sh.y)) { bounce(); sh.x -= Math.sign(sh.vx) * -4; this.ev({ k: 'shclang', x: r0(sh.x), y: r0(sh.y) }); }
         else if (sh.vy >= 0) { const ly = this.landingY(sh.x, prevY + 20, sh.y + 20); if (ly != null) { sh.y = ly - 20; sh.vx = 0; sh.vy = 0; sh.ground = true; } }
@@ -1416,7 +1484,7 @@ class Sim {
     this.starRain = this.starRain.filter((r) => r.left > 0 && this.players.has(r.owner));
     if (!this.starBits.length) return;
     for (const b of this.starBits) {
-      b.t -= dt; b.x += b.vx * dt; b.y += b.vy * dt;
+      { const k = this.waterK(b.y); b.t -= dt; b.x += b.vx * dt * k; b.y += b.vy * dt * k; }
       if (this.solidAt(b.x, b.y + b.r * 0.5) || b.y > this.stage.blast.bottom) { b.t = 0; this.ev({ k: 'starpop', x: r0(b.x), y: r0(b.y) }); continue; }
       if (this.phase === 'countdown' || this.phase === 'ended') continue;
       const owner = this.players.get(b.owner); if (!owner) { b.t = 0; continue; }
@@ -1460,7 +1528,7 @@ class Sim {
       } else if (!a.ku) {
         a.vy += s.gravity * dt;
       }
-      a.x += a.vx * dt; a.y += a.vy * dt;
+      { const k = this.waterK(a.y); a.x += a.vx * dt * k; a.y += a.vy * dt * k; }
       if (this.solidAt(a.x, a.y)) { a.t = 0; this.ev({ k: 'thunk', x: r0(a.x), y: r0(a.y) }); continue; }
       if (this.phase === 'countdown' || this.phase === 'ended') continue;
       const def = a.ku ? { damage: SKILLS.ninja.dmg, baseKB: SKILLS.ninja.baseKB, growthKB: SKILLS.ninja.growthKB, lift: 0.3 }
@@ -1626,7 +1694,7 @@ class Sim {
   // 떨어지는 물건(터렛·지뢰)이 이번 틱에 땅/발판/빗면에 닿았으면 그 높이
   landingY(x, prevY, y) {
     let best = null;
-    for (const sf of [...this.stage.solids, ...this.stage.platforms]) if (x >= sf.x && x <= sf.x + sf.w && prevY <= sf.y && y >= sf.y && (best == null || sf.y < best)) best = sf.y;
+    for (const sf of [...this.stage.solids, ...this.stage.platforms, ...(this.stage.tramps || [])]) if (x >= sf.x && x <= sf.x + sf.w && prevY <= sf.y && y >= sf.y && (best == null || sf.y < best)) best = sf.y;
     for (const sl of this.stage.slopes || []) { if (x < sl.x1 || x > sl.x2) continue; const sy = slopeY(sl, x); if (prevY <= sy + 2 && y >= sy && (best == null || sy < best)) best = sy; }
     return best;
   }
@@ -1681,6 +1749,15 @@ class Sim {
         if (p.vy >= 0 && prevY <= pl.y && p.y >= pl.y) { p.y = pl.y; p.vy = 0; p.grounded = true; }
       }
     }
+    // 트램펄린: 위에서 밟으면 높이 튕겨 오름 (↓를 누르고 있으면 살짝만)
+    for (const tr of this.stage.tramps || []) {
+      if (p.x + hw * 0.5 <= tr.x || p.x - hw * 0.5 >= tr.x + tr.w) continue;
+      if (p.vy >= 0 && prevY <= tr.y && p.y >= tr.y) {
+        p.y = tr.y; p.vy = -(tr.power || 1500) * (p.input && p.input.d ? 0.35 : 1);
+        p.grounded = false; p.jumpsLeft = CONFIG.EXTRA_JUMPS; p.hitstun = Math.min(p.hitstun, 0.05);
+        if (this.time - (p.boingAt || -9) > 0.15) { p.boingAt = this.time; this.ev({ k: 'boing', x: r0(p.x), y: r0(tr.y), pid: p.ownerId || p.id }); }
+      }
+    }
     if (p.grounded) p.jumpsLeft = Math.max(p.jumpsLeft, CONFIG.EXTRA_JUMPS);
     if (p.grounded && p.jumpsLeft > CONFIG.EXTRA_JUMPS) p.jumpsLeft = CONFIG.EXTRA_JUMPS;
   }
@@ -1690,12 +1767,12 @@ class Sim {
     this.updateTentacles(p, list);
     if (!p.attack) return;
     const atk = p.attack, def = ATTACKS[atk.type];
-    atk.t += dt * (p.slow > 0 ? SKILLS.slow.attackMul : 1);
+    atk.t += dt * (p.slow > 0 ? SKILLS.slow.attackMul : 1) * (this.inWater(p) && !has(p, 'flood') ? SKILLS.flood.atkMul : 1);
     if (p.hitstun > 0 || p.stunT > 0 || p.iceT > 0) { p.attack = null; return; }
     const sword = has(p, 'sword') && !p.clone;
     // 검사 약공격: 보는 방향으로 돌진하며 벰
     if (sword && atk.type === 'light' && atk.t < def.startup + def.active) {
-      p.vx = p.facing * SKILLS.sword.lunge * (p.slow > 0 ? SKILLS.slow.moveMul : 1);
+      p.vx = p.facing * SKILLS.sword.lunge * (p.slow > 0 ? SKILLS.slow.moveMul : 1) * (this.inWater(p) ? SKILLS.flood.dash : 1);
     }
     if (atk.t >= def.startup && atk.t < def.startup + def.active && this.phase !== 'countdown' && this.phase !== 'ended') {
       // 흑섬: Q를 누른 직후에 공격이 맞기 시작하면 흑섬
@@ -1746,9 +1823,10 @@ class Sim {
   // 화염·얼음: 근접 공격이 맞았을 때 추가 효과
   elementHit(a, t, type, dir) {
     if (a.clone) return;
-    if (has(a, 'fire')) this.ignite(t, a, SKILLS.fire.burnHits, dir);
-    if (a.sunT > 0) this.ignite(t, a, SKILLS.sun.burnHits, dir);
-    if (has(a, 'ice')) this.chill(t, type === 'heavy' ? SKILLS.ice.fillHeavy : SKILLS.ice.fillLight, iceSkin(a));
+    const wet = this.inWater(t);   // 물속: 불은 안 붙고, 얼음 게이지는 더 빨리 참
+    if (has(a, 'fire') && !wet) this.ignite(t, a, SKILLS.fire.burnHits, dir);
+    if (a.sunT > 0 && !wet) this.ignite(t, a, SKILLS.sun.burnHits, dir);
+    if (has(a, 'ice')) this.chill(t, (type === 'heavy' ? SKILLS.ice.fillHeavy : SKILLS.ice.fillLight) * (wet ? SKILLS.flood.iceMul : 1), iceSkin(a));
   }
   ignite(t, a, n, dir) {
     // 화염 + 태양을 같이 쓰는 중이면 불 피해 2배
@@ -1770,6 +1848,7 @@ class Sim {
   }
   // 불 붙은 상태(조금씩 밀림) · 얼음 게이지 (눈보라면 계속 참, 아니면 서서히 줄어듦)
   updateElements(p, dt) {
+    if (p.burnN > 0 && this.inWater(p)) { p.burnN = 0; this.ev({ k: 'fizz', x: r0(p.x), y: r0(p.y - bh(p) / 2) }); }   // 물에 들어가면 불이 꺼짐
     if (p.burnN > 0) {
       p.burnT -= dt;
       if (p.burnT <= 0) {
@@ -1786,7 +1865,7 @@ class Sim {
       }
     }
     const bz = this.blizzards.find((b) => this.foe({ id: b.by }, p));
-    if (bz && !(p.frozen > 0)) this.chill(p, SKILLS.ice.blizRate * dt, bz.skin);
+    if (bz && !(p.frozen > 0)) this.chill(p, SKILLS.ice.blizRate * dt * (this.inWater(p) ? SKILLS.flood.iceMul : 1), bz.skin);
     else if (p.iceG > 0 && this.time - p.iceHitAt > 2) p.iceG = Math.max(0, p.iceG - SKILLS.ice.decay * dt);
   }
   // 화염 돌진: 몸 주변에 닿은 상대를 한 번씩 날리고 불붙임
@@ -1824,6 +1903,8 @@ class Sim {
     for (const t of [...this.turrets]) {
       const owner = this.players.get(t.owner);
       if (!owner || !owner.alive) { this.turrets = this.turrets.filter((x) => x !== t); continue; }
+      // 홍수 물에 잠기면 고장
+      if (this.water && t.y - 20 > this.water.y) { this.turrets = this.turrets.filter((x) => x !== t); this.ev({ k: 'tbreak', x: r0(t.x), y: r0(t.y - 30) }); continue; }
       // 중력 (땅이나 발판 위에 멈춤)
       const prevY = t.y;
       t.vy = Math.min(t.vy + CONFIG.GRAVITY * dt, CONFIG.MAX_FALL); t.y += t.vy * dt;
@@ -1860,7 +1941,7 @@ class Sim {
         if (b.ext && this.solidAt(b.x, b.y)) b.ext = false;
         if (!b.ext) continue;                  // 감아 들일 때는 공격 안 됨
       } else {
-        b.t -= dt; b.x += b.vx * dt; b.y += b.vy * dt;
+        { const k = this.waterK(b.y); b.t -= dt; b.x += b.vx * dt * k; b.y += b.vy * dt * k; }
       }
       if (this.solidAt(b.x, b.y)) { b.t = 0; continue; }
       const owner = this.players.get(b.owner);
@@ -1988,7 +2069,7 @@ class Sim {
     const s = SKILLS.sword;
     const def = { damage: s.slashDmg, baseKB: s.slashKB, growthKB: s.slashGrowth, lift: 0.42 };
     for (const sl of this.slashes) {
-      sl.t -= dt; sl.x += sl.vx * dt;
+      sl.t -= dt; sl.x += sl.vx * dt * this.waterK(sl.y);
       const owner = this.players.get(sl.owner);
       if (!owner || this.insideSolid(sl.x, sl.y + 30)) { sl.t = 0; continue; }
       if (this.phase === 'countdown' || this.phase === 'ended') continue;
@@ -2093,6 +2174,7 @@ class Sim {
       an: p.anchorT > 0 ? [Math.round(p.anchorT * 10) / 10, (() => { const g = this.groundBelow(p.x, p.y); return g == null ? 260 : Math.min(600, r0(g - p.y)); })()] : 0,
       bd: p.bot && !p.dummy ? ['easy', 'mid', 'hard'].indexOf(p.diff) : undefined,
       rs: p.randS1 || p.randS2 ? [p.randS1 ? 1 : 0, p.randS2 ? 1 : 0] : 0,
+      br: this.headUnder(p) && !has(p, 'flood') ? Math.ceil(p.breath) : undefined, bl: p.blindT > 0 ? Math.round(p.blindT * 10) / 10 : undefined,
       gh: p.ghostT > 0 ? Math.round(p.ghostT * 10) / 10 : 0,
       mk: (() => { let m = 0; for (const g of this.players.values()) if (g.ghostT > 0 && g.gMarks[p.id]) m = Math.max(m, g.gMarks[p.id]); return m; })(),
     });
@@ -2102,6 +2184,8 @@ class Sim {
       ev: this.recent.slice(-10),
       ar: this.arrows.map((a) => ({ x: r0(a.x), y: r0(a.y), vx: r0(a.vx), vy: r0(a.vy), h: a.homing ? 1 : 0, de: a.de ? 1 : undefined, lf: a.lf ? 1 : undefined, el: a.el || undefined, s: a.big !== 1 ? Math.round(a.big * 10) / 10 : undefined, ku: a.ku || undefined, sw: a.sw || undefined })),
       lg: this.logs.map((l) => ({ x: r0(l.x), y: r0(l.y), sn: l.sn, t: Math.round(l.t * 10) / 10, s: l.big !== 1 ? Math.round(l.big * 10) / 10 : undefined })),
+      fz: this.flashes.map((f) => ({ x: f.x, y: f.y, r: f.r, a: Math.round(Math.min(1, f.t / 0.6) * 100) / 100, o: f.owner, tm: f.team })),
+      wt: this.water ? [r0(this.water.y), this.water.lava ? 1 : 0] : 0,
       shw: this.shields.map((q) => ({ x: r0(q.x), y: r0(q.y), vx: q.ground ? 0 : r0(q.vx), vy: q.ground ? 0 : r0(q.vy), g: q.ground ? 1 : 0, o: q.owner, s: q.big !== 1 ? Math.round(q.big * 10) / 10 : undefined })),
       sb: this.starBits.map((b) => ({ x: r0(b.x), y: r0(b.y), vx: r0(b.vx), vy: r0(b.vy), r: Math.round(b.r) })),
       wd: this.winds.map((w) => { const o = this.players.get(w.owner); return { i: w.id, x: r0(w.x), y: r0(w.y), vx: w.vx, r: o && skinOn(o, 'firetornado') ? 1 : 0 }; }),
@@ -2171,6 +2255,15 @@ function botThink(sim, b) {
     if (b.cfDir > 0) inp.r = 1; else inp.l = 1;
     if (Math.random() < 0.06 && !b.prevInput.u) inp.u = 1;
     if (!b.attack && Math.random() < 0.06) { if (Math.random() < 0.4) inp.h = 1; else inp.a = 1; }
+    return inp;
+  }
+  // 섬광에 눈이 부신 봇: 앞이 안 보여서 허둥지둥 (방향을 바꾸고 아무 데나 휘두름)
+  if (b.blindT > 0.2) {
+    if (!b.bDirT || b.bDirT <= 0) { b.bDir = [-1, 0, 1][Math.floor(Math.random() * 3)]; b.bDirT = 10 + Math.floor(Math.random() * 20); }
+    b.bDirT--;
+    if (b.bDir > 0) inp.r = 1; else if (b.bDir < 0) inp.l = 1;
+    if (!b.attack && Math.random() < 0.07) { if (Math.random() < 0.3) inp.h = 1; else inp.a = 1; }
+    if (!sim.surfaceBelow(b.x + (b.bDir || 0) * 60, b.y) && b.grounded) { inp.l = 0; inp.r = 0; }
     return inp;
   }
   if (b.quakeT > 0) {
@@ -2246,6 +2339,8 @@ function botThink(sim, b) {
       b.seen = b.seen || {};
       if (o.stealth > 0) { if (b.seen[o.id] && !b.seen[o.id].hid) b.seen[o.id].hid = sim.time; continue; }   // 은신: 사라진 순간을 기억
       b.seen[o.id] = { x: o.x, y: o.y, hid: 0 };
+      // 남의 섬광 자국 안에 있는 상대는 안 보임
+      if (sim.flashes.some((f) => sim.foe(f, b) && Math.hypot(o.x - f.x, o.y - bh(o) / 2 - f.y) < f.r * 0.9)) continue;
       // 연기 속에 있는 상대는 봇도 볼 수 없음
       if (sim.smokes.some((s) => Math.hypot(o.x - s.x, o.y - bh(o) / 2 - s.y) < s.r * 0.75)) continue;
       let d = Math.abs(o.x - b.x) + Math.abs(o.y - b.y);
@@ -2286,6 +2381,8 @@ function botThink(sim, b) {
       if (b.flyT > 0 && dy < -40) inp.u = 1;
       // 무적인 상대: 붙어서 기다리다가 무적이 끝날 때 때림
       if (target.invincible > 0.15) b.waitHit = Math.max(b.waitHit || 0, 2);
+      // 홍수 봇은 물속에서 상대 높이로 헤엄쳐 감
+      if (has(b, 'flood') && sim.inWater(b)) { if (dy < -20) inp.u = 1; else if (dy > 20) inp.d = 1; }
       // 상대가 방패로 막고 있으면 정면으로 때리지 않고 잠깐 기다리거나 뒤로 넘어감
       const blocking = target.blockT > 0 && target.facing === -side && Math.abs(dx) < 140;
       if (blocking) { b.waitHit = 8; if (Math.random() < 0.12 && b.grounded) wantJump = true; }
@@ -2328,6 +2425,8 @@ function botThink(sim, b) {
         if (sk === 'mine' && ready && b.grounded && R < 0.03) use(sk);
         if (sk === 'ninja' && ready && (b.damage > 70 && best < 160 || b.hitstun > 0.2) && R < 0.06) use(sk);
         if (sk === 'gamble' && ready && R < 0.01) use(sk);
+        if (sk === 'flash' && ready && best < 260 && R < 0.05) use(sk);
+        if (sk === 'flood' && ready && (target.y >= b.y - 20 || sim.water) && R < 0.025) use(sk);
         if (sk === 'starlight' && b.skillCd <= 0 && b.starN >= 3 && best < 420 && R < 0.04) use(sk);
         if (sk === 'reflect' && ready) {
           // 가까운 적이 공격 중이거나 화살·참격·총알이 날아오면 가끔 반사 시도
@@ -2404,6 +2503,8 @@ function botThink(sim, b) {
     if (b.grounded && (inp.l || inp.r) && Math.abs(b.vx) < 30) { b.stuckT = (b.stuckT || 0) + 1; if (b.stuckT > 12) { wantJump = true; b.stuckT = 0; } }
     else b.stuckT = 0;
   }
+  // 물속(홍수 사용자 아님): 숨이 모자라면 계속 위로 헤엄쳐 올라감
+  if (sim.water && !has(b, 'flood') && sim.headUnder(b) && b.breath < 7) wantJump = true;
   if (wantJump && !b.prevInput.u) inp.u = 1;
   if (inp.s && b.prevInput.s) inp.s = 0;
   if (inp.e && b.prevInput.e) inp.e = 0;

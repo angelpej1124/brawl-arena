@@ -148,6 +148,10 @@
     error: (o) => S.glitch(o), invert: (o) => S.glitch(o), rewind: (o) => S.rewind(o), tsave: (o) => S.chime(o),
     infest: (o) => S.poof(o), unfest: (o) => S.poof(o), atomq: (o) => S.zap(o), homing: (o) => S.zap(o), bfq: (o) => S.zap(o),
     start: () => S.start(), deny: (o) => S.deny(o),
+    flash: (o) => { noise('highpass', 4000, 2000, 0.25, 0.9, o); tone('sine', 3200, 2800, 1.2, 0.08, o); tone('sine', 80, 40, 0.3, 0.6, o); },
+    flood: (o) => { noise('lowpass', 500, 1200, 1.2, 0.6, { ...o, atk: 0.2 }); noise('bandpass', 800, 300, 1.0, 0.3, { ...o, q: 1 }); },
+    boing: (o) => { tone('sine', 180, 520, 0.18, 0.3, o); tone('triangle', 360, 900, 0.15, 0.1, o); },
+    fizz: (o) => noise('highpass', 3000, 6000, 0.5, 0.3, { ...o, atk: 0.02 }),
     block: (o) => { tone('square', 900, 700, 0.08, 0.12, o); noise('bandpass', 3000, 2000, 0.1, 0.35, { ...o, q: 3 }); tone('sine', 1300, 1250, 0.3, 0.1, o); },
     shblock: (o) => S.click(o), shthrow: (o) => S.whoosh(o, true), shclang: (o) => { tone('triangle', 700, 500, 0.2, 0.25, o); noise('bandpass', 2500, 1500, 0.12, 0.35, { ...o, q: 2 }); },
     shpick: (o) => S.click(o), shback: (o) => S.chime(o),
@@ -162,7 +166,7 @@
     starfall: (o) => { [1320, 1568, 1760, 2093, 2637].forEach((f, i) => tone('sine', f, f, 0.6, 0.12, { ...o, delay: i * 0.08 })); },
     starpop: (o) => tone('triangle', 2400 + Math.random() * 800, 1600, 0.12, 0.08, o),
   };
-  const GAP = { starpop: 0.05, hit: 0.035, burn: 0.06, jump: 0.05, jump2: 0.05, thunk: 0.05, bolt: 0.05 };
+  const GAP = { boing: 0.08, starpop: 0.05, hit: 0.035, burn: 0.06, jump: 0.05, jump2: 0.05, thunk: 0.05, bolt: 0.05 };
   // ev: 서버 이벤트, me: 내 캐릭터(거리에 따라 소리 크기·좌우), stageW: 맵 너비
   function event(ev, me, stageW) {
     if (!ac || !opt.sfx || !MAP[ev.k]) return;

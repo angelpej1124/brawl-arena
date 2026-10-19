@@ -3,6 +3,7 @@
 //  월드 크기는 1280 x 720 (큰 맵은 width/height로 따로 지정). 숫자를 바꾸면 맵 모양이 바뀌어요.
 //   solids    : 단단한 땅 (옆·아래에서 못 지나감)
 //   platforms : 위에서만 올라설 수 있는 얇은 발판 (↓로 내려가기)
+//   tramps    : 트램펄린 { x, y, w, power } — 위에서 밟으면 power만큼 튕겨 오름
 //   slopes    : 빗면 { x1, y1, x2, y2 } — 윗면이 기울어진 땅. 걸어서 오르내림 (높은 쪽 끝은 땅에 딱 붙여서 만들기)
 //   spawns    : 라운드 시작 위치 (발 위치)
 //   respawn   : 장외 후 다시 나타나는 위치
@@ -158,18 +159,48 @@
       respawn: { x: 800, y: 130 },
       theme: { sky: ['#5a2a10', '#d8803a', '#ffe0a0'], hill: '#b8703a', grass: '#f0c878', grassHi: '#ffe8b0', dirt: '#c8964e', plat: '#e8b878', platHi: '#fff0d0', orb: 'rgba(255,240,200,', stars: false },
     },
+    // ---- 트램펄린 맵 ----
+    {
+      id: 'trampark', name: '트램펄린 공원', width: 1600, height: 900,
+      // 가운데 구덩이에 큰 트램펄린: 떨어져도 튕겨 올라옴. 양쪽 땅에도 작은 트램펄린
+      solids: [{ x: 180, y: 660, w: 430, h: 80 }, { x: 990, y: 660, w: 430, h: 80 }],
+      tramps: [{ x: 660, y: 790, w: 280, power: 1750 }, { x: 250, y: 660, w: 80, power: 1350 }, { x: 1270, y: 660, w: 80, power: 1350 }],
+      platforms: [{ x: 700, y: 450, w: 200 }, { x: 390, y: 480, w: 150 }, { x: 1060, y: 480, w: 150 }, { x: 240, y: 300, w: 140 }, { x: 1220, y: 300, w: 140 }, { x: 720, y: 230, w: 160 }],
+      spawns: [{ x: 420, y: 660 }, { x: 1180, y: 660 }, { x: 800, y: 450 }, { x: 520, y: 660 }, { x: 1080, y: 660 }, { x: 800, y: 230 }],
+      respawn: { x: 800, y: 130 },
+      theme: { sky: ['#2b2a6b', '#5a4ab8', '#ff9ec8'], hill: '#3a2f7a', grass: '#7fe08a', grassHi: '#c4f5b8', dirt: '#6a4a8a', plat: '#ffd23f', platHi: '#fff3a8', orb: 'rgba(255,220,240,', stars: true },
+    },
+    {
+      id: 'cloudhop', name: '구름 트램펄린', width: 1600, height: 900,
+      // 떠 있는 구름 섬마다 트램펄린 → 높은 발판으로 뛰어오름. 아래 틈에도 구조용 트램펄린
+      solids: [{ x: 250, y: 640, w: 280, h: 50 }, { x: 1070, y: 640, w: 280, h: 50 }, { x: 670, y: 570, w: 260, h: 50 }],
+      tramps: [{ x: 290, y: 640, w: 70, power: 1550 }, { x: 1240, y: 640, w: 70, power: 1550 }, { x: 765, y: 570, w: 70, power: 1650 }, { x: 560, y: 820, w: 90, power: 1900 }, { x: 950, y: 820, w: 90, power: 1900 }],
+      platforms: [{ x: 200, y: 360, w: 150 }, { x: 1250, y: 360, w: 150 }, { x: 720, y: 300, w: 160 }, { x: 720, y: 140, w: 160 }, { x: 470, y: 230, w: 130 }, { x: 1000, y: 230, w: 130 }],
+      spawns: [{ x: 440, y: 640 }, { x: 1160, y: 640 }, { x: 870, y: 570 }, { x: 275, y: 360 }, { x: 1325, y: 360 }, { x: 800, y: 300 }],
+      respawn: { x: 800, y: 80 },
+      theme: { sky: ['#6ec6ff', '#b8e4ff', '#fff0f8'], hill: '#9ad0f0', grass: '#ffffff', grassHi: '#ffffff', dirt: '#d8e8f8', plat: '#ffe0f0', platHi: '#ffffff', orb: 'rgba(255,255,230,', stars: false },
+    },
+    {
+      id: 'canopy', name: '정글 나무 위', width: 1600, height: 900,
+      // 큰 나무 두 그루 위 잎사귀 발판과 덩굴 사이를 오가는 정글
+      solids: [{ x: 200, y: 700, w: 1200, h: 80 }, { x: 430, y: 430, w: 46, h: 270 }, { x: 1124, y: 430, w: 46, h: 270 }],
+      platforms: [{ x: 320, y: 430, w: 270 }, { x: 1010, y: 430, w: 270 }, { x: 650, y: 540, w: 300 }, { x: 700, y: 310, w: 200 }, { x: 240, y: 260, w: 150 }, { x: 1210, y: 260, w: 150 }, { x: 720, y: 160, w: 160 }],
+      spawns: [{ x: 300, y: 700 }, { x: 1300, y: 700 }, { x: 800, y: 700 }, { x: 455, y: 430 }, { x: 1145, y: 430 }, { x: 800, y: 540 }],
+      respawn: { x: 800, y: 100 },
+      theme: { sky: ['#0f2a14', '#1f5a2a', '#7ab85a'], hill: '#1a4a22', grass: '#4caf3c', grassHi: '#8be06a', dirt: '#5a3a1a', plat: '#6fd65a', platHi: '#c8f5b0', orb: 'rgba(230,255,180,', stars: false },
+    },
   ];
   // 계산해 두는 값 (봇·분신이 땅 끝을 알기 위해)
   for (const m of MAPS) {
-    m.width = m.width || 1280; m.height = m.height || 720; m.slopes = m.slopes || [];
+    m.width = m.width || 1280; m.height = m.height || 720; m.slopes = m.slopes || []; m.tramps = m.tramps || [];
     m.zoom = 1280 / m.width;
     // 빗면 높은 쪽 끝이 다른 빗면·땅과 이어져 있지 않으면 절벽(벽)으로 취급
     const joined = (sl, x, y) => m.slopes.some((o) => o !== sl && ((o.x1 === x && o.y1 === y) || (o.x2 === x && o.y2 === y))) || m.solids.some((s) => s.y === y && s.x <= x && s.x + s.w >= x);
     for (const sl of m.slopes) { sl.wallL = sl.y1 < sl.y2 && !joined(sl, sl.x1, sl.y1); sl.wallR = sl.y2 < sl.y1 && !joined(sl, sl.x2, sl.y2); }   // 큰 맵은 화면에 맞게 작게 그림
     const pad = m.width > 1280 ? 320 : 260;
     m.blast = { left: -pad, right: m.width + pad, top: -(m.height * 0.72), bottom: m.height + pad };
-    m.left = Math.min(...m.solids.map((s) => s.x), ...m.platforms.map((p) => p.x), ...m.slopes.map((s) => s.x1));
-    m.right = Math.max(...m.solids.map((s) => s.x + s.w), ...m.platforms.map((p) => p.x + p.w), ...m.slopes.map((s) => s.x2));
+    m.left = Math.min(...m.solids.map((s) => s.x), ...m.platforms.map((p) => p.x), ...m.slopes.map((s) => s.x1), ...m.tramps.map((t) => t.x));
+    m.right = Math.max(...m.solids.map((s) => s.x + s.w), ...m.platforms.map((p) => p.x + p.w), ...m.slopes.map((s) => s.x2), ...m.tramps.map((t) => t.x + t.w));
     m.floor = Math.max(...m.solids.map((s) => s.y), ...m.platforms.map((p) => p.y));
   }
   // 캐릭터 색 (한 방에서 같은 색은 한 명만)
