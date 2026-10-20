@@ -172,6 +172,55 @@ $('authForm').addEventListener('submit', async (e) => {
   }
 });
 
+// ---------------- 패치 내역 ----------------
+// 새 패치 뒤 처음 들어오면 한 번 보여줌 (보상을 아직 안 받았으면 받을 때까지)
+const PATCH = (window.BRAWL_PATCH || {}).PATCH;
+let patchShown = false;
+function patchLocalSeen() { try { return localStorage.getItem('brawl_patch') === PATCH.id; } catch (e) { return false; } }
+function renderPatch() {
+  const body = $('patchBody'); body.textContent = '';
+  $('patchDate').textContent = PATCH.date;
+  for (const sec of PATCH.sections) {
+    const h = document.createElement('h4'); h.textContent = sec.title; body.appendChild(h);
+    const ul = document.createElement('ul');
+    for (const it of sec.items) { const li = document.createElement('li'); li.textContent = it; ul.appendChild(li); }
+    body.appendChild(ul);
+  }
+  const p = account.profile, box = $('patchReward');
+  box.hidden = !PATCH.reward;
+  $('patchRewardAmt').textContent = `보석 ${PATCH.reward}개`;
+  $('patchRewardWhy').textContent = PATCH.rewardWhy || '';
+  const btn = $('patchClaim');
+  if (!p) { btn.disabled = true; btn.textContent = '로그인하면 받기'; }
+  else if (p.patchClaimed) { btn.disabled = true; btn.textContent = '받았어요 ✓'; }
+  else { btn.disabled = false; btn.textContent = '받기'; }
+}
+function openPatch() { if (!PATCH) return; renderPatch(); $('patchMsg').textContent = ''; $('patchModal').hidden = false; }
+function maybeShowPatch() {
+  if (!PATCH || patchShown || !$('lobby') || $('lobby').hidden) return;
+  const p = account.profile;
+  const need = p ? (p.patchSeen !== PATCH.id || (PATCH.reward && !p.patchClaimed)) : (!account.token && !patchLocalSeen());
+  if (!need) return;
+  patchShown = true; openPatch();
+}
+function closePatch() {
+  $('patchModal').hidden = true;
+  try { localStorage.setItem('brawl_patch', PATCH.id); } catch (e) {}
+  if (account.profile && account.profile.patchSeen !== PATCH.id) api('/api/patch/seen', {}).then((r) => { account.profile = r.profile; }).catch(() => {});
+}
+$('patchOk').addEventListener('click', closePatch);
+$('patchClose').addEventListener('click', closePatch);
+$('patchModal').addEventListener('click', (e) => { if (e.target === $('patchModal')) closePatch(); });
+$('patchOpen').addEventListener('click', openPatch);
+$('patchClaim').addEventListener('click', async () => {
+  const btn = $('patchClaim'); btn.disabled = true;
+  try {
+    const r = await api('/api/patch/claim', {});
+    account.profile = r.profile;
+    $('patchMsg').style.color = 'var(--gem)'; $('patchMsg').textContent = `보석 ${r.gained}개를 받았어요!`;
+    renderAccount(); renderPatch();
+  } catch (err) { $('patchMsg').style.color = 'var(--danger)'; $('patchMsg').textContent = err.message; renderPatch(); }
+});
 function loginWith(token, profile) {
   account.token = token; account.profile = profile;
   try { localStorage.setItem('brawl_token', token); } catch (e) {}
@@ -179,6 +228,7 @@ function loginWith(token, profile) {
   $('aPw').value = ''; $('aPw2').value = '';
   renderAccount();
   loadRanking();
+  patchShown = false; maybeShowPatch();
 }
 $('logoutBtn').addEventListener('click', () => {
   api('/api/logout', {}).catch(() => {});
@@ -285,6 +335,7 @@ $('skinBtn').addEventListener('click', () => { $('skinMsg').textContent = ''; re
 $('skinClose').addEventListener('click', () => { $('skinModal').hidden = true; $('skinBtn').focus(); });
 $('skinModal').addEventListener('click', (e) => { if (e.target === $('skinModal')) $('skinModal').hidden = true; });
 addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('skinModal').hidden) $('skinModal').hidden = true; });
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('patchModal').hidden) closePatch(); });
 
 // 10회 뽑기: 결과를 칩으로 보여줌 (새 스킬은 색, 중복은 흐리게)
 $('gacha10Btn').addEventListener('click', async () => {
@@ -475,6 +526,7 @@ setInterval(() => { if (!$('lobby').hidden) loadRanking(); }, 15000);
     catch (e) { if (e.status === 401) { account.token = null; try { localStorage.removeItem('brawl_token'); } catch (_) {} } }
     renderAccount();
   }
+  maybeShowPatch();
 })();
 
 // ---------------- 스킬 선택 ----------------

@@ -164,6 +164,8 @@ function publicProfile(a) {
     gems: a.gems, owned: [...a.owned], admin: !!a.admin,
     skins: [...(a.skins || [])], skinSel: { ...(a.skinSel || {}) },
     nickWarn: a.nickWarn || null,   // 닉네임 경고 (사유). 있으면 닉네임을 바꿔야 게임 가능
+    patchSeen: a.patchSeen || null,   // 마지막으로 본 패치 내역
+    patchClaimed: (a.patchClaimed || []).includes(PATCH.id),   // 이번 패치 보상 받았는지
   };
 }
 
@@ -262,6 +264,24 @@ function record(key, { counted, win, kills, botKills }) {
 
 // ---------- 스킨 ----------
 const { SKINS, PRICE: SKIN_PRICE } = require('./public/skins.js');
+const { PATCH } = require('./public/patch.js');
+// 패치 내역: 봤다고 표시 / 보상 받기 (패치마다 한 번)
+function patchSeen(key) {
+  const a = store.accounts[key];
+  if (!a) throw new Error('로그인이 필요해요.');
+  if (a.patchSeen !== PATCH.id) { a.patchSeen = PATCH.id; save(); }
+  return { profile: publicProfile(a) };
+}
+function patchClaim(key) {
+  const a = store.accounts[key];
+  if (!a) throw new Error('로그인이 필요해요.');
+  if (!PATCH.reward) throw new Error('이번 패치에는 보상이 없어요.');
+  a.patchClaimed = a.patchClaimed || [];
+  if (a.patchClaimed.includes(PATCH.id)) throw new Error('이미 받은 보상이에요.');
+  a.patchClaimed.push(PATCH.id); a.gems += PATCH.reward; a.patchSeen = PATCH.id;
+  save();
+  return { gained: PATCH.reward, profile: publicProfile(a) };
+}
 // 원하는 스킬을 보석으로 바로 사기
 function buySkill(key, skill) {
   const a = store.accounts[key];
@@ -410,6 +430,6 @@ setInterval(() => {
 
 module.exports = {
   init, storage: () => storageName, signup, login, logout, fromToken, profileOf, nickOf, isTaken,
-  keyOf, owns, ownedOf, setSkill, record, buySkin, equipSkin, skinsOf, adminWarn, changeNick, ranking, cleanNick, gacha, buySkill, isAdmin, adminList, adminUpdate,
+  keyOf, owns, ownedOf, setSkill, record, buySkin, equipSkin, skinsOf, adminWarn, changeNick, ranking, cleanNick, gacha, buySkill, patchSeen, patchClaim, isAdmin, adminList, adminUpdate,
   GEMS, GACHA, BASE_SKILLS, ALL_SKILLS,
 };

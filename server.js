@@ -74,6 +74,12 @@ async function api(req, res, urlPath) {
       const body = await readBody(req).catch(() => ({}));
       return sendJson(res, 200, accounts.gacha(key, body && Number(body.count) === 10 ? 10 : 1));
     }
+    if (req.method === 'POST' && (urlPath === '/api/patch/seen' || urlPath === '/api/patch/claim')) {
+      const key = accounts.fromToken(bearer(req));
+      if (!key) return sendJson(res, 401, { error: '로그인이 필요해요.' });
+      if (limited(ip, 'patch', 20, 60000)) return sendJson(res, 429, { error: '잠시 후 다시 해 주세요.' });
+      return sendJson(res, 200, urlPath === '/api/patch/claim' ? accounts.patchClaim(key) : accounts.patchSeen(key));
+    }
     if (req.method === 'POST' && urlPath === '/api/skill/buy') {
       const key = accounts.fromToken(bearer(req));
       if (!key) return sendJson(res, 401, { error: '로그인이 필요해요.' });

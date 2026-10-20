@@ -243,6 +243,15 @@
   #nickModal .modal-card input { width: 100%; box-sizing: border-box; margin-top: 6px; }
   .modal { position: fixed; inset: 0; z-index: 20; background: rgba(6,5,14,.72); display: flex; align-items: center; justify-content: center; padding: 16px; }
   .modal[hidden] { display: none; }
+  .patch-card h4 { margin: 14px 0 4px; font-size: 14px; color: var(--gem); }
+  .patch-card ul { margin: 0; padding-left: 18px; }
+  .patch-card li { margin: 3px 0; font-size: 13.5px; line-height: 1.45; }
+  .patch-reward { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; padding: 12px; border: 2px solid var(--gem); border-radius: 12px; }
+  .patch-reward b { display: block; font-size: 18px; color: var(--gem); }
+  .patch-reward small { color: var(--muted); }
+  .patch-reward[hidden] { display: none; }
+  #patchOk { margin-top: 12px; width: 100%; }
+  .link-btn { background: none; border: 0; color: var(--muted); text-decoration: underline; cursor: pointer; padding: 6px 0 0; font-size: 13px; }
   .modal-card { width: min(520px, 100%); max-height: calc(100% - 32px); overflow-y: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px; box-sizing: border-box; }
   .modal-head { display: flex; align-items: center; gap: 10px; }
   .modal-head b { font-family: var(--display); font-weight: 400; font-size: 22px; color: var(--accent); flex: 1; }
@@ -353,6 +362,7 @@
           <button class="sub-btn gacha-btn" id="gacha10Btn" type="button">10회 뽑기 · 보석 1000</button>
         </div>
         <button class="sub-btn skin-open" id="skinBtn" type="button">스킨 보기</button>
+        <button class="link-btn" id="patchOpen" type="button">패치 내역 보기</button>
         <p class="hint" id="gachaMsg" role="status"></p>
         <div id="gachaRes" class="gacha-res" hidden></div>
         <p class="hint">잠긴 스킬을 누르면 보석 1000개로 바로 살 수 있어요.</p>
@@ -447,6 +457,18 @@
     <p class="hint" id="nickMsg" role="status"></p>
   </div>
 </div>
+<div id="patchModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="patchTitle">
+  <div class="modal-card patch-card">
+    <div class="modal-head"><b id="patchTitle">패치 내역</b><span id="patchDate" class="hint"></span><button class="modal-x" id="patchClose" type="button" aria-label="닫기">✕</button></div>
+    <div id="patchBody"></div>
+    <div class="patch-reward" id="patchReward" hidden>
+      <div><b id="patchRewardAmt"></b><small id="patchRewardWhy"></small></div>
+      <button class="sub-btn gacha-btn" id="patchClaim" type="button">받기</button>
+    </div>
+    <p class="hint" id="patchMsg" role="status"></p>
+    <button class="play" id="patchOk" type="button">확인</button>
+  </div>
+</div>
 <div id="skinModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="skinTitle">
   <div class="modal-card">
     <div class="modal-head"><b id="skinTitle">스킨</b><span id="skinGems"></span><button class="modal-x" id="skinClose" type="button" aria-label="닫기">✕</button></div>
@@ -459,6 +481,7 @@
 
 <script src="maps.js"></script>
 <script src="skins.js"></script>
+<script src="patch.js"></script>
 <script src="sound.js"></script>
 <script src="client.js"></script>
 </body>
