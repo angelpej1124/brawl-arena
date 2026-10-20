@@ -53,6 +53,8 @@ const SKILLS = {
   gamble:   { name: '도박', desc: '사거리·주는 넉백·받는 넉백·점프·속도·크기가 각각 0.0~2.0배로 랜덤. 판이 시작되면 자동으로 굴림 (그래서 바로는 못 씀). 죽어도 유지', cd: '쿨 20초' },
   shield:   { name: '방패', desc: '방패를 듦. 약공격은 방패 막기(앞에서 오는 공격), 강공격은 방패 휘두르기(넉백↑). Q를 누르고 있다 놓으면 방패를 던짐(오래 누를수록 멀리). 맞히거나 벽에 부딪히면 튕겨 돌아오고, 가까이 가면 주움(나만). 장외로 떨어지면 10초 뒤 다시 생김. 방패가 없으면 보통 공격', cd: '누르고 있다 놓기' },
   tentacle: { name: '촉수', desc: '등 뒤 촉수 4개. 약공격(J)은 위 촉수 2개, 강공격(K)은 아래 촉수 2개를 번갈아 뻗어 공격 (촉수마다 따로 쿨 1.5초). Q는 아래 촉수 2개로 땅을 짚고 8초간 중력 없이 WASD로 이동, 넉백 거의 없음 (맨 밑 바닥 아래로는 못 감, 그동안 아래 촉수 공격·점멸·화염 돌진 불가 — K도 위 촉수로)', cd: '쿨 18초' },
+  wave:     { name: '파동', desc: 'Q로 내 몸에서 큰 파동이 퍼져 주변 적을 조금 튕겨냄. 그 뒤 7초간 팔에 파동이 감겨 넉백이 세지고, 점프력·이동 속도도 올라감', cd: '쿨 13초' },
+  dope:     { name: '도핑', desc: '맵 곳곳에 내 물약이 7초마다 하나씩 떨어짐 (최대 3개). 하늘=이속, 빨강=공속, 초록=힘(넉백), 노랑=방어(넉백 덜 받음). 먹으면 5초 강화, 끝나면 3초간 그만큼 약화. 약화 전에 다른 물약을 먹으면 약화 없음 (패시브)', cd: '패시브' },
   flash:    { name: '섬광', desc: '내 자리에서 섬광이 터져 주변을 살짝 밀어내고, 가까울수록 상대 화면이 오래 하얘짐. 터진 자리엔 4초간 빛 자국이 남아 나 말고는 그 안이 안 보임', cd: '쿨 10초' },
   flood:    { name: '홍수', desc: 'Q마다 아래에서 물이 차오름 (여러 번 쓰면 더 높이). 나는 물속을 자유롭게 헤엄치고, 다른 사람은 느려지고 공격·점프가 약해짐(물속 점프는 무한). 머리가 잠기면 숨방울 10개가 1초에 하나씩 줄고 다 떨어지면 가라앉음. 물속에선 불 무효·터렛 고장·번개 스턴↑·얼음 게이지↑·투사체와 돌진이 느려짐', cd: '쿨 12초' },
   ghost:    { name: '귀신', desc: '목숨을 다 잃으면 마지막 5초간 귀신이 됨 (중력·벽 무시, WASD 이동, 안 맞음). 그동안 한 명을 3번 때리면 그 사람도 장외 → 마지막 상대였다면 귀신이 승리 (패시브)', cd: '패시브' },
@@ -65,7 +67,7 @@ const SKILL_COLOR = {
   sword: '#cfe3ff', blackflash: '#c0263a', lightning: '#ffe94a', undying: '#ffd27a',
   hulk: '#5fd35a', fire: '#ff5a1f', ice: '#8fdcff', turret: '#a7b2c4', error: '#39ff88', sun: '#ffc21a',
   wind: '#b8f2e6', archer: '#c98b4a', time: '#7c9cff', combo: '#ff5fa2', reflect: '#e0f0ff', invert: '#c2185b', atom: '#5ad8ff', mine: '#8a8f6a',
-  ninja: '#5b6b8a', gamble: '#3fd07a', starlight: '#ffe27a', shield: '#c9a24a', tentacle: '#3a2a4a', ghost: '#d8d8f0', flash: '#fff6b0', flood: '#3a9ad8',
+  ninja: '#5b6b8a', gamble: '#3fd07a', starlight: '#ffe27a', shield: '#c9a24a', tentacle: '#3a2a4a', ghost: '#d8d8f0', flash: '#fff6b0', flood: '#3a9ad8', wave: '#5fe0ff', dope: '#c06bff',
 };
 // 더블 모드에서 같이 못 쓰는 조합 (서버 game.js와 같음)
 const WEAPONS = ['sword', 'archer', 'ninja', 'shield', 'tentacle'];
@@ -759,6 +761,18 @@ function onEvent(ev) {
     particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.5, max: 0.5, r: 220, c: '255,255,255' });
     shake = 22;
     banners.push({ text: `${ev.n} 장외!`, life: 1.2, max: 1.2, small: true });
+  } else if (ev.k === 'wave') {
+    for (let i = 0; i < 3; i++) particles.push({ ring: true, grow: true, x: ev.x, y: ev.y, life: 0.45 + i * 0.12, max: 0.45 + i * 0.12, r: 240, c: '95,224,255' });
+    shake = Math.max(shake, 9);
+  } else if (ev.k === 'drink') {
+    const c = DOPE_RGB[ev.d] || '255,255,255';
+    particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.35, max: 0.35, r: 50, c });
+    for (let i = 0; i < 12; i++) particles.push({ x: ev.x + (Math.random() - 0.5) * 30, y: ev.y, vx: (Math.random() - 0.5) * 120, vy: -120 - Math.random() * 160, life: 0.6, max: 0.6, c: `rgb(${c})`, r: 4, nograv: true });
+    if (ev.pid === myId) banners.push({ text: `${DOPE_NAMES[ev.d]} 강화!`, life: 1.1, max: 1.1, small: true, color: `rgb(${c})` });
+  } else if (ev.k === 'dopebad') {
+    if (ev.pid === myId) banners.push({ text: '약화... (다른 물약을 먹으면 풀려요)', life: 1.3, max: 1.3, small: true, color: '#a89cc0' });
+  } else if (ev.k === 'potland') {
+    for (let i = 0; i < 5; i++) particles.push({ x: ev.x, y: ev.y, vx: (Math.random() - 0.5) * 120, vy: -60 - Math.random() * 80, life: 0.3, max: 0.3, c: '#e8f4ff', r: 3 });
   } else if (ev.k === 'flash') {
     particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.5, max: 0.5, r: 300, c: '255,250,210' });
     for (let i = 0; i < 26; i++) { const a = Math.random() * Math.PI * 2, sp = 200 + Math.random() * 500; particles.push({ x: ev.x, y: ev.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.4, max: 0.4, c: i % 2 ? '#ffffff' : '#fff3a0', r: 4, nograv: true }); }
@@ -1148,6 +1162,25 @@ function drawStage() {
     ctx.fillStyle = th.platHi; ctx.fillRect(p.x + 8, p.y + 2, p.w - 16, 3);
   }
 }
+// 도핑 물약 (이속 하늘 · 공속 빨강 · 힘 초록 · 방어 노랑)
+const DOPE_NAMES = ['이속', '공속', '힘', '방어'];
+const DOPE_RGB = ['110,210,255', '255,70,70', '70,220,100', '255,215,50'];
+function drawPotions(state, time) {
+  for (const [x, y, k, o] of state.po || []) {
+    const c = DOPE_RGB[k] || '255,255,255', mine = o === myId, bob = Math.sin(time / 300 + x) * 3;
+    ctx.save(); ctx.translate(x, y - 16 + bob);
+    const g = ctx.createRadialGradient(0, 2, 2, 0, 2, 26); g.addColorStop(0, `rgba(${c},0.45)`); g.addColorStop(1, `rgba(${c},0)`);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 2, 26, 0, Math.PI * 2); ctx.fill();
+    // 병: 둥근 몸통 + 목 + 코르크
+    ctx.fillStyle = 'rgba(235,245,255,0.55)'; ctx.strokeStyle = '#1a1030'; ctx.lineWidth = 2;
+    ctx.fillRect(-4, -14, 8, 7); ctx.strokeRect(-4, -14, 8, 7);
+    ctx.fillStyle = '#9a6a3a'; ctx.fillRect(-5, -18, 10, 5);
+    ctx.fillStyle = `rgb(${c})`; ctx.beginPath(); ctx.arc(0, 2, 10, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.beginPath(); ctx.arc(-3, -1, 3, 0, Math.PI * 2); ctx.fill();
+    if (mine) { ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(DOPE_NAMES[k], 0, -22); }
+    ctx.restore();
+  }
+}
 // 트램펄린: 다리 + 빨강·파랑 테두리 + 출렁이는 매트
 function drawTramps(time) {
   for (const t of STAGE.tramps || []) {
@@ -1162,8 +1195,8 @@ function drawTramps(time) {
 }
 // 홍수 물(용암): 반투명이라 안이 다 보임
 function drawWater(state, time) {
-  if (!state.wt) return;
-  const [wy, lava] = state.wt, W2 = STAGE.width + 800, H2 = STAGE.height + 800;
+  if (!state.wa) return;
+  const [wy, lava] = state.wa, W2 = STAGE.width + 800, H2 = STAGE.height + 800;
   const g = ctx.createLinearGradient(0, wy, 0, STAGE.height + 200);
   if (lava) { g.addColorStop(0, 'rgba(255,150,40,0.5)'); g.addColorStop(1, 'rgba(200,40,10,0.68)'); }
   else { g.addColorStop(0, 'rgba(80,170,240,0.38)'); g.addColorStop(1, 'rgba(20,60,150,0.6)'); }
@@ -1289,6 +1322,30 @@ function drawPlayer(p, time) {
         ctx.beginPath(); ctx.ellipse(sd * 16, 0, 18, 8, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
       }
     }
+  }
+  if (p.wv) {
+    // 파동: 몸 주위로 퍼지는 물결 고리
+    ctx.save(); ctx.translate(0, -PH / 2);
+    for (let i = 0; i < 3; i++) {
+      const ph = ((time / 700) + i / 3) % 1;
+      ctx.strokeStyle = `rgba(95,224,255,${0.55 * (1 - ph)})`; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.ellipse(0, 0, 30 + ph * 26, 36 + ph * 26, 0, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.restore();
+  }
+  if (p.dp) {
+    // 도핑: 강화면 물약 색 기운이 위로 올라가고, 약화면 어둡게 아래로 처짐
+    const c = DOPE_RGB[p.dp[0]], bad = p.dp[1];
+    ctx.save(); ctx.translate(0, -PH / 2);
+    const g = ctx.createRadialGradient(0, 0, 10, 0, 0, 52);
+    g.addColorStop(0, bad ? 'rgba(60,50,80,0.35)' : `rgba(${c},0.35)`); g.addColorStop(1, bad ? 'rgba(40,30,60,0)' : `rgba(${c},0)`);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, 52, 0, Math.PI * 2); ctx.fill();
+    for (let i = 0; i < 5; i++) {
+      const ph = ((time / 900) + i / 5) % 1, xx = Math.sin(i * 2.3 + time / 400) * 26, yy = bad ? -20 + ph * 60 : 30 - ph * 70;
+      ctx.fillStyle = bad ? `rgba(120,110,140,${0.7 * (1 - ph)})` : `rgba(${c},${0.85 * (1 - ph)})`;
+      ctx.beginPath(); ctx.arc(xx, yy, 3.5, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
   }
   if (p.sun) {
     // 태양: 뒤에서 빛나는 햇살 (초신성 스킨이면 파란 태양)
@@ -1532,6 +1589,19 @@ function drawPlayer(p, time) {
   }
   if (hasK(p, 'ninja')) drawKunaiHand(p, f, fx, fy, time);
   if (p.shd && p.shd[0] && !(p.shd[2] > 0) && !p.shd[1]) drawShieldHand(p, f, fx, fy, time);
+  if (p.wv) {
+    // 파동: 팔에 감긴 파동 (나선)
+    ctx.strokeStyle = 'rgba(140,235,255,0.9)'; ctx.lineWidth = 2.5; ctx.beginPath();
+    for (let k = 0; k <= 24; k++) {
+      const u = k / 24, ax = f * PW / 2 + (fx - f * PW / 2) * u, ay = fy + Math.sin(u * Math.PI * 4 + time / 70) * 8;
+      if (k) ctx.lineTo(ax, ay); else ctx.moveTo(ax, ay);
+    }
+    ctx.stroke();
+    const wr = (p.at ? 24 : 18) + Math.sin(time / 80) * 3;
+    const wg = ctx.createRadialGradient(fx, fy, 3, fx, fy, wr);
+    wg.addColorStop(0, 'rgba(200,250,255,0.9)'); wg.addColorStop(1, 'rgba(40,170,255,0)');
+    ctx.fillStyle = wg; ctx.beginPath(); ctx.arc(fx, fy, wr, 0, Math.PI * 2); ctx.fill();
+  }
   ctx.fillStyle = p.c; ctx.strokeStyle = '#1a1030'; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.arc(fx, fy, p.at === 2 ? 13 : 10, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   if (light) { ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.beginPath(); ctx.arc(fx, fy, 10, 0, Math.PI * 2); ctx.fill(); }
@@ -2054,6 +2124,8 @@ function skillStatus(p) {
   if (k === 'magnet') return { ready: !(p.cd > 0) || !(p.cd2 > 0), text: `Q ${t(p.cd)} E ${t(p.cd2)}` };
   if (k === 'empower') return p.bf ? { ready: true, text: `강화 중 ${p.bt}s` } : { ready: p.chg >= 100, text: p.chg >= 100 ? '충전 완료!' : `충전 ${p.chg || 0}%` };
   if (k === 'undying' || k === 'hulk') return { ready: true, text: '패시브' };
+  if (k === 'wave' && p.wv) return { ready: true, text: `강화 ${p.wv}s` };
+  if (k === 'dope') return p.dp ? { ready: !p.dp[1], text: `${DOPE_NAMES[p.dp[0]]} ${p.dp[1] ? '약화' : '강화'} ${p.dp[2]}s` } : { ready: true, text: '물약 줍기' };
   if (k === 'time' && p.ts) return { ready: !(p.cd > 0), text: '저장됨' };
   if (k === 'combo') return { ready: p.cb > 0, text: `콤보 ${p.cb || 0}` };
   if (k === 'archer' && p.hm) return { ready: true, text: '유도 준비' };
@@ -2684,7 +2756,7 @@ function frame(now) {
         let ready = !(cd > 0), txt = cd > 0 ? cd.toFixed(1) : keyName;
         if (kk === 'empower') { ready = meS.chg >= 100 || meS.bf; txt = meS.bf ? '강화' : `${meS.chg || 0}%`; }
         if (kk === 'parasite') { ready = meS.pr > 0 || meS.ins; txt = meS.ins ? '나가기' : `${meS.pr || 0}명`; }
-        if (kk === 'undying' || kk === 'hulk' || kk === 'ghost') { ready = true; txt = '패시브'; }
+        if (kk === 'undying' || kk === 'hulk' || kk === 'ghost' || kk === 'dope') { ready = true; txt = '패시브'; }
         if (kk === 'combo') { ready = meS.cb > 0; txt = `${meS.cb || 0}콤보`; }
         const nm = k === 'magnet2' ? '밀기' : sl.e === 'magnet2' && k === 'magnet' ? '당기기' : SKILLS[kk].name;
         if (nameEl.textContent !== nm) nameEl.textContent = nm;
@@ -2734,6 +2806,7 @@ function frame(now) {
     ctx.scale(scale * STAGE.zoom, scale * STAGE.zoom);
     drawStage();
     drawTramps(now);
+    drawPotions(latest, now);
     drawSlashes(latest, now);
     drawTurrets(latest, now);
     for (const q of latest.p) if (q.ts) {
