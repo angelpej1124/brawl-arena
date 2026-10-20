@@ -81,7 +81,7 @@ const SKILLS = {
   // 귀신: 목숨이 다 없어지면 5초간 귀신(중력·벽 무시, WASD 이동, 안 맞음). 한 명을 3번 때리면 그 사람도 장외
   ghost:    { name: '귀신', time: 5, marks: 3, speed: 430 },
   // 섬광: 내 자리에서 섬광이 터짐 → 주변을 살짝 밀고, 가까울수록 오래 화면이 하얘짐. 터진 자리엔 몇 초간 (나 말고는) 안이 안 보이는 빛 자국
-  wave:     { name: '파동', cd: 13, duration: 7, radius: 230, kb: 460, kbMul: 1.45, speedMul: 1.3, jumpMul: 1.25 },
+  wave:     { name: '파동', cd: 13, duration: 7, radius: 230, kb: 460, kbMul: 1.45, speedMul: 1.3, jumpMul: 1.25, reachMul: 2 },
   dope:     { name: '도핑', max: 3, every: 7, buff: 5, debuff: 3, amt: 0.35, grab: 50 },
   flash:    { name: '섬광', cd: 10, radius: 210, zoneTime: 4, kbR: 260, kb: 300, blindR: 700, blindMax: 3 },
   // 홍수: Q마다 아래에서 물이 참 (여러 번 쓰면 더 높이). 홍수 사용자는 헤엄치고, 다른 사람은 느려지고 숨이 참
@@ -771,6 +771,7 @@ class Sim {
     if (p.parryT > 0) p.parryT = Math.max(0, p.parryT - dt);
     if (p.sunT > 0) p.sunT = Math.max(0, p.sunT - dt);
     if (p.waveT > 0) p.waveT = Math.max(0, p.waveT - dt);
+    if (p.quakeCastT > 0) p.quakeCastT = Math.max(0, p.quakeCastT - dt);
     if (p.dope && !p.clone) {   // 도핑: 강화 5초 → 약화 3초 → 끝
       p.dope.t -= dt;
       if (p.dope.t <= 0) { if (p.dope.bad) p.dope = null; else { p.dope.bad = true; p.dope.t = SKILLS.dope.debuff; this.ev({ k: 'dopebad', x: r0(p.x), y: r0(p.y - bh(p)), pid: p.id }); } }
@@ -986,7 +987,7 @@ class Sim {
       const s = SKILLS.stealth;
       p.stealth = s.duration;
       p.skillCd = s.cd;
-      this.ev({ k: 'stealth', x: r0(p.x), y: r0(cy) });
+      this.ev({ k: 'stealth', x: r0(p.x), y: r0(cy), pid: p.id, ck: skinOn(p, 'cloak') ? 1 : 0, f: p.facing });
     } else if (k === 'clone') {
       const s = SKILLS.clone;
       const old = this.clones.get(p.id);
@@ -1019,7 +1020,7 @@ class Sim {
       if (isTurret) o.vy = 0; else { o.vx = a.vx; o.vy = a.vy; o.grounded = false; }
       p.grounded = false;
       p.skillCd = s.cd;
-      this.ev({ k: 'swap', x: r0(a.x), y: r0(a.y - 30), x2: r0(p.x), y2: r0(p.y - 30), pid: p.id, pid2: o.clone || isTurret ? undefined : o.id });
+      this.ev({ k: 'swap', x: r0(a.x), y: r0(a.y - 30), x2: r0(p.x), y2: r0(p.y - 30), wh: skinOn(p, 'wormhole') ? 1 : 0, c: p.color, pid: p.id, pid2: o.clone || isTurret ? undefined : o.id });
     } else if (k === 'fly') {
       const s = SKILLS.fly;
       p.flyT = s.duration; p.flyDownT = 0;
@@ -1050,18 +1051,18 @@ class Sim {
       }
       // 공중에서 쓰면 한 번 더 점프 가능 (3단 점프)
       if (!p.grounded) p.jumpsLeft = Math.min(p.jumpsLeft + 1, CONFIG.EXTRA_JUMPS + 1);
-      this.smokes.push({ x: cx, y: cy, r: s.smokeR, t: s.smoke, max: s.smoke });
+      this.smokes.push({ x: cx, y: cy, r: s.smokeR, t: s.smoke, max: s.smoke, nuke: skinOn(p, 'nuke') });   // 핵폭발 스킨: 버섯 구름
       p.skillCd = s.cd;
-      this.ev({ k: 'explode', x: r0(cx), y: r0(cy), r: s.radius, h: hits });
+      this.ev({ k: 'explode', x: r0(cx), y: r0(cy), r: s.radius, h: hits, nk: skinOn(p, 'nuke') ? 1 : 0 });
     } else if (k === 'freeze') {
       const s = SKILLS.freeze;
       for (const o of [...this.players.values(), ...this.clones.values()]) {
         if (!this.foe(p, o) || !o.alive || o.inside) continue;
-        o.frozen = s.duration;
+        o.frozen = s.duration; o.frzHaki = skinOn(p, 'haki');   // 패왕색 스킨: 검붉은 기운
         o.vx = 0; o.vy = 0;
       }
       p.skillCd = s.cd;
-      this.ev({ k: 'freeze', x: r0(cx), y: r0(cy) });
+      this.ev({ k: 'freeze', x: r0(cx), y: r0(cy), hk: skinOn(p, 'haki') ? 1 : 0, pid: p.id });
     } else if (k === 'rock') {
       const s = SKILLS.rock;
       p.rockT = s.duration;
@@ -1071,7 +1072,8 @@ class Sim {
       const s = SKILLS.quake;
       p.skillCd = s.cd;
       // 시전자 빼고 모두 흔들림 (봇은 움직임과 공격이 엉망이 됨)
-      for (const o of this.players.values()) if (this.foe(p, o) && o.alive) o.quakeT = s.duration;
+      for (const o of this.players.values()) if (this.foe(p, o) && o.alive) { o.quakeT = s.duration; o.quakeWob = skinOn(p, 'wobble'); }
+      p.quakeCastT = skinOn(p, 'wobble') ? s.duration : 0;   // 흔들흔들: 시전자 주위도 흰 흔들림
       this.ev({ k: 'quake', by: p.id, d: s.duration, x: r0(p.x), y: r0(p.y) });
     } else if (k === 'giant') {
       const s = SKILLS.giant;
@@ -1143,7 +1145,7 @@ class Sim {
       const cands = [...this.players.values()].filter((o) => this.foe(p, o) && o.alive && (this.phase !== 'playing' || o.inMatch));
       if (!cands.length) return this.deny(p, '에러를 걸 상대가 없어요');
       const o = cands[Math.floor(Math.random() * cands.length)];
-      o.errT = s.duration; o.errModeT = 0;
+      o.errT = s.duration; o.errModeT = 0; o.errHack = skinOn(p, 'hacker');   // 해커: 빨간 에러 + HACKER
       p.skillCd = s.cd;
       this.ev({ k: 'error', by: p.id, d: s.duration, n: p.name, n2: o.name, x: r0(o.x), y: r0(o.y - bh(o) / 2) });
     } else if (k === 'sun') {
@@ -1256,7 +1258,7 @@ class Sim {
       if (!cands.length) return this.deny(p, '반전시킬 상대가 없어요');
       for (let i = cands.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [cands[i], cands[j]] = [cands[j], cands[i]]; }
       const pick = cands.slice(0, Math.ceil(cands.length / 2));
-      for (const o of pick) o.invT = s.duration;
+      for (const o of pick) { o.invT = s.duration; o.invCrown = skinOn(p, 'crown'); }   // 우왕좌왕: 악마 대신 왕관
       p.skillCd = s.cd;
       this.ev({ k: 'invert', n: p.name, h: pick.length, names: pick.map((o) => o.name) });
     } else if (k === 'hulk') {
@@ -2053,7 +2055,9 @@ class Sim {
   hitClone(o) {
     if (++o.hitsTaken >= SKILLS.clone.hits && this.clones.get(o.ownerId) === o) {
       this.clones.delete(o.ownerId);
-      this.ev({ k: 'poof', x: r0(o.x), y: r0(o.y - bh(o) / 2) });
+      const ow = this.players.get(o.ownerId);
+      // 트와이스 스킨: 진흙처럼 녹아 땅으로 퍼지며 사라짐
+      this.ev({ k: 'poof', x: r0(o.x), y: r0(o.y - bh(o) / 2), tw: ow && skinOn(ow, 'twice') ? 1 : 0, gy: r0(o.y), c: o.color });
     }
   }
   // 사거리를 늘려 주는 버프들 (강화·거인·고무·헐크) — 검사 검에도 똑같이 적용
@@ -2070,7 +2074,8 @@ class Sim {
     const hw = bw(p) / 2, size = sizeOf(p);
     let reach = def.reach * this.reachBuff(p);
     if (has(p, 'sword') && !p.clone) reach *= SKILLS.sword.reachMul;
-    const h = def.height * size;
+    if (p.waveT > 0) reach *= SKILLS.wave.reachMul;   // 파동: 공격할 때 파동이 앞으로 뻗어 두 배 거리까지
+    const h = def.height * size * (p.waveT > 0 ? 1.25 : 1);
     const x = p.facing > 0 ? p.x + hw - 6 : p.x - hw + 6 - reach;
     return { x, y: p.y - bh(p) / 2 - h / 2 - 4 * size, w: reach, h };
   }
@@ -2240,14 +2245,14 @@ class Sim {
     };
     const ten = (v) => Math.ceil(v * 10) / 10;
     const status = (p) => ({
-      sl: p.slow > 0 ? 1 : 0, stl: p.stealth > 0 ? 1 : 0, frz: p.frozen > 0 ? 1 : 0,
+      sl: p.slow > 0 ? 1 : 0, stl: p.stealth > 0 ? 1 : 0, frz: p.frozen > 0 ? (p.frzHaki ? 2 : 1) : 0,
       fly: p.flyT > 0 ? 1 : 0, rk: p.rockT > 0 ? 1 : 0, bf: p.buffT > 0 ? 1 : 0,
       gt: p.giantT > 0 ? 1 : 0, rb: p.rubberT > 0 ? 1 : 0, en: p.engineT > 0 ? 1 : 0,
-      stn: p.stunT > 0 ? 1 : 0, qk: p.quakeT > 0 ? 1 : 0,
+      stn: p.stunT > 0 ? 1 : 0, qk: p.quakeT > 0 ? (p.quakeWob ? 2 : 1) : 0, qc: p.quakeCastT > 0 ? 1 : 0,
       sz: Math.round(sizeOf(p) * 100) / 100, ig: Math.round(p.iceG || 0), icd: p.iceT > 0 ? 1 : 0,
       brn: p.burnN > 0 ? 1 : 0, fd: p.fdashT > 0 ? 1 : 0,
-      er: p.errT > 0 ? 1 : 0, sun: p.sunT > 0 ? 1 : 0,
-      rv: p.invT > 0 ? 1 : 0, pa: p.parryT > 0 ? 1 : 0,
+      er: p.errT > 0 ? (p.errHack ? 2 : 1) : 0, sun: p.sunT > 0 ? 1 : 0,
+      rv: p.invT > 0 ? (p.invCrown ? 2 : 1) : 0, pa: p.parryT > 0 ? 1 : 0,
       el: p.electrons > 0 ? [p.electrons, Math.round(p.ePhase * 100) / 100, p.eBoostT > 0 ? 1 : 0] : 0,
       ts: this.timeSaves.has(p.id) ? [r0(this.timeSaves.get(p.id).x), r0(this.timeSaves.get(p.id).y)] : 0,
       dr: p.drawT > 0 ? Math.round(p.drawT * 100) / 100 : 0, cb: p.combo || 0, hm: p.homingNext ? 1 : 0,
@@ -2275,17 +2280,17 @@ class Sim {
       wa: this.water ? [r0(this.water.y), this.water.lava ? 1 : 0] : 0,
       po: this.potions.map((q) => [r0(q.x), r0(q.y), DOPE_KINDS.indexOf(q.kind), q.owner]),
       shw: this.shields.map((q) => ({ x: r0(q.x), y: r0(q.y), vx: q.ground ? 0 : r0(q.vx), vy: q.ground ? 0 : r0(q.vy), g: q.ground ? 1 : 0, o: q.owner, s: q.big !== 1 ? Math.round(q.big * 10) / 10 : undefined })),
-      sb: this.starBits.map((b) => ({ x: r0(b.x), y: r0(b.y), vx: r0(b.vx), vy: r0(b.vy), r: Math.round(b.r) })),
+      sb: this.starBits.map((b) => { const o = this.players.get(b.owner); return { x: r0(b.x), y: r0(b.y), vx: r0(b.vx), vy: r0(b.vy), r: Math.round(b.r), m: o && skinOn(o, 'meteor') ? 1 : undefined }; }),
       wd: this.winds.map((w) => { const o = this.players.get(w.owner); return { i: w.id, x: r0(w.x), y: r0(w.y), vx: w.vx, r: o && skinOn(o, 'firetornado') ? 1 : 0 }; }),
       mn: this.mines.map((m) => { const o = this.players.get(m.owner); return { x: r0(m.x), y: r0(m.y), c: m.color, a: m.arm > 0 ? 0 : 1, sk: o && skinOn(o, 'ginkgo') ? 'g' : o && skinOn(o, 'blocks') ? 'b' : undefined }; }),
-      tr: this.turrets.map((t) => { const o = this.players.get(t.owner); return { i: t.id, x: r0(t.x), y: r0(t.y), a: Math.round(t.aim * 100) / 100, hp: t.hp, c: t.color, o: t.owner, fg: o && skinOn(o, 'frog') ? 1 : 0 }; }),
-      bl: this.bullets.map((b) => { const o = this.players.get(b.owner), c = o ? o.color : '#fff'; return b.tg ? { tg: 1, ox: r0(b.ox), oy: r0(b.oy), x: r0(b.x), y: r0(b.y), vx: 0, vy: 0, c } : { x: r0(b.x), y: r0(b.y), vx: r0(b.vx), vy: r0(b.vy), c }; }),
+      tr: this.turrets.map((t) => { const o = this.players.get(t.owner); return { i: t.id, x: r0(t.x), y: r0(t.y), a: Math.round(t.aim * 100) / 100, hp: t.hp, c: t.color, o: t.owner, fg: o && skinOn(o, 'frog') ? 1 : o && skinOn(o, 'llama') ? 2 : 0 }; }),
+      bl: this.bullets.map((b) => { const o = this.players.get(b.owner), c = o ? o.color : '#fff'; return b.tg ? { tg: 1, ox: r0(b.ox), oy: r0(b.oy), x: r0(b.x), y: r0(b.y), vx: 0, vy: 0, c } : { x: r0(b.x), y: r0(b.y), vx: r0(b.vx), vy: r0(b.vy), c, sp: o && skinOn(o, 'llama') ? 1 : undefined }; }),
       bz: this.blizzards.length ? Math.ceil(Math.max(...this.blizzards.map((b) => b.t)) * 10) / 10 : 0,
       bzs: this.blizzards.some((b) => b.sand) ? 1 : 0,
       bza: this.blizzards.some((b) => b.skin === 'aurora') ? 1 : 0,
       bzd: this.blizzards.some((b) => b.skin === 'shadow') ? 1 : 0,
       pj: this.slashes.map((sl) => { const o = this.players.get(sl.owner); return { i: sl.id, x: r0(sl.x), y: r0(sl.y), vx: sl.vx, o: sl.owner, d: o && skinOn(o, 'darkness') ? 1 : 0, ho: o && skinOn(o, 'holyknight') ? 1 : 0, lc: o ? (activeSkins(o).map((id) => SKIN_DB[id] && SKIN_DB[id].blade).find(Boolean) || undefined) : undefined }; }),
-      sm: this.smokes.map((s) => ({ x: r0(s.x), y: r0(s.y), r: s.r, a: Math.round((s.t / s.max) * 100) / 100 })),
+      sm: this.smokes.map((s) => ({ x: r0(s.x), y: r0(s.y), r: s.r, a: Math.round((s.t / s.max) * 100) / 100, nk: s.nuke ? 1 : undefined })),
       p: this.list().map((p) => ({
         id: p.id, n: p.name, c: p.color, x: r0(p.x), y: r0(p.y), f: p.facing,
         g: p.grounded ? 1 : 0, vx: r0(p.vx), vy: r0(p.vy), dmg: p.damage, st: p.stocks,
@@ -2304,6 +2309,8 @@ class Sim {
         g: c.grounded ? 1 : 0, vx: r0(c.vx), vy: r0(c.vy), al: 1, at: 0, ap: 0,
         sk: c.skill, sk2: c.skill2, sn: this.players.get(c.ownerId) ? activeSkins(this.players.get(c.ownerId)) : [],
         hs: c.hitstun > 0 || c.stunT > 0 ? 1 : 0, b: c.bot ? 1 : 0, inv: 0, ...status(c),
+        // 분신이 맞은 효과도 때린 사람 스킨대로 (진흙 둔화 · 파란/검보라 불 · 모래/오로라/어둠 얼음)
+        isd: c.iceSand ? 1 : 0, iau: c.iceAur ? 1 : 0, idk: c.iceDark ? 1 : 0, slm: c.slow > 0 && c.slowMud ? 1 : 0, bb: c.burnN > 0 && c.burnBlue ? c.burnBlue : 0,
       })),
     };
   }
