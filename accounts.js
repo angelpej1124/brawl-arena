@@ -165,8 +165,9 @@ function publicProfile(a) {
     skins: [...(a.skins || [])], skinSel: { ...(a.skinSel || {}) },
     nickWarn: a.nickWarn || null,   // 닉네임 경고 (사유). 있으면 닉네임을 바꿔야 게임 가능
     patchSeen: a.patchSeen || null,   // 마지막으로 본 패치 내역
-    patchClaimed: PATCH.rewards.every((r) => (a.patchClaimed || []).includes(r.id)),   // 이번 패치 보상 다 받았는지
-    patchLeft: PATCH.rewards.filter((r) => !(a.patchClaimed || []).includes(r.id)).reduce((n, r) => n + r.gems, 0),   // 아직 안 받은 보석
+    patchClaimed: patchRewardsFor(a).every((r) => (a.patchClaimed || []).includes(r.id)),   // 받을 수 있는 보상을 다 받았는지
+    patchLeft: patchRewardsFor(a).filter((r) => !(a.patchClaimed || []).includes(r.id)).reduce((n, r) => n + r.gems, 0),   // 아직 안 받은 보석
+    patchElig: patchRewardsFor(a).map((r) => r.id),   // 이 계정이 받을 수 있는 보상
   };
 }
 
@@ -269,6 +270,10 @@ function record(key, { counted, win, kills, botKills }) {
 const { SKINS, PRICE: SKIN_PRICE } = require('./public/skins.js');
 const { PATCH } = require('./public/patch.js');
 // 패치 내역: 봤다고 표시 / 보상 받기 (패치마다 한 번)
+// 이 계정이 받을 수 있는 패치 보상 (버그를 고친 뒤에 가입한 계정은 그 보상 없음)
+function patchRewardsFor(a) {
+  return (PATCH.rewards || []).filter((r) => !r.before || (a.createdAt || 0) < Date.parse(r.before));
+}
 function patchSeen(key) {
   const a = store.accounts[key];
   if (!a) throw new Error('로그인이 필요해요.');
@@ -279,7 +284,9 @@ function patchClaim(key) {
   const a = store.accounts[key];
   if (!a) throw new Error('로그인이 필요해요.');
   a.patchClaimed = a.patchClaimed || [];
-  const left = PATCH.rewards.filter((r) => !a.patchClaimed.includes(r.id));
+  const elig = patchRewardsFor(a);
+  if (!elig.length) throw new Error('버그를 고친 뒤에 만든 계정이라 이번 보상은 없어요.');
+  const left = elig.filter((r) => !a.patchClaimed.includes(r.id));
   if (!left.length) throw new Error('이미 받은 보상이에요.');
   let gained = 0;
   for (const r of left) { a.patchClaimed.push(r.id); gained += r.gems; }

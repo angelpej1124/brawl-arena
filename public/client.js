@@ -187,7 +187,8 @@ function renderPatch() {
     body.appendChild(ul);
   }
   const p = account.profile, box = $('patchReward');
-  const rw = PATCH.rewards || [], all = rw.reduce((n, r) => n + r.gems, 0);
+  // 로그인했으면 이 계정이 받을 수 있는 보상만 (버그를 고친 뒤 가입한 계정은 없음)
+  const rw = (PATCH.rewards || []).filter((r) => !p || !p.patchElig || p.patchElig.includes(r.id)), all = rw.reduce((n, r) => n + r.gems, 0);
   box.hidden = !rw.length;
   // 일부만 받은 계정은 남은 보석만 보여줌
   const left = p && !p.patchClaimed && p.patchLeft != null ? p.patchLeft : all;
@@ -202,7 +203,7 @@ function openPatch() { if (!PATCH) return; renderPatch(); $('patchMsg').textCont
 function maybeShowPatch() {
   if (!PATCH || patchShown || !$('lobby') || $('lobby').hidden) return;
   const p = account.profile;
-  const need = p ? (p.patchSeen !== PATCH.id || ((PATCH.rewards || []).length && !p.patchClaimed)) : (!account.token && !patchLocalSeen());
+  const need = p ? (p.patchSeen !== PATCH.id || ((p.patchElig || []).length && !p.patchClaimed)) : (!account.token && !patchLocalSeen());
   if (!need) return;
   patchShown = true; openPatch();
 }
