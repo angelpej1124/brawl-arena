@@ -33,6 +33,8 @@
     steel:       { skill: 'rock', name: '강철', desc: '바위 대신 반짝이는 강철 몸', color: '#9fb0c4' },
     yinyang:     { skill: 'magnet', name: '음양', desc: '당기기·밀기 때 커다란 흑백 음양 무늬가 돎', color: '#1a1a1a' },
     thunder:     { skill: 'lightning', name: '천둥', desc: '노란 번개 대신 파란 천둥이 내리침 (보이는 것만 바뀜)', color: '#3a8bff' },
+    blackfire:   { skill: 'fire', name: '흑염', desc: '불이 전부 검정·보라색 (주먹·돌진·불붙은 상대까지)', color: '#7a2ad0' },
+    blackhole:   { skill: 'sun', name: '블랙홀', desc: '태양 대신 등 뒤에 블랙홀이 소용돌이치고, 불도 검정·보라색', color: '#4a1080' },
     lava:        { skill: 'flood', name: '용암', desc: '물 대신 주황색 반투명 용암 바다가 차오름 (보이는 것만 바뀜)', color: '#ff7a1a' },
     mecharm:     { skill: 'tentacle', name: '기계 팔', desc: '촉수가 매끈한 흰색 로봇 팔로 (청록 빛 관절, 둥근 집게)', color: '#3cdce6' },
     deepsea:     { skill: 'tentacle', name: '심해', desc: '보랏빛으로 빛나는 심해 생물 촉수 (청록 발광 점)', color: '#7a4ac8' },

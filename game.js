@@ -131,6 +131,10 @@ const dopeMul = (p, kind) => {
   const up = d.bad ? -SKILLS.dope.amt : SKILLS.dope.amt;
   return kind === 'def' ? 1 - up : 1 + up;
 };
+// 불 색 스킨: 화염(청염 파랑 · 흑염 검보라) / 태양(초신성 파랑 · 블랙홀 검보라) → 'fire' | 'blue' | 'dark'
+const fireTint = (p) => (skinOn(p, 'bluefire') ? 'blue' : skinOn(p, 'blackfire') ? 'dark' : 'fire');
+const sunTint = (p) => (skinOn(p, 'supernova') ? 'blue' : skinOn(p, 'blackhole') ? 'dark' : 'fire');
+const tintNum = (t) => (t === 'blue' ? 1 : t === 'dark' ? 2 : 0);
 const has = (p, k) => !!p && (p.skill === k || p.skill2 === k);
 // 키 배치: 보통 Q=스킬1, E=스킬2. 자석이 있으면 자석이 Q·E를 쓰고 나머지 스킬은 R
 function slotsOf(p) {
@@ -1102,7 +1106,7 @@ class Sim {
       if (d) p.facing = d;
       p.fdashT = s.dashTime; p.fdashHit = new Set(); p.attack = null;
       p.skillCd = s.cd;
-      this.ev({ k: 'fdash', x: r0(p.x), y: r0(cy), f: p.facing, pid: p.id, b: skinOn(p, 'bluefire') ? 1 : 0 });
+      this.ev({ k: 'fdash', x: r0(p.x), y: r0(cy), f: p.facing, pid: p.id, b: tintNum(fireTint(p)) });
     } else if (k === 'ice') {
       const s = SKILLS.ice;
       this.blizzards.push({ by: p.id, t: s.blizzard, sand: skinOn(p, 'sand'), skin: iceSkin(p) });
@@ -1134,7 +1138,7 @@ class Sim {
     } else if (k === 'sun') {
       const s = SKILLS.sun;
       p.sunT = s.duration; p.skillCd = s.cd;
-      this.ev({ k: 'sun', x: r0(p.x), y: r0(cy), pid: p.id, b: skinOn(p, 'supernova') ? 1 : 0 });
+      this.ev({ k: 'sun', x: r0(p.x), y: r0(cy), pid: p.id, b: tintNum(sunTint(p)) });
     } else if (k === 'wind') {
       const s = SKILLS.wind;
       this.winds.push({ id: ++this.evSeq, owner: p.id, x: p.x + p.facing * 40, y: p.y, vx: p.facing * s.speed, t: s.life, caught: new Set() });
@@ -1387,7 +1391,7 @@ class Sim {
       vx = Math.cos(d) * speed; vy = Math.sin(d) * speed;
     }
     // 화살 겉모습: 화염·태양(불화살, 스킨이면 파랑), 얼음(얼음 화살), 바람·스킨 이펙트
-    const el = (has(p, 'fire') || p.sunT > 0) ? ((has(p, 'fire') ? skinOn(p, 'bluefire') : skinOn(p, 'supernova')) ? 'blue' : 'fire') : has(p, 'ice') ? (skinOn(p, 'sand') ? 'sand' : 'ice') : skinFx(p) || (has(p, 'wind') ? 'wind' : '');
+    const el = (has(p, 'fire') || p.sunT > 0) ? (has(p, 'fire') ? fireTint(p) : sunTint(p)) : has(p, 'ice') ? (skinOn(p, 'sand') ? 'sand' : 'ice') : skinFx(p) || (has(p, 'wind') ? 'wind' : '');
     this.arrows.push({ id: ++this.evSeq, owner: p.id, x, y, vx, vy, c, homing, t: homing ? s.homingLife : 2, el: el || (skinOn(p, 'firebow') ? 'fire' : ''), big: sizeOf(p), de: skinOn(p, 'darkelf'), lf: skinOn(p, 'elf') });   // 불화살 스킨: 겉모습만 불
     this.ev({ k: 'shoot', x: r0(p.x), y: r0(y), pid: p.id });
   }
@@ -1517,7 +1521,7 @@ class Sim {
     const s = SKILLS.ninja, big = sizeOf(p);
     const y = p.y - bh(p) / 2 - 2, x = p.x + p.facing * (bw(p) / 2 + 6);
     // 화염·얼음·바람 등은 화살처럼 쿠나이에도 묻음. 고무·강화·거인 등 사거리 버프만큼 멀리 날아감
-    const el = (has(p, 'fire') || p.sunT > 0) ? ((has(p, 'fire') ? skinOn(p, 'bluefire') : skinOn(p, 'supernova')) ? 'blue' : 'fire') : has(p, 'ice') ? (skinOn(p, 'sand') ? 'sand' : 'ice') : skinFx(p) || (has(p, 'wind') ? 'wind' : '');
+    const el = (has(p, 'fire') || p.sunT > 0) ? (has(p, 'fire') ? fireTint(p) : sunTint(p)) : has(p, 'ice') ? (skinOn(p, 'sand') ? 'sand' : 'ice') : skinFx(p) || (has(p, 'wind') ? 'wind' : '');
     const range = this.reachBuff(p) * (p.rubberT > 0 ? 1.3 : 1);
     this.arrows.push({ id: ++this.evSeq, owner: p.id, x, y, vx: p.facing * s.speed, vy: 0, c: 0.5, ku: 1, t: s.life * clamp(range, 0.3, 2), el, big, sw: skinOn(p, 'snowninja') ? 1 : 0 });
     this.ev({ k: 'kunai', x: r0(x), y: r0(y), pid: p.id, sn: skinOn(p, 'snowninja') ? 1 : 0 });
@@ -1899,7 +1903,7 @@ class Sim {
     // 화염 + 태양을 같이 쓰는 중이면 불 피해 2배
     t.burnMul = has(a, 'fire') && a.sunT > 0 ? 2 : 1;
     // 청염(화염)·초신성(태양) 스킨이면 파란 불
-    t.burnBlue = (has(a, 'fire') && skinOn(a, 'bluefire')) || (a.sunT > 0 && skinOn(a, 'supernova') && !has(a, 'fire')) || (a.sunT > 0 && skinOn(a, 'supernova') && skinOn(a, 'bluefire'));
+    t.burnBlue = tintNum(has(a, 'fire') ? fireTint(a) : sunTint(a));   // 0 주황 · 1 파랑 · 2 검보라
     t.burnN = Math.max(t.burnN || 0, n); t.burnT = SKILLS.fire.burnEvery; t.burnDir = dir || a.facing; t.burnBy = a.id;
   }
   chill(t, amount, sand) {
@@ -1928,7 +1932,7 @@ class Sim {
           p.vx = p.burnDir * kb; p.vy = Math.min(p.vy, -kb * 0.8); p.grounded = false;
           p.hitstun = Math.max(p.hitstun, 0.08);
         }
-        this.ev({ k: 'burn', x: r0(p.x), y: r0(p.y - bh(p) / 2), b: p.burnBlue ? 1 : 0 });
+        this.ev({ k: 'burn', x: r0(p.x), y: r0(p.y - bh(p) / 2), b: p.burnBlue || 0 });
       }
     }
     const bz = this.blizzards.find((b) => this.foe({ id: b.by }, p));
@@ -2280,7 +2284,7 @@ class Sim {
         ft: ten(p.flyT), rt: ten(p.rockT), bt: ten(p.buffT),
         chg: has(p, 'empower') ? (p.charged ? 100 : Math.floor((p.stillT / SKILLS.empower.charge) * 100)) : 0,
         pr: has(p, 'parasite') ? Object.values(p.parHits).filter((n) => n >= SKILLS.parasite.hitsNeeded).length : 0,
-        isd: p.iceSand ? 1 : 0, iau: p.iceAur ? 1 : 0, idk: p.iceDark ? 1 : 0, slm: p.slow > 0 && p.slowMud ? 1 : 0, sn: activeSkins(p), bb: p.burnN > 0 && p.burnBlue ? 1 : 0,
+        isd: p.iceSand ? 1 : 0, iau: p.iceAur ? 1 : 0, idk: p.iceDark ? 1 : 0, slm: p.slow > 0 && p.slowMud ? 1 : 0, sn: activeSkins(p), bb: p.burnN > 0 && p.burnBlue ? p.burnBlue : 0,
         ins: p.inside ? 1 : 0, phost: p.parHost, pt: ten(p.parT), ctl: p.controller, rd: p.ready ? 1 : 0,
       })),
       cl: [...this.clones.values()].map((c) => ({

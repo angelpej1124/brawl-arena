@@ -210,6 +210,7 @@ function renderAccount() {
   // 보석
   $('gemCount').textContent = p ? p.gems : '-';
   $('gachaBtn').disabled = !p || p.gems < GACHA_COST;
+  $('gacha10Btn').disabled = !p || p.gems < GACHA_COST * 10;
   if (!p) $('gachaMsg').textContent = '가입하면 보석을 모아 은신·분신을 뽑을 수 있어요.';
   else if ($('gachaMsg').dataset.keep !== '1') $('gachaMsg').textContent = p.gems < GACHA_COST ? `뽑기까지 보석 ${GACHA_COST - p.gems}개 더 필요해요.` : '';
   // 스킬 잠금
@@ -217,8 +218,9 @@ function renderAccount() {
   document.querySelectorAll('.skill').forEach((b) => {
     const locked = !owned.includes(b.dataset.skill);
     b.classList.toggle('locked', locked);
-    b.disabled = locked;
-    b.title = locked ? (p ? '스킬 뽑기로 얻을 수 있어요' : '가입하고 뽑기로 얻을 수 있어요') : '';
+    b.disabled = locked && !p;                       // 로그인했으면 잠긴 스킬을 눌러 살 수 있음
+    b.classList.toggle('buyable', locked && !!p);
+    b.title = locked ? (p ? `뽑기로 얻거나, 눌러서 보석 ${SKILL_BUY}개로 사기` : '가입하고 뽑기로 얻을 수 있어요') : '';
   });
   if (!owned.includes(account.skill)) account.skill = 'slow';
   selectSkill(account.skill, false);
@@ -228,7 +230,7 @@ function renderAccount() {
 }
 
 // ---------------- 스킬 뽑기 ----------------
-const GACHA_COST = 100;
+const GACHA_COST = 100, SKILL_BUY = 1000;
 const BASE_SKILLS = ['slow', 'blink'];
 // ---------------- 스킨 창 ----------------
 function renderSkins() {
@@ -284,9 +286,35 @@ $('skinClose').addEventListener('click', () => { $('skinModal').hidden = true; $
 $('skinModal').addEventListener('click', (e) => { if (e.target === $('skinModal')) $('skinModal').hidden = true; });
 addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('skinModal').hidden) $('skinModal').hidden = true; });
 
+// 10회 뽑기: 결과를 칩으로 보여줌 (새 스킬은 색, 중복은 흐리게)
+$('gacha10Btn').addEventListener('click', async () => {
+  $('gacha10Btn').disabled = true; $('gachaBtn').disabled = true;
+  const msg = $('gachaMsg'), box = $('gachaRes');
+  msg.dataset.keep = '1'; msg.style.color = 'var(--muted)'; msg.textContent = '10회 뽑는 중…';
+  try {
+    const r = await api('/api/gacha', { count: 10 });
+    account.profile = r.profile;
+    const res = r.results || [r];
+    box.textContent = '';
+    for (const x of res) {
+      const s = document.createElement('span');
+      s.textContent = SKILLS[x.skill].name; s.className = x.dup ? 'dup' : 'new';
+      s.style.color = x.dup ? 'var(--muted)' : SKILL_COLOR[x.skill];
+      box.appendChild(s);
+    }
+    box.hidden = false;
+    const fresh = res.filter((x) => !x.dup), refund = res.reduce((n, x) => n + (x.refund || 0), 0);
+    msg.style.color = fresh.length ? 'var(--gem)' : 'var(--muted)';
+    msg.textContent = `새 스킬 ${fresh.length}개${refund ? ` · 중복 ${res.length - fresh.length}개라 보석 ${refund}개 돌려받음` : ''}`;
+    if (fresh.length) selectSkill(fresh[fresh.length - 1].skill, true);
+  } catch (err) { msg.style.color = 'var(--danger)'; msg.textContent = err.message; }
+  renderAccount();
+  setTimeout(() => { msg.dataset.keep = ''; }, 6000);
+});
 $('gachaBtn').addEventListener('click', async () => {
   const btn = $('gachaBtn');
   btn.disabled = true;
+  $('gachaRes').hidden = true;
   const msg = $('gachaMsg');
   msg.dataset.keep = '1';
   msg.style.color = 'var(--muted)';
@@ -487,7 +515,26 @@ function selectSkill(skill, save) {
   $('skillLbl').textContent = SKILLS[skill].two ? '스킬 선택 (Q · E)' : '스킬 선택 (Q)';
   if (save) { try { localStorage.setItem('brawl_skill', skill); } catch (e) {} }
 }
-document.querySelectorAll('.skill').forEach((b) => b.addEventListener('click', () => selectSkill(b.dataset.skill, true)));
+document.querySelectorAll('.skill').forEach((b) => b.addEventListener('click', () => {
+  if (b.classList.contains('locked')) return buySkillAsk(b.dataset.skill);
+  selectSkill(b.dataset.skill, true);
+}));
+// 잠긴 스킬 사기 (보석 1000개)
+async function buySkillAsk(skill) {
+  const p = account.profile, msg = $('gachaMsg');
+  if (!p) return;
+  const name = SKILLS[skill].name;
+  msg.dataset.keep = '1';
+  if (p.gems < SKILL_BUY) { msg.style.color = 'var(--danger)'; msg.textContent = `${name} 사기: 보석이 ${SKILL_BUY - p.gems}개 모자라요 (${SKILL_BUY}개 필요).`; setTimeout(() => { msg.dataset.keep = ''; }, 4000); return; }
+  if (!confirm(`${name} 스킬을 보석 ${SKILL_BUY}개로 살까요?\n(지금 보석 ${p.gems}개)`)) { msg.dataset.keep = ''; return; }
+  try {
+    const r = await api('/api/skill/buy', { skill });
+    account.profile = r.profile;
+    msg.style.color = SKILL_COLOR[skill]; msg.textContent = `${name} 구매 완료!`;
+    renderAccount(); selectSkill(skill, true);
+  } catch (err) { msg.style.color = 'var(--danger)'; msg.textContent = err.message; renderAccount(); }
+  setTimeout(() => { msg.dataset.keep = ''; }, 4000);
+}
 renderAccount(); // 스킬 버튼을 만든 뒤 잠금 상태 반영
 
 // =====================================================================
@@ -965,9 +1012,9 @@ function onEvent(ev) {
   } else if (ev.k === 'slash') {
     for (let i = 0; i < 8; i++) particles.push({ x: ev.x, y: ev.y + (Math.random() - 0.5) * 50, vx: ev.f * (200 + Math.random() * 200), vy: (Math.random() - 0.5) * 80, life: 0.3, max: 0.3, c: '#e6f1ff', r: 4, nograv: true });
   } else if (ev.k === 'fdash') {
-    particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.3, max: 0.3, r: 60, c: ev.b ? '60,140,255' : '255,120,40' });
+    particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.3, max: 0.3, r: 60, c: ev.b === 2 ? '140,50,220' : ev.b ? '60,140,255' : '255,120,40' });
   } else if (ev.k === 'burn') {
-    for (let i = 0; i < 8; i++) particles.push({ x: ev.x + (Math.random() - 0.5) * 30, y: ev.y + (Math.random() - 0.5) * 30, vx: (Math.random() - 0.5) * 120, vy: -120 - Math.random() * 160, life: 0.4, max: 0.4, c: ev.b ? (i % 2 ? '#9fd8ff' : '#2a6dff') : (i % 2 ? '#ffb02e' : '#ff4d1a'), r: 5, nograv: true });
+    for (let i = 0; i < 8; i++) particles.push({ x: ev.x + (Math.random() - 0.5) * 30, y: ev.y + (Math.random() - 0.5) * 30, vx: (Math.random() - 0.5) * 120, vy: -120 - Math.random() * 160, life: 0.4, max: 0.4, c: ev.b === 2 ? (i % 2 ? '#9a3cf0' : '#1a0828') : ev.b ? (i % 2 ? '#9fd8ff' : '#2a6dff') : (i % 2 ? '#ffb02e' : '#ff4d1a'), r: 5, nograv: true });
   } else if (ev.k === 'iced') {
     for (let i = 0; i < 18; i++) {
       const a = Math.random() * Math.PI * 2, sp = 80 + Math.random() * 240;
@@ -987,10 +1034,10 @@ function onEvent(ev) {
     banners.push({ text: `${ev.n} → ${ev.n2} 시스템 에러!`, life: 1.6, max: 1.6, small: true, color: '#39ff88' });
     if (ev.x !== undefined) for (let i = 0; i < 20; i++) particles.push({ x: ev.x + (Math.random() - 0.5) * 60, y: ev.y + (Math.random() - 0.5) * 70, vx: (Math.random() - 0.5) * 300, vy: (Math.random() - 0.5) * 100, life: 0.5, max: 0.5, c: ['#39ff88', '#ff2a78', '#28a0ff'][i % 3], r: 6, nograv: true });
   } else if (ev.k === 'sun') {
-    particles.push({ ring: true, fill: true, x: ev.x, y: ev.y, life: 0.6, max: 0.6, r: 140, c: ev.b ? '80,170,255' : '255,200,40', grow: true });
+    particles.push({ ring: true, fill: true, x: ev.x, y: ev.y, life: 0.6, max: 0.6, r: 140, c: ev.b === 2 ? '110,30,190' : ev.b ? '80,170,255' : '255,200,40', grow: true });
     for (let i = 0; i < 24; i++) {
       const a = (i / 24) * Math.PI * 2;
-      particles.push({ x: ev.x + Math.cos(a) * 30, y: ev.y + Math.sin(a) * 30, vx: Math.cos(a) * 300, vy: Math.sin(a) * 300, life: 0.5, max: 0.5, c: ev.b ? (i % 2 ? '#d8f0ff' : '#3f8cff') : (i % 2 ? '#fff3a0' : '#ffb21a'), r: 5, nograv: true });
+      particles.push({ x: ev.x + Math.cos(a) * 30, y: ev.y + Math.sin(a) * 30, vx: Math.cos(a) * 300, vy: Math.sin(a) * 300, life: 0.5, max: 0.5, c: ev.b === 2 ? (i % 2 ? '#b070ff' : '#12041e') : ev.b ? (i % 2 ? '#d8f0ff' : '#3f8cff') : (i % 2 ? '#fff3a0' : '#ffb21a'), r: 5, nograv: true });
     }
   } else if (ev.k === 'wind') {
     for (let i = 0; i < 14; i++) particles.push({ x: ev.x + ev.f * 30, y: ev.y + (Math.random() - 0.5) * 60, vx: ev.f * (250 + Math.random() * 300), vy: (Math.random() - 0.5) * 100, life: 0.4, max: 0.4, c: '#d8fff5', r: 4, nograv: true });
@@ -1161,6 +1208,14 @@ function drawStage() {
     ctx.fillStyle = th.plat; roundRect(p.x, p.y, p.w, 14, 7); ctx.fill();
     ctx.fillStyle = th.platHi; ctx.fillRect(p.x + 8, p.y + 2, p.w - 16, 3);
   }
+}
+// 불 색 스킨: 'blue'(청염·초신성) / 'dark'(흑염·블랙홀) / null(주황)
+function hotTint(p) {
+  const fT = skinOn(p, 'bluefire') ? 'blue' : skinOn(p, 'blackfire') ? 'dark' : null;
+  const sT = skinOn(p, 'supernova') ? 'blue' : skinOn(p, 'blackhole') ? 'dark' : null;
+  if (!p.sun) return hasK(p, 'fire') ? fT : null;
+  if (!hasK(p, 'fire')) return sT;
+  return fT && sT ? fT : null;
 }
 // 도핑 물약 (이속 하늘 · 공속 빨강 · 힘 초록 · 방어 노랑)
 const DOPE_NAMES = ['이속', '공속', '힘', '방어'];
@@ -1347,7 +1402,20 @@ function drawPlayer(p, time) {
     }
     ctx.restore();
   }
-  if (p.sun) {
+  if (p.sun && skinOn(p, 'blackhole')) {
+    // 블랙홀: 태양 대신 검은 구멍 + 빨려 들어가는 보라 고리
+    ctx.save(); ctx.translate(0, -PH / 2);
+    const hg = ctx.createRadialGradient(0, 0, 14, 0, 0, 58);
+    hg.addColorStop(0, 'rgba(0,0,0,0.9)'); hg.addColorStop(0.45, 'rgba(90,20,160,0.55)'); hg.addColorStop(1, 'rgba(40,0,80,0)');
+    ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(0, 0, 58, 0, Math.PI * 2); ctx.fill();
+    ctx.rotate(-time / 500);
+    for (let i = 0; i < 3; i++) {
+      ctx.rotate(Math.PI * 2 / 3);
+      ctx.strokeStyle = `rgba(${i % 2 ? '200,120,255' : '130,50,230'},0.75)`; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.ellipse(0, 0, 50 - i * 6, 16 - i * 2, 0, 0.2, Math.PI * 1.3); ctx.stroke();
+    }
+    ctx.restore();
+  } else if (p.sun) {
     // 태양: 뒤에서 빛나는 햇살 (초신성 스킨이면 파란 태양)
     const nova = skinOn(p, 'supernova');
     ctx.save(); ctx.translate(0, -PH / 2); ctx.rotate(time / 900);
@@ -1362,6 +1430,7 @@ function drawPlayer(p, time) {
     // 화염 돌진: 뒤로 긴 불꽃
     const g3 = ctx.createLinearGradient(0, 0, -f * 120, 0);
     if (skinOn(p, 'bluefire')) { g3.addColorStop(0, 'rgba(140,210,255,0.95)'); g3.addColorStop(1, 'rgba(30,90,255,0)'); }
+    else if (skinOn(p, 'blackfire')) { g3.addColorStop(0, 'rgba(150,60,230,0.95)'); g3.addColorStop(0.5, 'rgba(25,6,40,0.85)'); g3.addColorStop(1, 'rgba(10,0,20,0)'); }
     else { g3.addColorStop(0, 'rgba(255,200,60,0.9)'); g3.addColorStop(1, 'rgba(255,60,20,0)'); }
     ctx.fillStyle = g3; ctx.beginPath(); ctx.ellipse(-f * 50, -PH / 2, 80, 30, 0, 0, Math.PI * 2); ctx.fill();
   }
@@ -1456,7 +1525,7 @@ function drawPlayer(p, time) {
     // 불붙음: 몸 위로 흔들리는 불꽃
     for (let i = 0; i < 3; i++) {
       const fx2 = -12 + i * 12, h2 = 16 + Math.sin(time / 50 + i * 2) * 6;
-      ctx.fillStyle = p.bb ? (i % 2 ? 'rgba(150,215,255,0.9)' : 'rgba(40,110,255,0.85)') : (i % 2 ? 'rgba(255,180,40,0.85)' : 'rgba(255,80,20,0.85)');
+      ctx.fillStyle = p.bb === 2 ? (i % 2 ? 'rgba(140,50,220,0.9)' : 'rgba(20,6,32,0.9)') : p.bb ? (i % 2 ? 'rgba(150,215,255,0.9)' : 'rgba(40,110,255,0.85)') : (i % 2 ? 'rgba(255,180,40,0.85)' : 'rgba(255,80,20,0.85)');
       ctx.beginPath(); ctx.moveTo(fx2 - 7, -PH + 10); ctx.quadraticCurveTo(fx2, -PH - h2, fx2 + 7, -PH + 10); ctx.fill();
     }
   }
@@ -1581,10 +1650,11 @@ function drawPlayer(p, time) {
     // 주먹에 불꽃 / 냉기 (청염 스킨이면 파란 불)
     const fr = (p.at === 2 ? 20 : 16) + Math.sin(time / 60) * 3;
     const gl = ctx.createRadialGradient(fx, fy, 2, fx, fy, fr);
-    const blue = (hasK(p, 'fire') && skinOn(p, 'bluefire') && !p.sun) || (p.sun && skinOn(p, 'supernova') && (!hasK(p, 'fire') || skinOn(p, 'bluefire')));
+    const tint = hotTint(p), blue = tint === 'blue', dk = tint === 'dark';
     const hot = hasK(p, 'fire') || p.sun;
-    gl.addColorStop(0, blue ? 'rgba(170,225,255,0.95)' : hot ? 'rgba(255,220,90,0.95)' : 'rgba(235,250,255,0.95)');
-    gl.addColorStop(1, blue ? 'rgba(30,90,255,0)' : hot ? 'rgba(255,60,20,0)' : 'rgba(120,200,255,0)');
+    gl.addColorStop(0, dk ? 'rgba(200,110,255,0.95)' : blue ? 'rgba(170,225,255,0.95)' : hot ? 'rgba(255,220,90,0.95)' : 'rgba(235,250,255,0.95)');
+    gl.addColorStop(0.55, dk ? 'rgba(80,15,140,0.8)' : blue ? 'rgba(100,170,255,0.6)' : hot ? 'rgba(255,140,40,0.6)' : 'rgba(180,225,255,0.6)');
+    gl.addColorStop(1, dk ? 'rgba(10,0,20,0)' : blue ? 'rgba(30,90,255,0)' : hot ? 'rgba(255,60,20,0)' : 'rgba(120,200,255,0)');
     ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(fx, fy, fr, 0, Math.PI * 2); ctx.fill();
   }
   if (hasK(p, 'ninja')) drawKunaiHand(p, f, fx, fy, time);
@@ -1701,9 +1771,9 @@ function drawSword(p, f, time, rubM = 1, otherM = 1) {
   const fxs = fxOf(p);
   const dark = skinOn(p, 'darkness');   // 어둠의 검사 스킨
   const holy = skinOn(p, 'holyknight'); // 빛의 기사 스킨
-  const blueHot = (hasK(p, 'fire') && skinOn(p, 'bluefire') && !p.sun) || (p.sun && skinOn(p, 'supernova') && (!hasK(p, 'fire') || skinOn(p, 'bluefire')));
+  const blueHot = hotTint(p) === 'blue', darkHot = hotTint(p) === 'dark';
   const saber = saberColor(p);          // 광선검 스킨 (색)
-  const glow = saber ? saber : blueHot ? 'rgba(60,140,255,0.95)' : hot ? 'rgba(255,120,30,0.95)' : cold ? 'rgba(140,220,255,0.95)' : fxs ? fxColor(fxs, 0.95, time) : null;
+  const glow = saber ? saber : darkHot ? 'rgba(130,40,210,0.95)' : blueHot ? 'rgba(60,140,255,0.95)' : hot ? 'rgba(255,120,30,0.95)' : cold ? 'rgba(140,220,255,0.95)' : fxs ? fxColor(fxs, 0.95, time) : null;
   // 베기 궤적 (어둠의 검사: 검보라 초승달이 여러 겹)
   if (p.ap === 2 && p.at === 1) {
     if (holy) {
@@ -2273,14 +2343,14 @@ function drawArrowsWinds(state, now) {
     ctx.save(); ctx.translate(x, y); ctx.rotate(ang); if (a.s) ctx.scale(a.s, a.s);
     if (a.ku) {
       // 닌자 쿠나이(고드름): 직선으로 날아감 + 속도선
-      const tc2 = a.el === 'fire' ? 'rgba(255,120,30,0.7)' : a.el === 'blue' ? 'rgba(60,140,255,0.7)' : a.el === 'ice' ? 'rgba(150,220,255,0.7)' : a.el ? fxColor(a.el, 0.6, now) : a.sw ? 'rgba(200,240,255,0.55)' : 'rgba(230,235,245,0.4)';
+      const tc2 = a.el === 'fire' ? 'rgba(255,120,30,0.7)' : a.el === 'blue' ? 'rgba(60,140,255,0.7)' : a.el === 'dark' ? 'rgba(120,40,200,0.75)' : a.el === 'ice' ? 'rgba(150,220,255,0.7)' : a.el ? fxColor(a.el, 0.6, now) : a.sw ? 'rgba(200,240,255,0.55)' : 'rgba(230,235,245,0.4)';
       ctx.strokeStyle = tc2; ctx.lineWidth = 3; ctx.lineCap = 'round';
       for (const oy of [-4, 4]) { ctx.beginPath(); ctx.moveTo(-40, oy); ctx.lineTo(-10, oy * 0.5); ctx.stroke(); }
       ctx.translate(-8, 0); drawKunaiShape(!!a.sw, 1.15);
       ctx.restore(); continue;
     }
     // 불화살·얼음 화살·스킨 화살: 꼬리에 빛나는 자국
-    const tc = a.el === 'fire' ? 'rgba(255,120,30,' : a.el === 'blue' ? 'rgba(60,140,255,' : a.el === 'ice' ? 'rgba(150,220,255,' : a.el === 'sand' ? 'rgba(215,175,100,' : a.el === 'wind' ? 'rgba(210,250,240,' : null;
+    const tc = a.el === 'fire' ? 'rgba(255,120,30,' : a.el === 'blue' ? 'rgba(60,140,255,' : a.el === 'dark' ? 'rgba(120,40,200,' : a.el === 'ice' ? 'rgba(150,220,255,' : a.el === 'sand' ? 'rgba(215,175,100,' : a.el === 'wind' ? 'rgba(210,250,240,' : null;
     const fc = a.el && !tc ? fxColor(a.el, 0.7, now) : null;
     if (tc || fc) {
       const tg = ctx.createLinearGradient(-60, 0, 10, 0);
@@ -2316,9 +2386,9 @@ function drawBow(p, f, time, rubM = 1, otherM = 1) {
   if (ext) { ctx.strokeStyle = p.c; ctx.lineWidth = 7; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(f * PW / 2, hy); ctx.lineTo(hx, hy); ctx.stroke(); }
   const fxs = fxOf(p);
   // 불(화염·태양)·얼음이면 활이 빛남, 스킨 이펙트도 반영
-  const blueHot = (hasK(p, 'fire') && skinOn(p, 'bluefire') && !p.sun) || (p.sun && skinOn(p, 'supernova') && (!hasK(p, 'fire') || skinOn(p, 'bluefire')));
+  const blueHot = hotTint(p) === 'blue', darkHot = hotTint(p) === 'dark';
   const fireBow = skinOn(p, 'firebow');   // 불화살 스킨: 활이 불로 (불 피해는 없음)
-  const glow = fireBow ? 'rgba(255,110,20,0.95)' : blueHot ? 'rgba(60,140,255,0.95)' : (hasK(p, 'fire') || p.sun) ? 'rgba(255,120,30,0.95)' : hasK(p, 'ice') ? 'rgba(140,220,255,0.95)' : fxs ? fxColor(fxs, 0.95, time) : null;
+  const glow = fireBow ? 'rgba(255,110,20,0.95)' : darkHot ? 'rgba(130,40,210,0.95)' : blueHot ? 'rgba(60,140,255,0.95)' : (hasK(p, 'fire') || p.sun) ? 'rgba(255,120,30,0.95)' : hasK(p, 'ice') ? 'rgba(140,220,255,0.95)' : fxs ? fxColor(fxs, 0.95, time) : null;
   if (p.at === 1 && p.ap === 2) {
     ctx.fillStyle = fxs ? fxColor(fxs, 0.4, time) : 'rgba(255,240,210,0.4)';
     ctx.beginPath(); ctx.moveTo(hx - f * 20, hy); ctx.arc(hx - f * 20, hy, 62 * otherM, f > 0 ? -0.9 : Math.PI - 0.5, f > 0 ? 0.5 : Math.PI + 0.9); ctx.closePath(); ctx.fill();

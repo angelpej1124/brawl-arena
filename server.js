@@ -71,7 +71,15 @@ async function api(req, res, urlPath) {
       const key = accounts.fromToken(bearer(req));
       if (!key) return sendJson(res, 401, { error: '로그인이 필요해요.' });
       if (limited(ip, 'gacha', 60, 60000)) return sendJson(res, 429, { error: '너무 빨리 뽑고 있어요. 잠시 후 다시 해 주세요.' });
-      return sendJson(res, 200, accounts.gacha(key));
+      const body = await readBody(req).catch(() => ({}));
+      return sendJson(res, 200, accounts.gacha(key, body && Number(body.count) === 10 ? 10 : 1));
+    }
+    if (req.method === 'POST' && urlPath === '/api/skill/buy') {
+      const key = accounts.fromToken(bearer(req));
+      if (!key) return sendJson(res, 401, { error: '로그인이 필요해요.' });
+      if (limited(ip, 'gacha', 60, 60000)) return sendJson(res, 429, { error: '너무 빨리 요청하고 있어요. 잠시 후 다시 해 주세요.' });
+      const b = await readBody(req);
+      return sendJson(res, 200, accounts.buySkill(key, String(b.skill || '')));
     }
     if (req.method === 'POST' && urlPath === '/api/nick') {
       const key = accounts.fromToken(bearer(req));

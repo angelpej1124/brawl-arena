@@ -86,6 +86,12 @@
   .gacha-btn { width: auto; margin-top: 0; padding: 9px 14px; font-size: 14px; border-color: var(--gem); color: var(--gem); }
   .gacha-btn:disabled { opacity: .45; cursor: not-allowed; }
   #gachaMsg { font-weight: 700; }
+  .gem-row { flex-wrap: wrap; }
+  .gacha-res { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .gacha-res span { padding: 4px 9px; border-radius: 999px; border: 2px solid currentColor; font-size: 13px; font-weight: 800; background: rgba(255,255,255,0.04); }
+  .gacha-res span.dup { opacity: .5; font-weight: 600; }
+  .gacha-res span.new::after { content: ' NEW'; font-size: 10px; }
+  .skill.locked.buyable { cursor: pointer; }
   .skill.locked { opacity: .45; cursor: not-allowed; }
   .skill.locked b::after { content: '잠김'; margin-left: auto; font-size: 11px; font-weight: 700; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; }
   .adm-list { max-height: 200px; overflow-y: auto; margin-top: 8px; }
@@ -344,9 +350,12 @@
         <div class="gem-row">
           <span class="gem"><i class="gem-ico" aria-hidden="true"></i><b id="gemCount">-</b><small>보석</small></span>
           <button class="sub-btn gacha-btn" id="gachaBtn" type="button">스킬 뽑기 · 보석 100</button>
+          <button class="sub-btn gacha-btn" id="gacha10Btn" type="button">10회 뽑기 · 보석 1000</button>
         </div>
         <button class="sub-btn skin-open" id="skinBtn" type="button">스킨 보기</button>
         <p class="hint" id="gachaMsg" role="status"></p>
+        <div id="gachaRes" class="gacha-res" hidden></div>
+        <p class="hint">잠긴 스킬을 누르면 보석 1000개로 바로 살 수 있어요.</p>
         <p class="hint" id="gemHelp">판 참가 +25 · 우승 +40 · 처치 +12 &nbsp;|&nbsp; 봇전: 판 +10 · 봇 처치 +5</p>
       </div>
       <span class="lbl">랭킹 (승리 순)</span>

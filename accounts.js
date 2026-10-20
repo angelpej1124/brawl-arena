@@ -125,15 +125,10 @@ const GEMS = {
 const GACHA = {
   COST: 100,          // 뽑기 1회 가격
   DUP_REFUND: 40,     // 이미 가진 스킬이 나오면 돌려주는 보석
-  // 뽑기 확률 (가중치)
-  POOL: [
-    // 새 스킬 32개는 각 3%, 기본 스킬(둔화·점멸)은 각 2%  (가중치 합 400)
-    ...['stealth', 'clone', 'swap', 'fly', 'explode', 'freeze', 'rock', 'magnet', 'empower', 'parasite', 'quake', 'giant', 'rubber', 'engine',
-      'sword', 'blackflash', 'lightning', 'undying', 'hulk', 'fire', 'ice', 'turret', 'error', 'sun', 'wind', 'archer', 'time', 'combo', 'reflect', 'invert', 'atom', 'mine']
-      .map((skill) => ({ skill, weight: 12 })),
-    { skill: 'slow', weight: 8 },
-    { skill: 'blink', weight: 8 },
-  ],
+  TEN: 10,           // 10회 뽑기
+  BUY: 1000,         // 원하는 스킬 바로 사기
+  // 뽑기 확률 (가중치): 기본 스킬(둔화·점멸)은 8, 나머지 스킬은 전부 12 — 새 스킬을 추가하면 ALL_SKILLS만 고치면 자동으로 들어감
+  POOL: ALL_SKILLS.map((skill) => ({ skill, weight: skill === 'slow' || skill === 'blink' ? 8 : 12 })),
 };
 // 관리자 닉네임 (환경 변수 ADMIN_NICKS, 쉼표로 여러 명). 이미 가입된 계정에만 적용돼요.
 const ADMIN_NICKS = String(process.env.ADMIN_NICKS || '').split(',').map((n) => n.trim().toLowerCase()).filter(Boolean);
@@ -267,6 +262,17 @@ function record(key, { counted, win, kills, botKills }) {
 
 // ---------- 스킨 ----------
 const { SKINS, PRICE: SKIN_PRICE } = require('./public/skins.js');
+// 원하는 스킬을 보석으로 바로 사기
+function buySkill(key, skill) {
+  const a = store.accounts[key];
+  if (!a) throw new Error('로그인이 필요해요.');
+  if (!ALL_SKILLS.includes(skill)) throw new Error('없는 스킬이에요.');
+  if (a.owned.includes(skill)) throw new Error('이미 가진 스킬이에요.');
+  if (a.gems < GACHA.BUY) throw new Error(`보석이 모자라요. 스킬 사기는 ${GACHA.BUY}개예요.`);
+  a.gems -= GACHA.BUY; a.owned.push(skill);
+  save();
+  return { skill, profile: publicProfile(a) };
+}
 function buySkin(key, id) {
   const a = store.accounts[key];
   if (!a) throw new Error('로그인이 필요해요.');
@@ -298,20 +304,25 @@ function skinsOf(key) {
   return out;
 }
 
-function gacha(key) {
+function gacha(key, count = 1) {
   const a = store.accounts[key];
   if (!a) throw new Error('로그인이 필요해요.');
-  if (a.gems < GACHA.COST) throw new Error(`보석이 모자라요. 뽑기는 ${GACHA.COST}개가 필요해요.`);
-  a.gems -= GACHA.COST;
-  const total = GACHA.POOL.reduce((n, x) => n + x.weight, 0);
-  let r = crypto.randomInt(total);
-  let skill = GACHA.POOL[0].skill;
-  for (const x of GACHA.POOL) { if (r < x.weight) { skill = x.skill; break; } r -= x.weight; }
-  const dup = a.owned.includes(skill);
-  if (dup) a.gems += GACHA.DUP_REFUND;
-  else a.owned.push(skill);
+  const n = count === GACHA.TEN ? GACHA.TEN : 1, cost = GACHA.COST * n;
+  if (a.gems < cost) throw new Error(`보석이 모자라요. ${n === 1 ? '뽑기는' : `${n}회 뽑기는`} ${cost}개가 필요해요.`);
+  a.gems -= cost;
+  const total = GACHA.POOL.reduce((m, x) => m + x.weight, 0);
+  const results = [];
+  for (let k = 0; k < n; k++) {
+    let r = crypto.randomInt(total);
+    let skill = GACHA.POOL[0].skill;
+    for (const x of GACHA.POOL) { if (r < x.weight) { skill = x.skill; break; } r -= x.weight; }
+    const dup = a.owned.includes(skill);   // 같은 10회 안에서 두 번째로 나온 것도 중복
+    if (dup) a.gems += GACHA.DUP_REFUND;
+    else a.owned.push(skill);
+    results.push({ skill, dup, refund: dup ? GACHA.DUP_REFUND : 0 });
+  }
   save();
-  return { skill, dup, refund: dup ? GACHA.DUP_REFUND : 0, profile: publicProfile(a) };
+  return { ...results[0], results, profile: publicProfile(a) };
 }
 
 // ---------- 관리자 ----------
@@ -399,6 +410,6 @@ setInterval(() => {
 
 module.exports = {
   init, storage: () => storageName, signup, login, logout, fromToken, profileOf, nickOf, isTaken,
-  keyOf, owns, ownedOf, setSkill, record, buySkin, equipSkin, skinsOf, adminWarn, changeNick, ranking, cleanNick, gacha, isAdmin, adminList, adminUpdate,
+  keyOf, owns, ownedOf, setSkill, record, buySkin, equipSkin, skinsOf, adminWarn, changeNick, ranking, cleanNick, gacha, buySkill, isAdmin, adminList, adminUpdate,
   GEMS, GACHA, BASE_SKILLS, ALL_SKILLS,
 };
