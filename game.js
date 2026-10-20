@@ -85,7 +85,7 @@ const SKILLS = {
   dope:     { name: '도핑', max: 3, every: 7, buff: 5, debuff: 3, amt: 0.35, grab: 50 },
   flash:    { name: '섬광', cd: 10, radius: 210, zoneTime: 4, kbR: 260, kb: 300, blindR: 700, blindMax: 3 },
   // 홍수: Q마다 아래에서 물이 참 (여러 번 쓰면 더 높이). 홍수 사용자는 헤엄치고, 다른 사람은 느려지고 숨이 참
-  flood:    { name: '홍수', cd: 12, rise: 120, maxAbove: 280, riseSpeed: 140, hold: 9, recede: 22, breath: 10,
+  flood:    { name: '홍수', cd: 12, rise: 120, riseSpeed: 140, hold: 15, recede: 22, fullHold: 10, drainTime: 5, breath: 10,
               moveMul: 0.55, jumpMul: 0.7, atkMul: 0.6, swim: 1.15, proj: 0.45, dash: 0.5, stunMul: 1.6, iceMul: 1.6 },
   turret:   { name: '터렛', cd: 12, max: 3, hp: 4, range: 560, fireEvery: 0.9, bulletSpeed: 820, bulletLife: 0.9, dmg: 3, baseKB: 210, growthKB: 5 },
 };
@@ -505,12 +505,23 @@ class Sim {
   inWater(p) { return !!this.water && p.y - bh(p) * 0.5 > this.water.y; }          // 몸 가운데가 물에 잠김
   headUnder(p) { return !!this.water && p.y - bh(p) > this.water.y + 4; }         // 머리까지 잠김
   waterK(y) { return this.water && y > this.water.y ? SKILLS.flood.proj : 1; }    // 물속 투사체 속도
+  waterTop() { return -60; }   // 최대 수면 = 화면 맨 위까지 꽉 참
   updateWater(dt) {
     const w = this.water; if (!w) return;
-    const s = SKILLS.flood;
-    if (this.time - w.lastFill > s.hold) w.target += s.recede * dt;
+    const s = SKILLS.flood, bottom = this.stage.height + 40;
+    if (w.drain) {
+      // 꽉 찬 뒤 10초 → 5초 동안 물이 전부 빠짐 (다 빠질 때까지 홍수 못 씀)
+      w.y += w.drainSpd * dt; w.target = w.y;
+      if (w.y >= bottom) this.water = null;
+      return;
+    }
+    if (this.time - w.lastFill > s.hold) w.target += s.recede * dt;   // 15초 동안 안 쓰면 천천히 낮아짐
     w.y = approach(w.y, w.target, s.riseSpeed * dt);
-    if (w.target >= this.stage.height + 40 && w.y >= this.stage.height + 39) this.water = null;
+    if (w.y <= this.waterTop() + 2) {
+      if (w.fullAt == null) { w.fullAt = this.time; this.ev({ k: 'floodfull', lava: w.lava ? 1 : 0 }); }
+      else if (this.time - w.fullAt >= s.fullHold) { w.drain = true; w.drainSpd = (bottom - w.y) / s.drainTime; this.ev({ k: 'flooddrain', lava: w.lava ? 1 : 0 }); }
+    } else w.fullAt = null;
+    if (w.target >= bottom && w.y >= bottom - 1) this.water = null;
   }
   // x 위치에서 y 아래로 가장 가까운 땅 높이 (빗면 포함). 없으면 null
   groundBelow(x, y) {
@@ -873,7 +884,7 @@ class Sim {
 
     if (p.ghostT > 0) {
       // 귀신: 중력·벽 없이 WASD로 자유롭게 (장외로는 안 나감)
-      const sp = SKILLS.ghost.speed, b = this.stage.blast;
+      const sp = SKILLS.ghost.speed * (p.bot ? ({ easy: 0.5, mid: 0.6, hard: 0.7 }[p.diff] || 0.6) : 1), b = this.stage.blast;   // 봇 귀신은 느리게
       p.vx = dir * sp; p.vy = ((inp.d ? 1 : 0) - (inp.u ? 1 : 0)) * sp;
       p.x = clamp(p.x + p.vx * dt, b.left + 60, b.right - 60); p.y = clamp(p.y + p.vy * dt, b.top + 120, b.bottom - 60);
       p.grounded = false; p.hitstun = 0;
@@ -1200,7 +1211,8 @@ class Sim {
       this.ev({ k: 'flash', x: r0(cx), y: r0(cy), pid: p.id });
     } else if (k === 'flood') {
       // 아래에서 물이 차오름 (또 쓰면 더 높이)
-      const s = SKILLS.flood, bottom = this.stage.height + 40, top = this.stage.floor - s.maxAbove;
+      const s = SKILLS.flood, bottom = this.stage.height + 40, top = this.waterTop();
+      if (this.water && this.water.drain) { this.deny(p, '물이 다 빠질 때까지 홍수를 다시 쓸 수 없어요'); return; }
       if (!this.water) this.water = { y: bottom, target: bottom, lastFill: 0, lava: false };
       this.water.target = Math.max(top, Math.min(this.water.target, bottom) - s.rise - (this.water.target >= bottom ? bottom - this.stage.floor - 20 : 0));
       this.water.lastFill = this.time; this.water.lava = skinOn(p, 'lava');
@@ -2301,11 +2313,24 @@ class Sim {
 function botThink(sim, b) {
   const inp = EMPTY_INPUT();
   if (!b.alive || b.hitstun > 0 || b.stunT > 0 || b.iceT > 0 || b.fdashT > 0 || b.inside || b.frozen > 0) {
-    // 기생 중인 봇: 3~5초 뒤 빠져나옴
-    if (b.inside && b.parT < 3 && Math.random() < 0.02) {
-      const sl = slotsOf(b), key = ['s', 'e', 'x'].find((q) => sl[q] === 'parasite') || 's';
-      if (!b.prevInput[key]) inp[key] = 1;
+    if (b.inside) {
+      // 기생 중인 봇: 숙주를 가까운 무대 끝으로 몰아 장외로 떨어뜨림 (자살시키기)
+      const h = sim.players.get(b.parHost), st = sim.stage;
+      if (h) {
+        if (b.parDir == null) b.parDir = (h.x - st.left < st.right - h.x) ? -1 : 1;
+        if (b.parDir > 0) inp.r = 1; else inp.l = 1;
+        // 앞이 벽이면 뛰어넘고, 발판 위면 아래로 내려감, 떨어지는 중엔 점프 안 함
+        if (h.grounded && Math.abs(h.vx) < 30 && sim.solidAt(h.x + b.parDir * 40, h.y - 30) && !b.prevInput.u) inp.u = 1;
+        if (h.grounded && sim.onPlatform(h)) inp.d = 1;
+      }
+      // 시간이 거의 다 됐는데 숙주가 아직 무대 위면 빠져나옴
+      if (b.parT < 0.4 && h && sim.surfaceBelow(h.x, h.y) && Math.random() < 0.2) {
+        const sl = slotsOf(b), key = ['s', 'e', 'x'].find((q) => sl[q] === 'parasite') || 's';
+        if (!b.prevInput[key]) inp[key] = 1;
+      }
+      return inp;
     }
+    b.parDir = null;
     return inp;
   }
   // 귀신 봇: 가장 가까운 적에게 날아가서 때림
@@ -2338,7 +2363,7 @@ function botThink(sim, b) {
     if (!b.bDirT || b.bDirT <= 0) { b.bDir = [-1, 0, 1][Math.floor(Math.random() * 3)]; b.bDirT = 10 + Math.floor(Math.random() * 20); }
     b.bDirT--;
     if (b.bDir > 0) inp.r = 1; else if (b.bDir < 0) inp.l = 1;
-    if (!b.attack && Math.random() < 0.07) { if (Math.random() < 0.3) inp.h = 1; else inp.a = 1; }
+    if (!b.attack && Math.random() < 0.02) { if (Math.random() < 0.3) inp.h = 1; else inp.a = 1; }   // 가끔 허공에 휘두름
     if (!sim.surfaceBelow(b.x + (b.bDir || 0) * 60, b.y) && b.grounded) { inp.l = 0; inp.r = 0; }
     return inp;
   }
@@ -2503,7 +2528,7 @@ function botThink(sim, b) {
         if (sk === 'gamble' && ready && R < 0.01) use(sk);
         if (sk === 'flash' && ready && best < 260 && R < 0.05) use(sk);
         if (sk === 'wave' && ready && best < 200 && R < 0.06) use(sk);
-        if (sk === 'flood' && ready && (target.y >= b.y - 20 || sim.water) && R < 0.025) use(sk);
+        if (sk === 'flood' && ready && !(sim.water && sim.water.drain) && (target.y >= b.y - 20 || sim.water) && R < 0.025) use(sk);
         if (sk === 'starlight' && b.skillCd <= 0 && b.starN >= 3 && best < 420 && R < 0.04) use(sk);
         if (sk === 'reflect' && ready) {
           // 가까운 적이 공격 중이거나 화살·참격·총알이 날아오면 가끔 반사 시도

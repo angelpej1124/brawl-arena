@@ -154,6 +154,7 @@
     drink: (o) => { tone('sine', 500, 900, 0.08, 0.2, o); tone('sine', 700, 1200, 0.08, 0.2, { ...o, delay: 0.09 }); tone('triangle', 900, 1600, 0.25, 0.15, { ...o, delay: 0.18 }); },
     dopebad: (o) => tone('sawtooth', 300, 120, 0.4, 0.12, o),
     potland: (o) => tone('triangle', 1400, 1100, 0.08, 0.12, o),
+    flooddrain: (o) => noise('lowpass', 1200, 200, 2.5, 0.5, { ...o, atk: 0.3 }),
     boing: (o) => { tone('sine', 180, 520, 0.18, 0.3, o); tone('triangle', 360, 900, 0.15, 0.1, o); },
     fizz: (o) => noise('highpass', 3000, 6000, 0.5, 0.3, { ...o, atk: 0.02 }),
     block: (o) => { tone('square', 900, 700, 0.08, 0.12, o); noise('bandpass', 3000, 2000, 0.1, 0.35, { ...o, q: 3 }); tone('sine', 1300, 1250, 0.3, 0.1, o); },
