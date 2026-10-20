@@ -189,7 +189,9 @@ async function signup(nickRaw, pw) {
     nick, salt: salt.toString('hex'), hash: hash.toString('hex'),
     wins: 0, games: 0, kos: 0, skill: 'slow', createdAt: Date.now(),
     gems: GEMS.START, owned: [...BASE_SKILLS], admin: false,
+    skins: [], skinSel: {},
   };
+  upgrade(store.accounts[key], key);   // 빠진 항목 채우기 (새 계정도 예전 계정과 똑같은 모양)
   save();
   return { token: newSession(key), profile: publicProfile(store.accounts[key]) };
 }
@@ -296,6 +298,7 @@ function buySkill(key, skill) {
 function buySkin(key, id) {
   const a = store.accounts[key];
   if (!a) throw new Error('로그인이 필요해요.');
+  upgrade(a, key);
   const sk = SKINS[id];
   if (!sk) throw new Error('없는 스킨이에요.');
   if (a.skins.includes(id)) throw new Error('이미 가진 스킨이에요.');
@@ -308,6 +311,7 @@ function buySkin(key, id) {
 function equipSkin(key, skill, id) {
   const a = store.accounts[key];
   if (!a) throw new Error('로그인이 필요해요.');
+  upgrade(a, key);
   if (!id) { delete a.skinSel[skill]; save(); return { profile: publicProfile(a) }; }   // 기본 스킨
   const sk = SKINS[id];
   if (!sk || sk.skill !== skill) throw new Error('이 능력의 스킨이 아니에요.');
