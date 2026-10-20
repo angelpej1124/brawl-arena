@@ -187,9 +187,12 @@ function renderPatch() {
     body.appendChild(ul);
   }
   const p = account.profile, box = $('patchReward');
-  box.hidden = !PATCH.reward;
-  $('patchRewardAmt').textContent = `보석 ${PATCH.reward}개`;
-  $('patchRewardWhy').textContent = PATCH.rewardWhy || '';
+  const rw = PATCH.rewards || [], all = rw.reduce((n, r) => n + r.gems, 0);
+  box.hidden = !rw.length;
+  // 일부만 받은 계정은 남은 보석만 보여줌
+  const left = p && !p.patchClaimed && p.patchLeft != null ? p.patchLeft : all;
+  $('patchRewardAmt').textContent = `보석 ${left || all}개`;
+  $('patchRewardWhy').textContent = rw.map((r) => `${r.why} ${r.gems}`).join(' · ');
   const btn = $('patchClaim');
   if (!p) { btn.disabled = true; btn.textContent = '로그인하면 받기'; }
   else if (p.patchClaimed) { btn.disabled = true; btn.textContent = '받았어요 ✓'; }
@@ -199,7 +202,7 @@ function openPatch() { if (!PATCH) return; renderPatch(); $('patchMsg').textCont
 function maybeShowPatch() {
   if (!PATCH || patchShown || !$('lobby') || $('lobby').hidden) return;
   const p = account.profile;
-  const need = p ? (p.patchSeen !== PATCH.id || (PATCH.reward && !p.patchClaimed)) : (!account.token && !patchLocalSeen());
+  const need = p ? (p.patchSeen !== PATCH.id || ((PATCH.rewards || []).length && !p.patchClaimed)) : (!account.token && !patchLocalSeen());
   if (!need) return;
   patchShown = true; openPatch();
 }

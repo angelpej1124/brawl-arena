@@ -165,7 +165,8 @@ function publicProfile(a) {
     skins: [...(a.skins || [])], skinSel: { ...(a.skinSel || {}) },
     nickWarn: a.nickWarn || null,   // 닉네임 경고 (사유). 있으면 닉네임을 바꿔야 게임 가능
     patchSeen: a.patchSeen || null,   // 마지막으로 본 패치 내역
-    patchClaimed: (a.patchClaimed || []).includes(PATCH.id),   // 이번 패치 보상 받았는지
+    patchClaimed: PATCH.rewards.every((r) => (a.patchClaimed || []).includes(r.id)),   // 이번 패치 보상 다 받았는지
+    patchLeft: PATCH.rewards.filter((r) => !(a.patchClaimed || []).includes(r.id)).reduce((n, r) => n + r.gems, 0),   // 아직 안 받은 보석
   };
 }
 
@@ -277,12 +278,14 @@ function patchSeen(key) {
 function patchClaim(key) {
   const a = store.accounts[key];
   if (!a) throw new Error('로그인이 필요해요.');
-  if (!PATCH.reward) throw new Error('이번 패치에는 보상이 없어요.');
   a.patchClaimed = a.patchClaimed || [];
-  if (a.patchClaimed.includes(PATCH.id)) throw new Error('이미 받은 보상이에요.');
-  a.patchClaimed.push(PATCH.id); a.gems += PATCH.reward; a.patchSeen = PATCH.id;
+  const left = PATCH.rewards.filter((r) => !a.patchClaimed.includes(r.id));
+  if (!left.length) throw new Error('이미 받은 보상이에요.');
+  let gained = 0;
+  for (const r of left) { a.patchClaimed.push(r.id); gained += r.gems; }
+  a.gems += gained; a.patchSeen = PATCH.id;
   save();
-  return { gained: PATCH.reward, profile: publicProfile(a) };
+  return { gained, profile: publicProfile(a) };
 }
 // 원하는 스킬을 보석으로 바로 사기
 function buySkill(key, skill) {
