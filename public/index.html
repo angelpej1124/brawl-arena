@@ -207,6 +207,21 @@
     .tb-x { right: calc(178px + env(safe-area-inset-right, 0px)); bottom: calc(102px + env(safe-area-inset-bottom, 0px)); }
     #rotate { display: none; }
   }
+  /* 패드(큰 터치 화면): 이동 버튼·공격·점프·스킬을 1.4배쯤 크게, 간격도 넓게 */
+  @media (pointer: coarse) and (min-width: 700px) and (min-height: 600px) {
+    #touch { height: 52%; }
+    .tbtn { width: 104px; height: 104px; font-size: 21px; border-width: 3px; }
+    .tb-l { left: calc(24px + env(safe-area-inset-left, 0px)); bottom: calc(36px + env(safe-area-inset-bottom, 0px)); }
+    .tb-r { left: calc(146px + env(safe-area-inset-left, 0px)); bottom: calc(36px + env(safe-area-inset-bottom, 0px)); }
+    .tb-d { left: calc(90px + env(safe-area-inset-left, 0px)); bottom: calc(156px + env(safe-area-inset-bottom, 0px)); width: 82px; height: 82px; }
+    .tb-u { right: calc(24px + env(safe-area-inset-right, 0px)); bottom: calc(30px + env(safe-area-inset-bottom, 0px)); width: 120px; height: 120px; }
+    .tb-a { right: calc(156px + env(safe-area-inset-right, 0px)); bottom: calc(30px + env(safe-area-inset-bottom, 0px)); width: 112px; height: 112px; }
+    .tb-h { right: calc(282px + env(safe-area-inset-right, 0px)); bottom: calc(40px + env(safe-area-inset-bottom, 0px)); }
+    .tb-s { right: calc(160px + env(safe-area-inset-right, 0px)); bottom: calc(156px + env(safe-area-inset-bottom, 0px)); }
+    .tb-s small, .tb-e small { font-size: 14px; }
+    .tb-e { right: calc(32px + env(safe-area-inset-right, 0px)); bottom: calc(166px + env(safe-area-inset-bottom, 0px)); width: 88px; height: 88px; }
+    .tb-x { right: calc(286px + env(safe-area-inset-right, 0px)); bottom: calc(160px + env(safe-area-inset-bottom, 0px)); width: 88px; height: 88px; }
+  }
   @media (max-width: 640px) { #net { top: calc(62px + env(safe-area-inset-top, 0px)); } }
   #roomPanel { position: fixed; z-index: 6; left: 50%; transform: translateX(-50%); top: calc(58px + env(safe-area-inset-top, 0px));
     width: min(620px, calc(100% - 24px)); box-sizing: border-box; background: rgba(18,16,31,.9); border: 1px solid var(--line);

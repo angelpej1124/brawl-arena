@@ -1822,10 +1822,14 @@ class Sim {
       const sy = slopeY(sl, p.x), lim = 14 + Math.abs(((sl.y2 - sl.y1) / (sl.x2 - sl.x1)) * (p.x - prevX));
       if (p.y > sy + lim && p.y - h < slopeBase(sl) && !(prevX >= sl.x1 && prevX <= sl.x2 && p.y > slopeY(sl, prevX) + 14)) { p.x = prevX; p.vx = 0; }
     }
+    // 빗면 위에 서 있으면 몸 폭만큼 높이 차이가 생기므로, 그만큼 더 높은 턱도 넘어감 (빗면 끝과 평평한 땅 이음새에서 안 걸리게)
+    let gradUnder = 0;
+    for (const sl of slopes) if (p.x + hw >= sl.x1 - 2 && p.x - hw <= sl.x2 + 2 && Math.abs(p.y - slopeY(sl, clamp(p.x, sl.x1, sl.x2))) < 40 + h * 0.3) gradUnder = Math.max(gradUnder, Math.abs((sl.y2 - sl.y1) / (sl.x2 - sl.x1)));
+    const stepMax = 18 + gradUnder * hw * 1.15;
     for (const s of this.stage.solids) {
       if (p.y > s.y && p.y - h < s.y + s.h && p.x + hw > s.x && p.x - hw < s.x + s.w) {
         // 낮은 턱(빗면 끝 등)은 걸어서 넘어감
-        if (wasGrounded && p.y - s.y <= 18 && !this.stage.solids.some((o) => o !== s && p.x + hw > o.x && p.x - hw < o.x + o.w && s.y > o.y && s.y - h < o.y + o.h)) { p.y = s.y; continue; }
+        if (wasGrounded && p.y - s.y <= stepMax && !this.stage.solids.some((o) => o !== s && p.x + hw > o.x && p.x - hw < o.x + o.w && s.y > o.y && s.y - h < o.y + o.h)) { p.y = s.y; continue; }
         if (p.vx > 0 || p.x < s.x + s.w / 2) p.x = s.x - hw; else p.x = s.x + s.w + hw;
         p.vx = 0;
       }
