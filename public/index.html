@@ -150,6 +150,14 @@
     background: rgba(18,16,31,.78); border: 1px solid var(--line); border-radius: 10px; padding: 5px 6px 5px 12px; font-size: 13px; }
   #bar button { border: 0; border-radius: 7px; padding: 6px 10px; background: #2f2a55; color: var(--text); cursor: pointer; font-size: 13px; touch-action: manipulation; }
   #bar button:hover { background: #3d3670; }
+  /* 좁은 화면(폰): 위 버튼줄은 한 줄로 두고 옆으로 밀어서 봄 → 아래 대기실 창과 안 겹침 */
+  @media (max-width: 760px), (max-height: 500px) {
+    #bar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; justify-content: flex-start; left: max(12px, env(safe-area-inset-left, 0px)); max-width: none; padding: 4px 6px; }
+    #bar::-webkit-scrollbar { display: none; }
+    #bar button { flex: none; padding: 5px 8px; font-size: 12px; }
+    #roomLabel { flex: none; white-space: nowrap; font-size: 12px; }
+    #net { top: calc(52px + env(safe-area-inset-top, 0px)); }
+  }
   .snd-row { display: flex; justify-content: center; gap: 6px; margin: -4px 0 10px; }
   .snd-row .snd-btn { border: 1px solid #3d3670; border-radius: 999px; padding: 4px 12px; background: transparent; color: var(--muted); cursor: pointer; font-size: 12px; }
   .snd-btn.off { opacity: .5; text-decoration: line-through; }
@@ -171,26 +179,32 @@
   .tb-r { left: calc(100px + env(safe-area-inset-left, 0px)); bottom: calc(26px + env(safe-area-inset-bottom, 0px)); }
   .tb-d { left: calc(64px + env(safe-area-inset-left, 0px)); bottom: calc(110px + env(safe-area-inset-bottom, 0px)); width: 58px; height: 58px; }
   .tb-u { right: calc(14px + env(safe-area-inset-right, 0px)); bottom: calc(22px + env(safe-area-inset-bottom, 0px)); width: 84px; height: 84px; }
-  .tb-a { right: calc(108px + env(safe-area-inset-right, 0px)); bottom: calc(22px + env(safe-area-inset-bottom, 0px)); }
-  .tb-h { right: calc(108px + env(safe-area-inset-right, 0px)); bottom: calc(106px + env(safe-area-inset-bottom, 0px)); }
-  .tb-s { right: calc(20px + env(safe-area-inset-right, 0px)); bottom: calc(116px + env(safe-area-inset-bottom, 0px)); border-color: var(--blink); }
+  /* 오른손: 점프(구석) · 약(왼쪽) · 강(그 왼쪽) — 스킬은 약 바로 위라 약→스킬로 엄지를 쓱 올리기 쉬움 (흑섬) */
+  .tb-a { right: calc(108px + env(safe-area-inset-right, 0px)); bottom: calc(22px + env(safe-area-inset-bottom, 0px)); width: 80px; height: 80px; }
+  .tb-h { right: calc(198px + env(safe-area-inset-right, 0px)); bottom: calc(30px + env(safe-area-inset-bottom, 0px)); }
+  .tb-s { right: calc(110px + env(safe-area-inset-right, 0px)); bottom: calc(110px + env(safe-area-inset-bottom, 0px)); border-color: var(--blink); }
   .tb-s small { font-size: 11px; font-weight: 500; opacity: .85; }
   .tb-s.cool, .tb-e.cool { opacity: .5; }
-  .tb-e { right: calc(196px + env(safe-area-inset-right, 0px)); bottom: calc(116px + env(safe-area-inset-bottom, 0px)); width: 62px; height: 62px; border-color: #5a96ff; }
+  .tb-e { right: calc(22px + env(safe-area-inset-right, 0px)); bottom: calc(118px + env(safe-area-inset-bottom, 0px)); width: 62px; height: 62px; border-color: #5a96ff; }
   .tb-e small { font-size: 11px; font-weight: 500; opacity: .85; }
-  .tb-x { right: calc(20px + env(safe-area-inset-right, 0px)); bottom: calc(200px + env(safe-area-inset-bottom, 0px)); border-color: #ffb000; }
+  .tb-x { right: calc(202px + env(safe-area-inset-right, 0px)); bottom: calc(114px + env(safe-area-inset-bottom, 0px)); border-color: #ffb000; }
   .tb-x.cool { opacity: .5; }
+  /* 폭이 좁은 세로 화면: 강은 스킬 왼쪽(약 왼쪽 위 대각선)으로, R 스킬은 스킬 위로 → 왼손 버튼과 안 겹침 */
+  @media (orientation: portrait) and (max-width: 480px) {
+    .tb-h { right: calc(188px + env(safe-area-inset-right, 0px)); bottom: calc(108px + env(safe-area-inset-bottom, 0px)); width: 68px; height: 68px; }
+    .tb-x { right: calc(112px + env(safe-area-inset-right, 0px)); bottom: calc(194px + env(safe-area-inset-bottom, 0px)); }
+  }
   @media (orientation: landscape) and (max-height: 500px) {
     #touch { height: 100%; }
     .tbtn { width: 64px; height: 64px; font-size: 13px; background: rgba(255,255,255,.08); }
     .tb-u { width: 74px; height: 74px; }
     .tb-r { left: calc(88px + env(safe-area-inset-left, 0px)); }
     .tb-d { left: calc(56px + env(safe-area-inset-left, 0px)); bottom: calc(96px + env(safe-area-inset-bottom, 0px)); width: 52px; height: 52px; }
-    .tb-a { right: calc(96px + env(safe-area-inset-right, 0px)); }
-    .tb-h { right: calc(96px + env(safe-area-inset-right, 0px)); bottom: calc(94px + env(safe-area-inset-bottom, 0px)); }
-    .tb-s { bottom: calc(104px + env(safe-area-inset-bottom, 0px)); }
-    .tb-e { right: calc(176px + env(safe-area-inset-right, 0px)); bottom: calc(100px + env(safe-area-inset-bottom, 0px)); width: 56px; height: 56px; }
-    .tb-x { right: calc(20px + env(safe-area-inset-right, 0px)); bottom: calc(176px + env(safe-area-inset-bottom, 0px)); }
+    .tb-a { right: calc(96px + env(safe-area-inset-right, 0px)); width: 70px; height: 70px; }
+    .tb-h { right: calc(176px + env(safe-area-inset-right, 0px)); bottom: calc(30px + env(safe-area-inset-bottom, 0px)); }
+    .tb-s { right: calc(98px + env(safe-area-inset-right, 0px)); bottom: calc(100px + env(safe-area-inset-bottom, 0px)); }
+    .tb-e { right: calc(20px + env(safe-area-inset-right, 0px)); bottom: calc(104px + env(safe-area-inset-bottom, 0px)); width: 56px; height: 56px; }
+    .tb-x { right: calc(178px + env(safe-area-inset-right, 0px)); bottom: calc(102px + env(safe-area-inset-bottom, 0px)); }
     #rotate { display: none; }
   }
   @media (max-width: 640px) { #net { top: calc(62px + env(safe-area-inset-top, 0px)); } }
@@ -198,6 +212,17 @@
     width: min(620px, calc(100% - 24px)); box-sizing: border-box; background: rgba(18,16,31,.9); border: 1px solid var(--line);
     border-radius: 14px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
   .rp-head { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+  .vote-row { display: flex; flex-direction: column; gap: 6px; }
+  .vote-lbl { font-size: 13px; font-weight: 700; color: var(--muted); }
+  .vote-lbl small { font-weight: 500; font-size: 11.5px; }
+  .vote-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .vote-card { background: #1c1838; border: 2px solid var(--line); border-radius: 10px; padding: 5px; color: var(--text); font: inherit; cursor: pointer;
+    display: flex; flex-direction: column; gap: 4px; align-items: stretch; touch-action: manipulation; min-width: 0; }
+  .vote-card canvas { width: 100%; aspect-ratio: 16 / 9; border-radius: 6px; display: block; }
+  .vote-card b { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .vote-card small { font-size: 12px; color: var(--muted); }
+  .vote-card.mine { border-color: var(--accent); }
+  .vote-card.mine small { color: var(--accent); }
   .rp-head b { font-family: var(--display); font-weight: 400; font-size: 17px; color: var(--accent); }
   #rpStatus { color: var(--muted); font-size: 13px; flex: 1; min-width: 0; }
   .rp-fold { background: none; border: 0; color: var(--muted); font-size: 12px; cursor: pointer; text-decoration: underline; padding: 4px; }
@@ -430,6 +455,10 @@
     <div class="rp-row" id="skinRow" hidden><span class="rp-lbl" id="skinLbl">스킨</span><div class="chips" id="skinChips" role="group" aria-labelledby="skinLbl"></div></div>
     <div class="rp-row" id="kickRow" hidden><span class="rp-lbl" id="kickLbl">추방</span><div class="botlist" id="kickList" role="group" aria-labelledby="kickLbl"></div></div>
     <div class="rp-row" id="botRow" hidden><span class="rp-lbl" id="botLbl">봇</span><div class="botlist" id="botList" role="group" aria-labelledby="botLbl"></div></div>
+  </div>
+  <div class="vote-row" id="voteRow" hidden>
+    <span class="vote-lbl">다음 맵 투표 <small>(눌러서 투표 · 시작할 때 가장 많은 표)</small></span>
+    <div class="vote-cards" id="voteCards" role="group" aria-label="다음 맵 투표"></div>
   </div>
   <button id="readyBtn" class="rp-btn" type="button">준비</button>
 </div>

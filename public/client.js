@@ -697,7 +697,7 @@ function enter(pick) {
   $('playBtn').disabled = true;
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(`${proto}://${location.host}/ws`);
-  ws.onopen = () => send({ t: 'join', ...join, skill: account.skill, ...(account.profile ? { token: account.token } : { guest }) });
+  ws.onopen = () => send({ t: 'join', ...join, mob: isTouch ? 1 : 0, skill: account.skill, ...(account.profile ? { token: account.token } : { guest }) });
   ws.onmessage = (e) => onMessage(JSON.parse(e.data));
   ws.onclose = () => {
     online = false;
@@ -829,8 +829,9 @@ addEventListener('pointermove', (e) => {
   if (!touchMap.has(e.pointerId)) return;
   const k = keyAt(e.clientX, e.clientY);
   const prev = touchMap.get(e.pointerId);
-  // 이동 버튼끼리만 미끄러져 바꿀 수 있음 (공격 연타 방지)
-  if (k && k !== prev && 'lrd'.includes(k) && 'lrd'.includes(prev)) { touchMap.set(e.pointerId, k); refreshTouch(); }
+  // 이동 버튼끼리, 그리고 공격(약·강) → 스킬로 미끄러지는 것만 됨 (공격 연타 방지)
+  //  약을 누른 엄지를 그대로 스킬 버튼으로 쓱 올리면 흑섬 타이밍 맞추기가 쉬움
+  if (k && k !== prev && (('lrd'.includes(k) && 'lrd'.includes(prev)) || ('ah'.includes(prev) && 'sex'.includes(k)))) { touchMap.set(e.pointerId, k); refreshTouch(); }
 });
 const endTouch = (e) => { if (touchMap.delete(e.pointerId)) refreshTouch(); };
 addEventListener('pointerup', endTouch);
@@ -864,6 +865,11 @@ function onEvent(ev) {
     particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.5, max: 0.5, r: 220, c: '255,255,255' });
     shake = 22;
     banners.push({ text: `${ev.n} 장외!`, life: 1.2, max: 1.2, small: true });
+  } else if (ev.k === 'wave' && skinPid(ev.pid, 'electric')) {
+    // 전기: 파동 대신 사방으로 번개가 튐
+    particles.push({ ring: true, fill: true, x: ev.x, y: ev.y, life: 0.35, max: 0.35, r: 240, c: '120,200,255', grow: true });
+    for (let i = 0; i < 18; i++) particles.push({ bolt: true, x: ev.x, y: ev.y, a: Math.random() * Math.PI * 2, len: 120 + Math.random() * 140, life: 0.35, max: 0.35, c: i % 3 === 0 ? '#ffffff' : i % 3 === 1 ? '#ffe94a' : '#5ac8ff' });
+    lightFlash = 0.15; lightBlue = true; shake = Math.max(shake, 10);
   } else if (ev.k === 'wave') {
     for (let i = 0; i < 3; i++) particles.push({ ring: true, grow: true, x: ev.x, y: ev.y, life: 0.45 + i * 0.12, max: 0.45 + i * 0.12, r: 240, c: '95,224,255' });
     shake = Math.max(shake, 9);
@@ -1152,6 +1158,17 @@ function onEvent(ev) {
     banners.push({ text: `${ev.n}: 시간 저장!`, life: 1.2, max: 1.2, small: true, color: ev.g ? '#5cf09a' : '#aebfff' });
   } else if (ev.k === 'rewind') {
     rewindT = 0.9; rewindG = !!ev.g; banners.push({ text: `${ev.n}: 시간 되돌리기!`, life: 1.6, max: 1.6, small: true, color: ev.g ? '#5cf09a' : '#aebfff' });
+  } else if (ev.k === 'smash' && skinPid(ev.pid, 'fireworks')) {
+    // 불꽃놀이: 콤보가 클수록 불꽃이 많아지고, 색이 빨→주→노→초→파→남→보로 바뀜
+    const RB = ['#ff3b3b', '#ff9a2e', '#ffe14a', '#3ccf6e', '#3f8cff', '#3a3ad8', '#b04aff'];
+    const n = ev.n || 1, tier = Math.min(6, Math.floor((n - 1) * 7 / 30)), bursts = Math.min(9, 1 + Math.floor(n / 4));
+    for (let k = 0; k < bursts; k++) {
+      const col = RB[bursts > 1 ? Math.round(tier * k / (bursts - 1)) : tier];
+      const bx = ev.x + (k === 0 ? 0 : (Math.random() - 0.5) * Math.min(ev.r * 1.6, 600)), by = ev.y - 80 - Math.random() * (60 + n * 6);
+      particles.push({ fw: true, x: bx, y0: ev.y + 20, y: by, wait: k * 0.12, life: 1.3 + k * 0.12, max: 1.3 + k * 0.12, c: col, big: 0.8 + Math.min(1.4, n / 20), seed: Math.random() * 99 });
+    }
+    shake = Math.max(shake, Math.min(26, 8 + ev.n));
+    banners.push({ text: `${ev.n}콤보 불꽃놀이!`, life: 1.2, max: 1.2, small: true, color: RB[tier] });
   } else if (ev.k === 'smash') {
     particles.push({ ring: true, fill: true, x: ev.x, y: ev.y, life: 0.5, max: 0.5, r: ev.r, c: '255,95,162', grow: true });
     for (let i = 0; i < 30; i++) { const a = Math.random() * Math.PI * 2, sp = 200 + Math.random() * 500; particles.push({ x: ev.x, y: ev.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.45, max: 0.45, c: i % 2 ? '#ff5fa2' : '#ffe0ef', r: 6, nograv: true }); }
@@ -1309,6 +1326,13 @@ function drawStage() {
     ctx.fillStyle = th.platHi; ctx.fillRect(p.x + 8, p.y + 2, p.w - 16, 3);
   }
 }
+// 지그재그 전기 줄기 (x1,y1)→(x2,y2)
+function zap(x1, y1, x2, y2, jag, col, w) {
+  const n = Math.max(3, Math.round(Math.hypot(x2 - x1, y2 - y1) / 12));
+  ctx.strokeStyle = col; ctx.lineWidth = w; ctx.lineJoin = 'round'; ctx.beginPath(); ctx.moveTo(x1, y1);
+  for (let k = 1; k < n; k++) { const u = k / n; ctx.lineTo(x1 + (x2 - x1) * u + (Math.random() - 0.5) * jag, y1 + (y2 - y1) * u + (Math.random() - 0.5) * jag); }
+  ctx.lineTo(x2, y2); ctx.stroke();
+}
 // 이벤트를 일으킨 사람이 그 스킨을 끼고 있는지
 function skinPid(pid, id) { return !!(latest && pid && skinOn(latest.p.find((q) => q.id === pid), id)); }
 // 불 색 스킨: 'blue'(청염·초신성) / 'dark'(흑염·블랙홀) / null(주황)
@@ -1441,9 +1465,9 @@ function drawPlayer(p, time) {
   if (p.en && skinOn(p, 'centaur')) {
     // 켄타우로스: 엔진 불꽃 대신 뒤로 말 몸통 + 다리 4개가 달림
     const run = Math.abs(p.vx || 0) > 30 ? time / 55 : 0, back = -f;
-    const hc = shadeHex(p.c, -0.25);
+    const titan = p.gt && skinOn(p, 'titan'), hc = titan ? '#8a3a32' : shadeHex(p.c, -0.25);   // 진격의 거인이면 근육색 말 몸
     ctx.fillStyle = hc; ctx.beginPath(); ctx.ellipse(back * 22, -18, 30, 13, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = shadeHex(p.c, -0.55); ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.strokeStyle = titan ? '#5a1a14' : shadeHex(p.c, -0.55); ctx.lineWidth = 1.5; ctx.stroke();
     ctx.strokeStyle = hc; ctx.lineWidth = 6; ctx.lineCap = 'round';
     for (const [lx, ph] of [[back * 2, 0], [back * 10, Math.PI], [back * 36, Math.PI / 2], [back * 46, Math.PI * 1.5]]) {
       const sw = Math.sin(run + ph) * 9;
@@ -1521,7 +1545,15 @@ function drawPlayer(p, time) {
       }
     }
   }
-  if (p.wv) {
+  if (p.wv && skinOn(p, 'electric')) {
+    // 전기: 몸 주위에 찌직거리는 전기
+    const g4 = ctx.createRadialGradient(0, -PH / 2, 10, 0, -PH / 2, 50); g4.addColorStop(0, 'rgba(150,220,255,0.25)'); g4.addColorStop(1, 'rgba(80,160,255,0)');
+    ctx.fillStyle = g4; ctx.beginPath(); ctx.arc(0, -PH / 2, 50, 0, Math.PI * 2); ctx.fill();
+    for (let k = 0; k < 3; k++) {
+      const a1 = Math.random() * Math.PI * 2, a2 = a1 + 0.6 + Math.random() * 0.8, r1 = 30 + Math.random() * 10;
+      zap(Math.cos(a1) * r1, -PH / 2 + Math.sin(a1) * r1 * 1.2, Math.cos(a2) * r1, -PH / 2 + Math.sin(a2) * r1 * 1.2, 10, k % 2 ? 'rgba(255,240,120,0.9)' : 'rgba(140,220,255,0.95)', 2);
+    }
+  } else if (p.wv) {
     // 파동: 몸 주위로 퍼지는 물결 고리
     ctx.save(); ctx.translate(0, -PH / 2);
     for (let i = 0; i < 3; i++) {
@@ -1589,16 +1621,18 @@ function drawPlayer(p, time) {
   ctx.fillStyle = p.hs ? '#ffffff' : p.c;
   if (p.rb && skinOn(p, 'slime')) {
     // 슬라임: 아래가 퍼진 말랑한 덩어리 (내 색) + 반짝임 + 흘러내림
-    const sq = Math.sin(time / 110) * 3;
-    ctx.beginPath(); ctx.moveTo(-PW / 2 - 8, 0);
-    ctx.quadraticCurveTo(-PW / 2 - 6, -PH * 0.55 + sq, -6, -PH + 2 - sq); ctx.quadraticCurveTo(PW / 2 + 6, -PH * 0.55 + sq, PW / 2 + 8, 0);
-    ctx.quadraticCurveTo(0, 6, -PW / 2 - 8, 0); ctx.fill();
+    // 말랑한 물방울 모양: 둥근 윗부분이 출렁이고 바닥은 넓게 퍼짐
+    const sq = Math.sin(time / 140) * 4, R = PW / 2 + 9, Hh = PH * 0.82 - sq;
+    ctx.beginPath(); ctx.moveTo(-R - sq * 0.5, -2);
+    ctx.bezierCurveTo(-R - 6, -Hh * 0.55, -R * 0.75, -Hh, 0, -Hh);
+    ctx.bezierCurveTo(R * 0.75, -Hh, R + 6, -Hh * 0.55, R + sq * 0.5, -2);
+    ctx.bezierCurveTo(R + 4, 3, R * 0.4, 5, 0, 5); ctx.bezierCurveTo(-R * 0.4, 5, -R - 4, 3, -R - sq * 0.5, -2); ctx.fill();
     ctx.globalAlpha *= 0.5; ctx.fillStyle = '#ffffff';
     ctx.beginPath(); ctx.ellipse(-8, -PH * 0.7, 5, 9, -0.4, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha /= 0.5;
     ctx.fillStyle = p.c;
     for (const dx of [-14, 6, 16]) { const dl = 4 + ((time / 18 + dx * 7) % 10); ctx.beginPath(); ctx.ellipse(dx, 2 + dl * 0.3, 3, 3 + dl * 0.3, 0, 0, Math.PI * 2); ctx.fill(); }
   } else roundRect(-PW / 2, -PH, PW, PH, 12), ctx.fill();
-  if (p.bf && skinOn(p, 'muscle') && !p.hs) {
+  if (p.bf && skinOn(p, 'muscle') && !p.hs && !(p.gt && skinOn(p, 'titan'))) {   // 진격의 거인은 이미 근육질이라 겹쳐 그리지 않음
     // 근육: 가슴·복근·어깨 근육 그림자
     const dk = shadeHex(p.c, -0.35), hi = shadeHex(p.c, 0.3);
     ctx.fillStyle = hi; ctx.beginPath(); ctx.ellipse(-8, -PH * 0.45, 8, 6, 0, 0, Math.PI * 2); ctx.ellipse(8, -PH * 0.45, 8, 6, 0, 0, Math.PI * 2); ctx.fill();
@@ -1828,7 +1862,19 @@ function drawPlayer(p, time) {
   }
   if (hasK(p, 'ninja')) drawKunaiHand(p, f, fx, fy, time);
   if (p.shd && p.shd[0] && !(p.shd[2] > 0) && !p.shd[1]) drawShieldHand(p, f, fx, fy, time);
-  if (p.wv) {
+  if (p.wv && skinOn(p, 'electric')) {
+    // 전기: 팔을 타고 흐르는 번개 + 주먹에 스파크, 때리면 앞으로 번개가 뻗음
+    zap(f * PW / 2, fy, fx, fy, 9, 'rgba(255,240,120,0.95)', 2.5);
+    zap(f * PW / 2, fy, fx, fy, 7, 'rgba(150,225,255,0.9)', 1.5);
+    const wr = (p.at ? 24 : 18) + Math.random() * 4;
+    const wg = ctx.createRadialGradient(fx, fy, 3, fx, fy, wr);
+    wg.addColorStop(0, 'rgba(255,255,220,0.95)'); wg.addColorStop(1, 'rgba(90,180,255,0)');
+    ctx.fillStyle = wg; ctx.beginPath(); ctx.arc(fx, fy, wr, 0, Math.PI * 2); ctx.fill();
+    if (p.at && p.ap === 2) {
+      const len = (p.at === 2 ? 72 : 58) * 1.3;
+      for (let k = 0; k < 3; k++) zap(fx, fy, fx + f * len, fy + (Math.random() - 0.5) * 30, 18, k === 0 ? 'rgba(255,255,255,0.95)' : k === 1 ? 'rgba(255,230,90,0.9)' : 'rgba(100,190,255,0.9)', 4 - k);
+    }
+  } else if (p.wv) {
     // 파동: 팔에 감긴 파동 (나선)
     ctx.strokeStyle = 'rgba(140,235,255,0.9)'; ctx.lineWidth = 2.5; ctx.beginPath();
     for (let k = 0; k <= 24; k++) {
@@ -2435,6 +2481,25 @@ function drawParticles(dt) {
         for (let y = top; y <= p.y - 30; y += 40) { x = p.x + (rnd() - 0.5) * 50; ctx.lineTo(x, y); }
         ctx.lineTo(p.x, p.y - 30); ctx.stroke();
       }
+    } else if (p.fw) {
+      // 불꽃놀이 한 발: 로켓이 올라가서(0.3초) 펑 터지며 불티가 퍼지고 떨어짐
+      const el = p.max - p.life - p.wait;
+      if (el < 0) continue;
+      if (el < 0.3) {
+        const yy = p.y0 + (p.y - p.y0) * (el / 0.3);
+        ctx.strokeStyle = 'rgba(255,240,200,0.9)'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(p.x, yy + 18); ctx.lineTo(p.x, yy); ctx.stroke();
+      } else {
+        const t = el - 0.3, R = 90 * p.big * Math.min(1, t / 0.35 + 0.2), fade = Math.max(0, 1 - t / 1);
+        if (t < 0.12) { ctx.fillStyle = `rgba(255,255,255,${0.8 * (1 - t / 0.12)})`; ctx.beginPath(); ctx.arc(p.x, p.y, 30 * p.big, 0, Math.PI * 2); ctx.fill(); }
+        const N = 22;
+        for (let k = 0; k < N; k++) {
+          const a = (k / N) * Math.PI * 2 + p.seed, dx = Math.cos(a) * R, dy = Math.sin(a) * R + t * t * 140;
+          ctx.globalAlpha = fade; ctx.strokeStyle = p.c; ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.moveTo(p.x + dx * 0.7, p.y + dy * 0.7 - 2); ctx.lineTo(p.x + dx, p.y + dy); ctx.stroke();
+          ctx.fillStyle = k % 3 ? p.c : '#ffffff'; ctx.beginPath(); ctx.arc(p.x + dx, p.y + dy, 2.6, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      }
     } else if (p.mw) {
       // 문워크 잔상: 뒤로 기운 몸 + 중절모 + 발끝 세운 발
       ctx.save(); ctx.translate(p.x, p.y); ctx.globalAlpha = a * 0.55; ctx.rotate(-p.f * 0.12);
@@ -3030,9 +3095,65 @@ function renderSkillChips(current, boxId = 'skillChips', msg = 'skill', other = 
     box.append(b);
   }
 }
+// ---------------- 맵 투표 ----------------
+// 맵 미리보기 (작은 그림): 하늘 · 땅 · 발판 · 빗면 · 트램펄린
+function drawMapThumb(cv, map) {
+  const c2 = cv.getContext('2d'), w = cv.width, h = cv.height, th = map.theme || {};
+  const sx = w / map.width, sy = h / map.height;
+  const g = c2.createLinearGradient(0, 0, 0, h); const sky = th.sky || ['#222', '#444', '#666'];
+  g.addColorStop(0, sky[0]); g.addColorStop(0.6, sky[1]); g.addColorStop(1, sky[2]);
+  c2.fillStyle = g; c2.fillRect(0, 0, w, h);
+  if (th.water) { c2.fillStyle = th.water; c2.fillRect(0, h * 0.88, w, h * 0.12); }
+  for (const s of map.solids) { c2.fillStyle = th.dirt || '#6a4a2a'; c2.fillRect(s.x * sx, s.y * sy, s.w * sx, s.h * sy); c2.fillStyle = th.grass || '#5c5'; c2.fillRect(s.x * sx, s.y * sy - 1, s.w * sx, 3); }
+  for (const t of map.trunks || []) { c2.fillStyle = '#4a2f14'; c2.fillRect(t.x * sx, t.y * sy, t.w * sx, t.h * sy); }
+  for (const sl of map.slopes || []) {
+    c2.fillStyle = th.dirt || '#6a4a2a'; c2.beginPath(); c2.moveTo(sl.x1 * sx, sl.y1 * sy); c2.lineTo(sl.x2 * sx, sl.y2 * sy); c2.lineTo(sl.x2 * sx, h); c2.lineTo(sl.x1 * sx, h); c2.closePath(); c2.fill();
+    c2.strokeStyle = th.grass || '#5c5'; c2.lineWidth = 2; c2.beginPath(); c2.moveTo(sl.x1 * sx, sl.y1 * sy); c2.lineTo(sl.x2 * sx, sl.y2 * sy); c2.stroke();
+  }
+  for (const p of map.platforms) { c2.fillStyle = th.plat || '#fd3'; c2.fillRect(p.x * sx, p.y * sy - 1, p.w * sx, 3); }
+  for (const t of map.tramps || []) { c2.fillStyle = '#ff3b4a'; c2.fillRect(t.x * sx, t.y * sy - 2, t.w * sx, 3); }
+}
+let voteKey = '';
+function renderVote(m) {
+  const mv = m.mv, row = $('voteRow');
+  row.hidden = !mv;
+  if (!mv) return;
+  const [cands, votes] = mv, mine = votes[myId];
+  const cnt = cands.map((c, i) => Object.values(votes).filter((v) => v === i).length);
+  const box = $('voteCards');
+  const k = cands.join();
+  if (k !== voteKey) {
+    voteKey = k; box.textContent = '';
+    cands.forEach((id, i) => {
+      const map = MAPS.find((x) => x.id === id); if (!map) return;
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'vote-card'; b.dataset.i = i;
+      const cv = document.createElement('canvas'); cv.width = 160; cv.height = 90; drawMapThumb(cv, map);
+      const nm = document.createElement('b'); nm.textContent = map.name;
+      const sm = document.createElement('small');
+      b.append(cv, nm, sm);
+      b.addEventListener('click', (e) => { e.currentTarget.blur(); send({ t: 'vote', map: id }); });
+      box.append(b);
+    });
+  }
+  box.querySelectorAll('.vote-card').forEach((b) => {
+    const i = Number(b.dataset.i);
+    b.classList.toggle('mine', mine === i);
+    b.setAttribute('aria-pressed', String(mine === i));
+    b.querySelector('small').textContent = `${cnt[i]}표${mine === i ? ' · 내 투표' : ''}`;
+  });
+}
+// 대기실 창은 항상 위 버튼줄 바로 아래부터 (버튼줄 높이가 바뀌어도 안 겹치게), 화면을 넘으면 창 안에서 스크롤
+function layoutRoomPanel() {
+  const bar = $('bar'), rp = $('roomPanel');
+  if (bar.hidden || rp.hidden) return;
+  const top = Math.round(bar.getBoundingClientRect().bottom + 8);
+  if (rp.dataset.top !== String(top)) { rp.dataset.top = String(top); rp.style.top = top + 'px'; rp.style.maxHeight = `calc(100% - ${top + 12}px)`; rp.style.overflowY = 'auto'; }
+}
+addEventListener('resize', layoutRoomPanel);
 function updateRoomPanel(m) {
   const show = inGame && m.ph === 'waiting';
   $('roomPanel').hidden = !show;
+  if (show) layoutRoomPanel();
   if (!show) { myReady = false; return; }
   const me = m.p.find((p) => p.id === myId);
   if (!me) return;
@@ -3045,7 +3166,7 @@ function updateRoomPanel(m) {
   const prof = account.profile;
   const key = [me.c, me.sk, me.sk2, me.rd, host, JSON.stringify(me.rs || 0), ready, need, m.p.length, [...taken].join(), (prof && prof.owned.join()) || '',
     prof ? (prof.skins || []).join() + JSON.stringify(prof.skinSel || {}) : '', m.p.filter((p) => p.b).map((p) => p.id + p.sk + (p.sk2 || '') + JSON.stringify(p.rs || 0) + (p.bd ?? '')).join(),
-    md.join(), m.p.map((p) => p.id + ':' + p.tm + ':' + p.n).join()].join('|');
+    md.join(), m.p.map((p) => p.id + ':' + p.tm + ':' + p.n).join(), JSON.stringify(m.mv || 0)].join('|');
   if (key === panelKey) return;
   panelKey = key;
   document.querySelectorAll('.sw').forEach((b) => {
@@ -3055,6 +3176,7 @@ function updateRoomPanel(m) {
     b.title = b.disabled ? `${name} (다른 사람이 사용 중)` : name;
   });
   renderSkillChips(me.sk, 'skillChips', 'skill', md[1] ? me.sk2 : null, !!(me.rs && me.rs[0]));
+  renderVote(m);
   // 모드 (방장만 바꿀 수 있음)
   for (const [segId, field] of [['segTeam', 0], ['segDbl', 1]]) {
     $(segId).querySelectorAll('button').forEach((b) => { b.classList.toggle('on', +b.dataset.v === md[field]); b.disabled = !host; b.setAttribute('aria-pressed', String(+b.dataset.v === md[field])); });

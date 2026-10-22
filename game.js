@@ -35,7 +35,7 @@ const SKILLS = {
   // 검사: 공격이 검으로 바뀜 (사거리 1.25배). 약공격은 앞으로 돌진하며 베기, 강공격은 주변 부채꼴 베기, Q는 참격 발사
   sword:    { name: '검사', cd: 12, heavyGap: 0.3, reachMul: 1.25, lunge: 620, fanR: 125, slashSpeed: 950, slashLife: 0.65, slashDmg: 9, slashKB: 380, slashGrowth: 12 },
   // 흑섬: Q 자체는 이펙트만. 공격이 맞는 순간과 같은 타이밍(±window초)이면 넉백 강화
-  blackflash: { name: '흑섬', cd: 0, window: 0.1, heavyKbMul: 1.45, stun: 0.7 },
+  blackflash: { name: '흑섬', cd: 0, window: 0.1, mobWindow: 0.17, heavyKbMul: 1.45, stun: 0.7 },
   lightning: { name: '번개', cd: 13, radius: 480, count: 3, damage: 10, stun: 3 },
   undying:  { name: '불사', lives: 5 },                                   // 목숨 5개 (패시브)
   // 헐크: 퍼센트(맞은 정도)가 높을수록 커지고 강해짐 (패시브). maxAt% 에서 최대
@@ -227,6 +227,7 @@ class Sim {
     this.winTeam = 0;
     this.tickCount = 0; this.time = 0; this.evSeq = 0; this.recent = [];
     this.onEvent = () => {};
+    this.rollVote();
   }
   list() { return [...this.players.values()]; }
   // 주인 id (분신·터렛·총알은 주인을 따라감)
@@ -412,10 +413,31 @@ class Sim {
       this.pickMap();
     }
   }
-  // 판마다 다른 맵을 랜덤으로 (직전 맵은 제외)
+  // ---------------- 맵 투표 ----------------
+  // 대기실마다 랜덤 후보 3개 (직전 맵 제외). 사람만 투표, 시작할 때 가장 많이 받은 맵 (동률·무투표면 그중 랜덤)
+  rollVote() {
+    const pool = MAPS.filter((m) => m !== this.stage);
+    for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+    this.mapVote = { cands: pool.slice(0, 3).map((m) => m.id), votes: {} };
+  }
+  vote(id, mapId) {
+    const p = this.players.get(id);
+    if (!p || p.bot || this.phase !== 'waiting' || !this.mapVote) return;
+    if (!this.mapVote.cands.includes(mapId)) return;
+    this.mapVote.votes[id] = mapId;
+  }
+  voteWinner() {
+    const v = this.mapVote; if (!v) return null;
+    const cnt = v.cands.map((c) => Object.entries(v.votes).filter(([pid, m]) => m === c && this.players.has(pid)).length);
+    const top = Math.max(...cnt), best = v.cands.filter((c, i) => cnt[i] === top);
+    return best[Math.floor(Math.random() * best.length)];
+  }
+  // 판마다 맵: 투표로 정함 (투표 정보가 없으면 직전 맵 빼고 랜덤)
   pickMap() {
+    const won = this.voteWinner(), voted = won && MAPS.find((m) => m.id === won);
     const others = MAPS.filter((m) => m !== this.stage);
-    this.stage = others[Math.floor(Math.random() * others.length)] || MAPS[0];
+    this.stage = voted || others[Math.floor(Math.random() * others.length)] || MAPS[0];
+    if (voted) this.ev({ k: 'voted', n: voted.name });
     this.clearField();
     this.list().forEach((p, i) => {
       p.mapMid = this.stage.width / 2; p.hulkS = 1;
@@ -596,7 +618,7 @@ class Sim {
       this.timer -= dt;
       if (this.timer <= 0) {
         this.list().forEach((p) => { p.inMatch = false; p.ready = !!p.bot; });
-        this.phase = 'waiting';
+        this.phase = 'waiting'; this.rollVote();   // 다음 판 맵 후보 새로
       }
     }
     for (const s of this.smokes) s.t -= dt;
@@ -1386,7 +1408,7 @@ class Sim {
     }
     for (const t of [...this.turrets]) if (this.foe(p, t) && Math.hypot(t.x - cx, t.y - 22 - cy) <= R) this.hitTurret(t, p);
     p.combo = 0;
-    this.ev({ k: 'smash', x: r0(cx), y: r0(cy), r: r0(R), n, h: hits });
+    this.ev({ k: 'smash', x: r0(cx), y: r0(cy), r: r0(R), n, h: hits, pid: p.id });
   }
   // ---------------- 궁수 화살 ----------------
   fireArrow(p) {
@@ -1731,7 +1753,8 @@ class Sim {
     if (!atk || atk.black) return;
     const def = ATTACKS[atk.type];
     // 공격이 막 맞기 시작했거나 맞는 중이면 → 이번 공격이 흑섬 (이미 맞은 상대도 바로 강화)
-    if (atk.t >= def.startup - s.window && atk.t <= def.startup + def.active + s.window * 0.5) {
+    const win = p.mob ? s.mobWindow : s.window;
+    if (atk.t >= def.startup - win && atk.t <= def.startup + def.active + win * 0.5) {
       atk.black = true;
       for (const t of atk.victims) if (t.alive) this.launch(p, t, def, atk.type, { black: true, dir: atk.dirs && atk.dirs.get(t.id) });
     }
@@ -1863,7 +1886,7 @@ class Sim {
       // 흑섬: Q를 누른 직후에 공격이 맞기 시작하면 흑섬
       if (has(p, 'blackflash') && !atk.black && !atk.bfChecked) {
         atk.bfChecked = true;
-        if (this.time - p.bfAt <= SKILLS.blackflash.window) atk.black = true;
+        if (this.time - p.bfAt <= (p.mob ? SKILLS.blackflash.mobWindow : SKILLS.blackflash.window)) atk.black = true;   // 모바일은 판정 조금 넉넉하게
       }
       const hb = this.hitbox(p, def);
       const fan = sword && atk.type === 'heavy';
@@ -2273,6 +2296,7 @@ class Sim {
     return {
       ph: this.phase, tm: Math.ceil(this.timer), w: this.winner, wi: this.winnerId, wt: this.winTeam,
       md: [this.teamMode ? 1 : 0, this.doubleMode ? 1 : 0], s: this.tickCount, mp: this.stage.id,
+      mv: this.phase === 'waiting' && this.mapVote ? [this.mapVote.cands, Object.fromEntries(Object.entries(this.mapVote.votes).filter(([pid]) => this.players.has(pid)).map(([pid, m]) => [pid, this.mapVote.cands.indexOf(m)]))] : 0,
       ev: this.recent.slice(-10),
       ar: this.arrows.map((a) => ({ x: r0(a.x), y: r0(a.y), vx: r0(a.vx), vy: r0(a.vy), h: a.homing ? 1 : 0, de: a.de ? 1 : undefined, lf: a.lf ? 1 : undefined, el: a.el || undefined, s: a.big !== 1 ? Math.round(a.big * 10) / 10 : undefined, ku: a.ku || undefined, sw: a.sw || undefined })),
       lg: this.logs.map((l) => ({ x: r0(l.x), y: r0(l.y), sn: l.sn, t: Math.round(l.t * 10) / 10, s: l.big !== 1 ? Math.round(l.big * 10) / 10 : undefined })),

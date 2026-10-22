@@ -257,7 +257,7 @@ class GameRoom {
       if (r) c.socket.send(JSON.stringify({ t: 'profile', profile: r.profile, gained: r.gained }));
     }
   }
-  join(id, socket, name, accountKey, skill) {
+  join(id, socket, name, accountKey, skill, mob) {
     if (this.isFull()) return false;
     if (this.sim.players.size >= CONFIG.MAX_PLAYERS) {
       const bot = this.sim.list().reverse().find((p) => p.bot);
@@ -265,7 +265,7 @@ class GameRoom {
     }
     this.clients.set(id, { socket, accountKey, name });
     const p = this.sim.addPlayer(id, name, false, skill);
-    if (p) p.skins = accounts.skinsOf(accountKey);
+    if (p) { p.skins = accounts.skinsOf(accountKey); p.mob = mob; }   // mob: 모바일(터치)
     if (!this.hostId) this.hostId = id;
     if (this.sim.doubleMode) this.giveSkill2(id);
     return true;
@@ -392,7 +392,7 @@ server.on('upgrade', (req, sock) => {
             rooms.set(code, r);
           }
         }
-        if (!r.join(id, socket, name, accountKey, skill)) {
+        if (!r.join(id, socket, name, accountKey, skill, !!m.mob)) {
           if (r.clients.size === 0) { clearInterval(r.timer); rooms.delete(r.name); }
           return fail('방이 가득 찼어요. 다른 방을 골라 주세요.');
         }
@@ -440,6 +440,8 @@ server.on('upgrade', (req, sock) => {
         room.sim.ev({ k: 'kickout', n: tc.name });
         try { tc.socket.send(JSON.stringify({ t: 'kicked', msg: '방장이 방에서 내보냈어요. 다시 들어갈 수는 있어요.' })); tc.socket.close(); } catch (_) {}
         room.leave(tid);
+      } else if (m.t === 'vote' && room) {
+        room.sim.vote(id, String(m.map || ''));
       } else if (m.t === 'botdiff' && room) {
         if (id !== room.hostId) return notice('봇 난이도는 방장만 정할 수 있어요.');
         const err = room.sim.setBotDiff(String(m.id || ''), String(m.diff || ''));
