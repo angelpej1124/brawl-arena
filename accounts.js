@@ -123,7 +123,7 @@ const GEMS = {
   KILL_BOT: 5,        // 봇을 장외로 보냄
 };
 const GACHA = {
-  COST: 100,          // 뽑기 1회 가격
+  COST: 150,          // 뽑기 1회 가격
   DUP_REFUND: 40,     // 이미 가진 스킬이 나오면 돌려주는 보석
   TEN: 10,           // 10회 뽑기
   BUY: 1000,         // 원하는 스킬 바로 사기
@@ -305,6 +305,78 @@ function buySkill(key, skill) {
   save();
   return { skill, profile: publicProfile(a) };
 }
+// ---------------- 상점 ----------------
+const SHOP = require('./shop.js');
+// 한국 시간 날짜 'YYYY-MM-DD' (상점·일일 보상은 한국 자정에 바뀜)
+const kstDay = (t = Date.now()) => new Date(t + 9 * 3600000).toISOString().slice(0, 10);
+// 날짜로 정해지는 난수 → 모든 유저에게 같은 상품
+function seededPick(list, n, seedStr) {
+  let h = 2166136261; for (const ch of seedStr) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
+  const rnd = () => { h += 0x6D2B79F5; let t = h; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const a = [...list];
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a.slice(0, n);
+}
+function todayShop(day = kstDay()) {
+  return {
+    day,
+    skins: seededPick(Object.keys(SKINS), SHOP.SKINS_PER_DAY, 'skin:' + day),
+    skills: seededPick(ALL_SKILLS.filter((k) => !BASE_SKILLS.includes(k)), SHOP.SKILLS_PER_DAY, 'skill:' + day),
+  };
+}
+// 지금 파는 패키지 (from 00:00 ~ until 23:59, 한국 시간)
+function activePackages(day = kstDay()) {
+  return SHOP.PACKAGES.filter((p) => (!p.from || day >= p.from) && (!p.until || day <= p.until));
+}
+function shopInfo(key) {
+  const a = key && store.accounts[key];
+  if (a) upgrade(a, key);
+  const t = todayShop();
+  const nextReset = Date.parse(t.day + 'T00:00:00+09:00') + 86400000;
+  return {
+    day: t.day, nextReset, daily: SHOP.DAILY, dailyDone: !!a && a.dailyAt === t.day,
+    skins: t.skins.map((id) => ({ id, price: SHOP.SKIN_PRICE, normal: SKIN_PRICE, owned: !!a && a.skins.includes(id) })),
+    skills: t.skills.map((id) => ({ id, price: SHOP.SKILL_PRICE, owned: !!a && a.owned.includes(id) })),
+    packages: activePackages(t.day).map((p) => ({
+      id: p.id, name: p.name, desc: p.desc, price: p.price, skills: p.skills || [], skins: p.skins || [],
+      ends: Date.parse(p.until + 'T00:00:00+09:00') + 86400000,
+      owned: !!a && (p.skills || []).every((k) => a.owned.includes(k)) && (p.skins || []).every((k) => a.skins.includes(k)),
+    })),
+  };
+}
+function shopDaily(key) {
+  const a = store.accounts[key];
+  if (!a) throw new Error('로그인이 필요해요.');
+  const day = kstDay();
+  if (a.dailyAt === day) throw new Error('오늘 보상은 이미 받았어요. 내일 다시 와요!');
+  a.dailyAt = day; a.gems += SHOP.DAILY; save();
+  return { gained: SHOP.DAILY, profile: publicProfile(a), shop: shopInfo(key) };
+}
+function shopBuy(key, kind, id) {
+  const a = store.accounts[key];
+  if (!a) throw new Error('로그인이 필요해요.');
+  upgrade(a, key);
+  const t = todayShop();
+  const pay = (price) => { if (a.gems < price) throw new Error(`보석이 모자라요. ${price}개가 필요해요.`); a.gems -= price; };
+  if (kind === 'skin') {
+    if (!t.skins.includes(id)) throw new Error('오늘 상점에 없는 스킨이에요. (상점이 바뀌었을 수 있어요)');
+    if (a.skins.includes(id)) throw new Error('이미 가진 스킨이에요.');
+    pay(SHOP.SKIN_PRICE); a.skins.push(id); a.skinSel[SKINS[id].skill] = id;
+  } else if (kind === 'skill') {
+    if (!t.skills.includes(id)) throw new Error('오늘 상점에 없는 스킬이에요. (상점이 바뀌었을 수 있어요)');
+    if (a.owned.includes(id)) throw new Error('이미 가진 스킬이에요.');
+    pay(SHOP.SKILL_PRICE); a.owned.push(id);
+  } else if (kind === 'pkg') {
+    const p = activePackages().find((x) => x.id === id);
+    if (!p) throw new Error('지금 팔지 않는 패키지예요.');
+    const sk = (p.skills || []).filter((k) => ALL_SKILLS.includes(k) && !a.owned.includes(k));
+    const sn = (p.skins || []).filter((k) => SKINS[k] && !a.skins.includes(k));
+    if (!sk.length && !sn.length) throw new Error('패키지에 든 걸 이미 다 가지고 있어요.');
+    pay(p.price); a.owned.push(...sk); a.skins.push(...sn);
+  } else throw new Error('잘못된 상품이에요.');
+  save();
+  return { profile: publicProfile(a), shop: shopInfo(key) };
+}
 function buySkin(key, id) {
   const a = store.accounts[key];
   if (!a) throw new Error('로그인이 필요해요.');
@@ -444,6 +516,6 @@ setInterval(() => {
 
 module.exports = {
   init, storage: () => storageName, signup, login, logout, fromToken, profileOf, nickOf, isTaken,
-  keyOf, owns, ownedOf, setSkill, record, buySkin, equipSkin, skinsOf, adminWarn, changeNick, ranking, cleanNick, gacha, buySkill, patchSeen, patchClaim, isAdmin, adminList, adminUpdate,
+  keyOf, owns, ownedOf, setSkill, record, buySkin, equipSkin, skinsOf, adminWarn, changeNick, ranking, cleanNick, gacha, buySkill, shopInfo, shopDaily, shopBuy, todayShop, patchSeen, patchClaim, isAdmin, adminList, adminUpdate,
   GEMS, GACHA, BASE_SKILLS, ALL_SKILLS,
 };

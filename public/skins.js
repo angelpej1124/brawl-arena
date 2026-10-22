@@ -71,7 +71,7 @@
     solar:       { skill: 'atom', name: '태양계', desc: '시전자는 이글거리는 태양, 전자는 수성·금성·지구·화성·목성. 스킬을 쓰면 토성·천왕성·해왕성까지 수금지화목토천해가 다 돎', color: '#ffb02e' },
     gold:        { skill: 'rock', name: '골드', desc: '바위 대신 번쩍이는 금덩어리 몸', color: '#ffc928' },
   };
-  const PRICE = 50;
+  const PRICE = 100;
   const api = { SKINS, PRICE };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.BRAWL_SKINS = api;

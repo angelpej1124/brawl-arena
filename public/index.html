@@ -292,6 +292,16 @@
   .skin-txt small { display: block; color: var(--muted); font-size: 12px; line-height: 1.45; margin-top: 2px; }
   .skin-act { flex: none; border: 0; border-radius: 8px; padding: 8px 12px; font-weight: 700; font-family: inherit; font-size: 13px; cursor: pointer; background: var(--accent); color: #2a1a00; }
   .skin-act.ghost { background: #2f2a55; color: var(--text); }
+  .shop-open { border-color: var(--accent); color: var(--accent); margin-bottom: 6px; position: relative; }
+  .shop-dot { margin-left: 6px; background: #ff4d6a; color: #fff; border-radius: 99px; padding: 1px 7px; font-size: 11px; }
+  .shop-card h4.shop-h { margin: 14px 0 0; font-size: 14px; color: var(--gem); }
+  .shop-card h4.shop-h small { color: var(--muted); font-weight: 500; }
+  .shop-daily { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; padding: 10px 12px; border: 2px solid var(--gem); border-radius: 12px; }
+  .shop-daily b { display: block; color: var(--gem); }
+  .shop-daily small { color: var(--muted); font-size: 12px; }
+  .old-price { text-decoration: line-through; opacity: .6; margin-right: 4px; font-weight: 500; }
+  .pkg-items { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+  .pkg-items span { font-size: 11.5px; border: 1.5px solid currentColor; border-radius: 99px; padding: 1px 7px; }
   .skin-act:disabled { opacity: .55; cursor: default; }
   @media (orientation: landscape) and (max-height: 500px) { #roomPanel { top: calc(8px + env(safe-area-inset-top, 0px)); width: min(520px, calc(100% - 300px)); padding: 6px 10px; gap: 5px; } .rp-btn { padding: 6px; font-size: 15px; } }
   @media (prefers-reduced-motion: reduce) { .play:active { transform: none; } }
@@ -384,9 +394,10 @@
       <div class="gem-box">
         <div class="gem-row">
           <span class="gem"><i class="gem-ico" aria-hidden="true"></i><b id="gemCount">-</b><small>보석</small></span>
-          <button class="sub-btn gacha-btn" id="gachaBtn" type="button">스킬 뽑기 · 보석 100</button>
-          <button class="sub-btn gacha-btn" id="gacha10Btn" type="button">10회 뽑기 · 보석 1000</button>
+          <button class="sub-btn gacha-btn" id="gachaBtn" type="button">스킬 뽑기 · 보석 150</button>
+          <button class="sub-btn gacha-btn" id="gacha10Btn" type="button">10회 뽑기 · 보석 1500</button>
         </div>
+        <button class="sub-btn shop-open" id="shopBtn" type="button">🛒 상점 <span class="shop-dot" id="shopDot" hidden>일일 보상!</span></button>
         <button class="sub-btn skin-open" id="skinBtn" type="button">스킨 보기</button>
         <button class="link-btn" id="patchOpen" type="button">패치 내역 보기</button>
         <p class="hint" id="gachaMsg" role="status"></p>
@@ -497,6 +508,23 @@
     </div>
     <p class="hint" id="patchMsg" role="status"></p>
     <button class="play" id="patchOk" type="button">확인</button>
+  </div>
+</div>
+<div id="shopModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="shopTitle">
+  <div class="modal-card shop-card">
+    <div class="modal-head"><b id="shopTitle">상점</b><span id="shopGems"></span><button class="modal-x" id="shopClose" type="button" aria-label="닫기">✕</button></div>
+    <p class="hint" id="shopReset"></p>
+    <div class="shop-daily">
+      <div><b>일일 보상</b><small>매일 한국 시간 자정에 다시 받을 수 있어요</small></div>
+      <button class="skin-act" id="shopDaily" type="button">보석 30개 받기</button>
+    </div>
+    <h4 class="shop-h">이번 주 패키지</h4>
+    <div class="skin-list" id="shopPkgs"></div>
+    <h4 class="shop-h">오늘의 스킨 <small>(평소 100 → 70)</small></h4>
+    <div class="skin-list" id="shopSkins"></div>
+    <h4 class="shop-h">오늘의 스킬</h4>
+    <div class="skin-list" id="shopSkills"></div>
+    <p class="hint" id="shopMsg" role="status"></p>
   </div>
 </div>
 <div id="skinModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="skinTitle">

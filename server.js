@@ -80,6 +80,19 @@ async function api(req, res, urlPath) {
       if (limited(ip, 'patch', 20, 60000)) return sendJson(res, 429, { error: '잠시 후 다시 해 주세요.' });
       return sendJson(res, 200, urlPath === '/api/patch/claim' ? accounts.patchClaim(key) : accounts.patchSeen(key));
     }
+    if (req.method === 'GET' && urlPath === '/api/shop') {
+      return sendJson(res, 200, accounts.shopInfo(accounts.fromToken(bearer(req))));
+    }
+    if (req.method === 'POST' && (urlPath === '/api/shop/daily' || urlPath === '/api/shop/buy')) {
+      const key = accounts.fromToken(bearer(req));
+      if (!key) return sendJson(res, 401, { error: '로그인이 필요해요.' });
+      if (limited(ip, 'shop', 40, 60000)) return sendJson(res, 429, { error: '잠시 후 다시 해 주세요.' });
+      if (urlPath === '/api/shop/daily') return sendJson(res, 200, accounts.shopDaily(key));
+      const b = await readBody(req);
+      const r = accounts.shopBuy(key, String(b.kind || ''), String(b.id || ''));
+      for (const room of rooms.values()) for (const [cid, c] of room.clients) if (c.accountKey === key) { const p = room.sim.players.get(cid); if (p) p.skins = accounts.skinsOf(key); }
+      return sendJson(res, 200, r);
+    }
     if (req.method === 'POST' && urlPath === '/api/skill/buy') {
       const key = accounts.fromToken(bearer(req));
       if (!key) return sendJson(res, 401, { error: '로그인이 필요해요.' });

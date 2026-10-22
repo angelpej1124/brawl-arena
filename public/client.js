@@ -232,6 +232,7 @@ function loginWith(token, profile) {
   $('aPw').value = ''; $('aPw2').value = '';
   renderAccount();
   loadRanking();
+  loadShop();
   patchShown = false; maybeShowPatch();
 }
 $('logoutBtn').addEventListener('click', () => {
@@ -240,6 +241,7 @@ $('logoutBtn').addEventListener('click', () => {
   try { localStorage.removeItem('brawl_token'); } catch (e) {}
   setTab('login');
   loadRanking();
+  $('shopDot').hidden = true; shopData = null;
 });
 
 function renderAccount() {
@@ -284,7 +286,7 @@ function renderAccount() {
 }
 
 // ---------------- 스킬 뽑기 ----------------
-const GACHA_COST = 100, SKILL_BUY = 1000;
+const GACHA_COST = 150, SKILL_BUY = 1000;
 const BASE_SKILLS = ['slow', 'blink'];
 // ---------------- 스킨 창 ----------------
 function renderSkins() {
@@ -530,6 +532,7 @@ setInterval(() => { if (!$('lobby').hidden) loadRanking(); }, 15000);
     catch (e) { if (e.status === 401) { account.token = null; try { localStorage.removeItem('brawl_token'); } catch (_) {} } }
     renderAccount();
   }
+  loadShop();
   maybeShowPatch();
 })();
 
@@ -575,6 +578,78 @@ document.querySelectorAll('.skill').forEach((b) => b.addEventListener('click', (
   if (b.classList.contains('locked')) return buySkillAsk(b.dataset.skill);
   selectSkill(b.dataset.skill, true);
 }));
+// ---------------- 상점 ----------------
+let shopData = null;
+function fmtLeft(ms) { const h = Math.floor(ms / 3600000), m = Math.floor((ms % 3600000) / 60000); return h >= 24 ? `${Math.floor(h / 24)}일 ${h % 24}시간` : `${h}시간 ${m}분`; }
+async function loadShop() {
+  try { shopData = await api('/api/shop'); } catch (e) { shopData = null; }
+  $('shopDot').hidden = !(account.profile && shopData && !shopData.dailyDone);
+  if (!$('shopModal').hidden) renderShop();
+}
+function shopCard(box, sw, name, desc, priceHtml, owned, onBuy, extra) {
+  const p = account.profile;
+  const c = document.createElement('div'); c.className = 'skin-card';
+  const s = document.createElement('div'); s.className = 'skin-sw'; s.style.background = sw;
+  const t = document.createElement('div'); t.className = 'skin-txt';
+  const b = document.createElement('b'); b.textContent = name; const sm = document.createElement('small'); sm.textContent = desc; t.append(b, sm);
+  if (extra) t.append(extra);
+  const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'skin-act';
+  if (owned) { btn.textContent = '보유 중'; btn.disabled = true; btn.classList.add('ghost'); }
+  else if (!p) { btn.textContent = '로그인 필요'; btn.disabled = true; }
+  else { btn.innerHTML = priceHtml; btn.onclick = onBuy; }
+  c.append(s, t, btn); box.append(c);
+}
+function renderShop() {
+  const d = shopData, p = account.profile;
+  $('shopGems').textContent = p ? `보석 ${p.gems}` : '';
+  if (!d) { $('shopReset').textContent = '상점을 불러오지 못했어요.'; return; }
+  $('shopReset').textContent = `오늘의 상품은 모두에게 똑같아요 · ${fmtLeft(d.nextReset - Date.now())} 뒤 바뀜`;
+  const db = $('shopDaily');
+  db.textContent = !p ? '로그인하면 받기' : d.dailyDone ? '오늘 받았어요 ✓' : `보석 ${d.daily}개 받기`;
+  db.disabled = !p || d.dailyDone; db.classList.toggle('ghost', !!(p && d.dailyDone));
+  const pk = $('shopPkgs'); pk.textContent = '';
+  if (!d.packages.length) { const e = document.createElement('p'); e.className = 'hint'; e.textContent = '이번 주는 패키지가 없어요.'; pk.append(e); }
+  for (const g of d.packages) {
+    const items = document.createElement('div'); items.className = 'pkg-items';
+    for (const k of g.skills) { const s = document.createElement('span'); s.textContent = `스킬 ${SKILLS[validSkill(k)].name}`; s.style.color = SKILL_COLOR[k] || '#fff'; items.append(s); }
+    for (const k of g.skins) { const sk = SKIN_INFO.SKINS[k]; if (!sk) continue; const s = document.createElement('span'); s.textContent = `스킨 ${sk.name}`; s.style.color = sk.color; items.append(s); }
+    const left = document.createElement('small'); left.textContent = ` · ${fmtLeft(g.ends - Date.now())} 남음`; items.append(left);
+    shopCard(pk, 'linear-gradient(135deg,#ffd23f,#ff7ac8)', g.name, g.desc, `구매 · 보석 ${g.price}`, g.owned, () => shopBuy('pkg', g.id, g.name, g.price), items);
+  }
+  const ss = $('shopSkins'); ss.textContent = '';
+  for (const it of d.skins) {
+    const sk = SKIN_INFO.SKINS[it.id]; if (!sk) continue;
+    shopCard(ss, sk.color, `${sk.name} (${SKILLS[validSkill(sk.skill)].name} 스킨)`, sk.desc, `<span class="old-price">${it.normal}</span>보석 ${it.price}`, it.owned, () => shopBuy('skin', it.id, sk.name, it.price));
+  }
+  const sl = $('shopSkills'); sl.textContent = '';
+  for (const it of d.skills) {
+    const k = validSkill(it.id);
+    shopCard(sl, SKILL_COLOR[k], `${SKILLS[k].name} (스킬)`, SKILLS[k].desc, `보석 ${it.price}`, it.owned, () => shopBuy('skill', it.id, SKILLS[k].name, it.price));
+  }
+}
+async function shopBuy(kind, id, name, price) {
+  const p = account.profile; if (!p) return;
+  if (p.gems < price) { $('shopMsg').style.color = 'var(--danger)'; $('shopMsg').textContent = `보석이 ${price - p.gems}개 모자라요.`; return; }
+  if (!confirm(`${name}을(를) 보석 ${price}개로 살까요?\n(지금 보석 ${p.gems}개)`)) return;
+  try {
+    const r = await api('/api/shop/buy', { kind, id });
+    account.profile = r.profile; shopData = r.shop;
+    $('shopMsg').style.color = 'var(--gem)'; $('shopMsg').textContent = `${name} 구매 완료!`;
+    renderAccount(); renderShop();
+  } catch (e) { $('shopMsg').style.color = 'var(--danger)'; $('shopMsg').textContent = e.message; loadShop(); }
+}
+$('shopBtn').addEventListener('click', async () => { $('shopMsg').textContent = ''; $('shopModal').hidden = false; renderShop(); await loadShop(); renderShop(); });
+$('shopClose').addEventListener('click', () => { $('shopModal').hidden = true; });
+$('shopModal').addEventListener('click', (e) => { if (e.target === $('shopModal')) $('shopModal').hidden = true; });
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('shopModal').hidden) $('shopModal').hidden = true; });
+$('shopDaily').addEventListener('click', async () => {
+  try {
+    const r = await api('/api/shop/daily', {});
+    account.profile = r.profile; shopData = r.shop;
+    $('shopMsg').style.color = 'var(--gem)'; $('shopMsg').textContent = `일일 보상 보석 ${r.gained}개를 받았어요!`;
+    renderAccount(); renderShop(); $('shopDot').hidden = true;
+  } catch (e) { $('shopMsg').style.color = 'var(--danger)'; $('shopMsg').textContent = e.message; }
+});
 // 잠긴 스킬 사기 (보석 1000개)
 async function buySkillAsk(skill) {
   const p = account.profile, msg = $('gachaMsg');
