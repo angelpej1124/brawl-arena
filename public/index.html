@@ -156,7 +156,7 @@
     #bar::-webkit-scrollbar { display: none; }
     #bar button { flex: none; padding: 5px 8px; font-size: 12px; }
     #roomLabel { flex: none; white-space: nowrap; font-size: 12px; }
-    #net { top: calc(52px + env(safe-area-inset-top, 0px)); }
+    body #net { top: calc(52px + env(safe-area-inset-top, 0px)); }
   }
   .snd-row { display: flex; justify-content: center; gap: 6px; margin: -4px 0 10px; }
   .snd-row .snd-btn { border: 1px solid #3d3670; border-radius: 999px; padding: 4px 12px; background: transparent; color: var(--muted); cursor: pointer; font-size: 12px; }
@@ -223,6 +223,7 @@
   .vote-card small { font-size: 12px; color: var(--muted); }
   .vote-card.mine { border-color: var(--accent); }
   .vote-card.mine small { color: var(--accent); }
+  @media (max-width: 760px), (max-height: 500px) { .vote-card { padding: 3px; gap: 2px; } .vote-card canvas { aspect-ratio: 16 / 6; } .vote-card b { font-size: 11.5px; } .vote-card small { font-size: 11px; } .vote-lbl small { display: none; } }
   .rp-head b { font-family: var(--display); font-weight: 400; font-size: 17px; color: var(--accent); }
   #rpStatus { color: var(--muted); font-size: 13px; flex: 1; min-width: 0; }
   .rp-fold { background: none; border: 0; color: var(--muted); font-size: 12px; cursor: pointer; text-decoration: underline; padding: 4px; }
@@ -442,6 +443,10 @@
     <button id="rpFold" class="rp-fold" type="button" aria-expanded="true">접기</button>
   </div>
   <div id="rpBody">
+    <div class="vote-row" id="voteRow" hidden>
+      <span class="vote-lbl">다음 맵 투표 <small>(눌러서 투표 · 시작할 때 가장 많은 표)</small></span>
+      <div class="vote-cards" id="voteCards" role="group" aria-label="다음 맵 투표"></div>
+    </div>
     <div class="rp-row"><span class="rp-lbl" id="colorLbl">색</span><div class="swatches" id="swatches" role="group" aria-labelledby="colorLbl"></div></div>
     <div class="rp-row"><span class="rp-lbl" id="modeLbl">모드</span>
       <div class="seg" id="segTeam" role="group" aria-label="개인 또는 팀"><button type="button" data-v="0">개인</button><button type="button" data-v="1">팀</button></div>
@@ -455,10 +460,6 @@
     <div class="rp-row" id="skinRow" hidden><span class="rp-lbl" id="skinLbl">스킨</span><div class="chips" id="skinChips" role="group" aria-labelledby="skinLbl"></div></div>
     <div class="rp-row" id="kickRow" hidden><span class="rp-lbl" id="kickLbl">추방</span><div class="botlist" id="kickList" role="group" aria-labelledby="kickLbl"></div></div>
     <div class="rp-row" id="botRow" hidden><span class="rp-lbl" id="botLbl">봇</span><div class="botlist" id="botList" role="group" aria-labelledby="botLbl"></div></div>
-  </div>
-  <div class="vote-row" id="voteRow" hidden>
-    <span class="vote-lbl">다음 맵 투표 <small>(눌러서 투표 · 시작할 때 가장 많은 표)</small></span>
-    <div class="vote-cards" id="voteCards" role="group" aria-label="다음 맵 투표"></div>
   </div>
   <button id="readyBtn" class="rp-btn" type="button">준비</button>
 </div>

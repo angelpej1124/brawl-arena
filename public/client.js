@@ -1160,13 +1160,10 @@ function onEvent(ev) {
     rewindT = 0.9; rewindG = !!ev.g; banners.push({ text: `${ev.n}: 시간 되돌리기!`, life: 1.6, max: 1.6, small: true, color: ev.g ? '#5cf09a' : '#aebfff' });
   } else if (ev.k === 'smash' && skinPid(ev.pid, 'fireworks')) {
     // 불꽃놀이: 콤보가 클수록 불꽃이 많아지고, 색이 빨→주→노→초→파→남→보로 바뀜
+    // 플레이어 자리에서 바로 한 발이 펑! 콤보가 클수록 크고 불티가 많아짐
     const RB = ['#ff3b3b', '#ff9a2e', '#ffe14a', '#3ccf6e', '#3f8cff', '#3a3ad8', '#b04aff'];
-    const n = ev.n || 1, tier = Math.min(6, Math.floor((n - 1) * 7 / 30)), bursts = Math.min(9, 1 + Math.floor(n / 4));
-    for (let k = 0; k < bursts; k++) {
-      const col = RB[bursts > 1 ? Math.round(tier * k / (bursts - 1)) : tier];
-      const bx = ev.x + (k === 0 ? 0 : (Math.random() - 0.5) * Math.min(ev.r * 1.6, 600)), by = ev.y - 80 - Math.random() * (60 + n * 6);
-      particles.push({ fw: true, x: bx, y0: ev.y + 20, y: by, wait: k * 0.12, life: 1.3 + k * 0.12, max: 1.3 + k * 0.12, c: col, big: 0.8 + Math.min(1.4, n / 20), seed: Math.random() * 99 });
-    }
+    const n = ev.n || 1, tier = Math.min(6, Math.floor((n - 1) * 7 / 30));
+    particles.push({ fw: true, x: ev.x, y: ev.y, life: 1.2, max: 1.2, c: RB[tier], big: 0.9 + Math.min(2.2, n / 12), sparks: 18 + Math.min(42, n * 2), rings: 1 + Math.floor(n / 10), seed: Math.random() * 99 });
     shake = Math.max(shake, Math.min(26, 8 + ev.n));
     banners.push({ text: `${ev.n}콤보 불꽃놀이!`, life: 1.2, max: 1.2, small: true, color: RB[tier] });
   } else if (ev.k === 'smash') {
@@ -2482,24 +2479,19 @@ function drawParticles(dt) {
         ctx.lineTo(p.x, p.y - 30); ctx.stroke();
       }
     } else if (p.fw) {
-      // 불꽃놀이 한 발: 로켓이 올라가서(0.3초) 펑 터지며 불티가 퍼지고 떨어짐
-      const el = p.max - p.life - p.wait;
-      if (el < 0) continue;
-      if (el < 0.3) {
-        const yy = p.y0 + (p.y - p.y0) * (el / 0.3);
-        ctx.strokeStyle = 'rgba(255,240,200,0.9)'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(p.x, yy + 18); ctx.lineTo(p.x, yy); ctx.stroke();
-      } else {
-        const t = el - 0.3, R = 90 * p.big * Math.min(1, t / 0.35 + 0.2), fade = Math.max(0, 1 - t / 1);
-        if (t < 0.12) { ctx.fillStyle = `rgba(255,255,255,${0.8 * (1 - t / 0.12)})`; ctx.beginPath(); ctx.arc(p.x, p.y, 30 * p.big, 0, Math.PI * 2); ctx.fill(); }
-        const N = 22;
+      // 불꽃놀이: 플레이어 자리에서 바로 펑 터져 불티가 둥글게 퍼지고 떨어짐 (콤보가 클수록 겹 고리가 늘어남)
+      const t = p.max - p.life, fade = Math.max(0, 1 - t / p.max);
+      if (t < 0.14) { ctx.fillStyle = `rgba(255,255,255,${0.85 * (1 - t / 0.14)})`; ctx.beginPath(); ctx.arc(p.x, p.y, 34 * p.big, 0, Math.PI * 2); ctx.fill(); }
+      for (let ring = 0; ring < p.rings; ring++) {
+        const R = 95 * p.big * (1 - ring * 0.28) * Math.min(1, t / 0.3 + 0.15), N = Math.max(10, Math.round(p.sparks * (1 - ring * 0.3)));
         for (let k = 0; k < N; k++) {
-          const a = (k / N) * Math.PI * 2 + p.seed, dx = Math.cos(a) * R, dy = Math.sin(a) * R + t * t * 140;
+          const a = (k / N) * Math.PI * 2 + p.seed + ring * 0.4, dx = Math.cos(a) * R, dy = Math.sin(a) * R + t * t * 120;
           ctx.globalAlpha = fade; ctx.strokeStyle = p.c; ctx.lineWidth = 3;
-          ctx.beginPath(); ctx.moveTo(p.x + dx * 0.7, p.y + dy * 0.7 - 2); ctx.lineTo(p.x + dx, p.y + dy); ctx.stroke();
-          ctx.fillStyle = k % 3 ? p.c : '#ffffff'; ctx.beginPath(); ctx.arc(p.x + dx, p.y + dy, 2.6, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath(); ctx.moveTo(p.x + dx * 0.72, p.y + dy * 0.72 - 2); ctx.lineTo(p.x + dx, p.y + dy); ctx.stroke();
+          ctx.fillStyle = (k + ring) % 3 ? p.c : '#ffffff'; ctx.beginPath(); ctx.arc(p.x + dx, p.y + dy, 2.6, 0, Math.PI * 2); ctx.fill();
         }
-        ctx.globalAlpha = 1;
       }
+      ctx.globalAlpha = 1;
     } else if (p.mw) {
       // 문워크 잔상: 뒤로 기운 몸 + 중절모 + 발끝 세운 발
       ctx.save(); ctx.translate(p.x, p.y); ctx.globalAlpha = a * 0.55; ctx.rotate(-p.f * 0.12);

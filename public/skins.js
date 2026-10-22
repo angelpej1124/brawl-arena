@@ -55,7 +55,7 @@
     muscle:      { skill: 'empower', name: '머스큘러', desc: '강화 시간 동안 근육질 몸 + 두꺼운 팔 (크기는 그대로)', color: '#d88a5a' },
     nuke:        { skill: 'explode', name: '핵폭발', desc: '폭파 연기 대신 버섯 구름이 피어오름', color: '#ffb84a' },
     electric:    { skill: 'wave', name: '전기', desc: '파동 대신 전기: 스킬을 쓰면 번개가 튀고, 때릴 때 앞으로 번개가 뻗음', color: '#ffe94a' },
-    fireworks:   { skill: 'combo', name: '불꽃놀이', desc: '콤보를 쓰면 불꽃놀이가 펑! 콤보가 클수록 화려하고 색이 빨→주→노→초→파→남→보로 바뀜', color: '#ff7ac8' },
+    fireworks:   { skill: 'combo', name: '불꽃놀이', desc: '콤보를 쓰면 내 자리에서 폭죽 하나가 펑! 콤보가 클수록 크고 화려하고 색이 빨→주→노→초→파→남→보로 바뀜', color: '#ff7ac8' },
     lava:        { skill: 'flood', name: '용암', desc: '물 대신 주황색 반투명 용암 바다가 차오름 (보이는 것만 바뀜)', color: '#ff7a1a' },
     mecharm:     { skill: 'tentacle', name: '기계 팔', desc: '촉수가 매끈한 흰색 로봇 팔로 (청록 빛 관절, 둥근 집게)', color: '#3cdce6' },
     deepsea:     { skill: 'tentacle', name: '심해', desc: '보랏빛으로 빛나는 심해 생물 촉수 (청록 발광 점)', color: '#7a4ac8' },
