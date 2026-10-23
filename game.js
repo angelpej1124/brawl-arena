@@ -81,6 +81,8 @@ const SKILLS = {
   // 귀신: 목숨이 다 없어지면 5초간 귀신(중력·벽 무시, WASD 이동, 안 맞음). 한 명을 3번 때리면 그 사람도 장외
   ghost:    { name: '귀신', time: 5, marks: 3, speed: 430 },
   // 섬광: 내 자리에서 섬광이 터짐 → 주변을 살짝 밀고, 가까울수록 오래 화면이 하얘짐. 터진 자리엔 몇 초간 (나 말고는) 안이 안 보이는 빛 자국
+  portal:   { name: '포탈', cd: 10, r: 34 },
+  charge:   { name: '충전', cd: 2, max: 10, kbPer: 0.1, dmgPer: 0.06 },
   wave:     { name: '파동', cd: 13, duration: 7, radius: 230, kb: 460, kbMul: 1.45, speedMul: 1.3, jumpMul: 1.25, reachMul: 2 },
   dope:     { name: '도핑', max: 3, every: 7, buff: 5, debuff: 3, amt: 0.35, grab: 50 },
   flash:    { name: '섬광', cd: 10, radius: 210, zoneTime: 4, kbR: 260, kb: 300, blindR: 700, blindMax: 3 },
@@ -196,7 +198,8 @@ class Player {
     this.ghostT = 0; this.gMarks = {};   // 귀신
     this.breath = SKILLS.flood.breath; this.blindT = 0;   // 홍수 숨 · 섬광에 눈부심
     this.boingAt = -9;
-    this.waveT = 0; this.dope = null; this.dopeSpawn = 0;   // 파동 · 도핑 (먹은 물약 { k, t, bad })
+    this.waveT = 0; this.dope = null; this.dopeSpawn = 0;
+    this.chargeMode = false; this.chargeN = 0; this.inPortal = false;   // 충전 (false = 공격 모드) · 포탈 안에 서 있는지   // 파동 · 도핑 (먹은 물약 { k, t, bad })
   }
 }
 
@@ -216,6 +219,7 @@ class Sim {
     this.flashes = [];       // 섬광 자국 { owner, x, y, r, t }
     this.water = null;       // 홍수 물 { y, target, lastFill, lava }
     this.potions = [];       // 도핑 물약 { owner, kind, x, y, gy, vy, landed }
+    this.portals = [];       // 포탈 { id, owner, pair, x, y(가운데) } — 같은 pair 두 개가 다 있어야 탈 수 있음
     this.starRain = [];      // 별빛: 내리는 중인 별비 { owner, n, left, timer, dir, cx }
     this.starBits = [];      // 별빛: 떨어지는 별 하나하나
     this.winds = [];         // 바람 소용돌이
@@ -311,7 +315,7 @@ class Sim {
     if (p.skill2 === skill) p.skill2 = p.skill;   // 두 스킬을 서로 바꾼 것
     p.skill = skill; p.randS1 = false;
     p.skillCd = 0; p.skillCdB = 0; p.skillCd2 = 0; p.charged = false; p.stillT = 0; p.parHits = {};
-    p.flyT = 0; p.rockT = 0; p.buffT = 0; p.stealth = 0; p.giantT = 0; p.rubberT = 0; p.engineT = 0; p.stunT = 0; p.hulkS = 1; p.sunT = 0; p.waveT = 0; p.dope = null;
+    p.flyT = 0; p.rockT = 0; p.buffT = 0; p.stealth = 0; p.giantT = 0; p.rubberT = 0; p.engineT = 0; p.stunT = 0; p.hulkS = 1; p.sunT = 0; p.waveT = 0; p.dope = null; p.chargeMode = false; p.chargeN = 0;
     this.clones.delete(id);
     this.removeTurrets(id);
     this.skillPicked(p);
@@ -327,7 +331,7 @@ class Sim {
     if (conflicts(skill, p.skill)) return '검사·궁수·닌자·방패·촉수는 공격 방식이 바뀌는 스킬이라 같이 쓸 수 없어요. (촉수와 비행도 불가)';
     if (p.parHost) this.endParasite(p, true);
     p.skill2 = skill; p.randS2 = false; p.skillCd = 0; p.skillCdB = 0; p.skillCd2 = 0; p.charged = false; p.stillT = 0; p.parHits = {};
-    p.flyT = 0; p.rockT = 0; p.buffT = 0; p.stealth = 0; p.giantT = 0; p.rubberT = 0; p.engineT = 0; p.sunT = 0; p.waveT = 0; p.dope = null;
+    p.flyT = 0; p.rockT = 0; p.buffT = 0; p.stealth = 0; p.giantT = 0; p.rubberT = 0; p.engineT = 0; p.sunT = 0; p.waveT = 0; p.dope = null; p.chargeMode = false; p.chargeN = 0;
     this.clones.delete(id); this.removeTurrets(id);
     this.skillPicked(p);
     return null;
@@ -452,7 +456,7 @@ class Sim {
   }
   clearField() {
     this.clones.clear(); this.smokes = []; this.slashes = [];
-    this.turrets = []; this.bullets = []; this.blizzards = []; this.arrows = []; this.winds = []; this.timeSaves = new Map(); this.mines = []; this.logs = []; this.starRain = []; this.starBits = []; this.shields = []; this.flashes = []; this.water = null; this.potions = [];
+    this.turrets = []; this.bullets = []; this.blizzards = []; this.arrows = []; this.winds = []; this.timeSaves = new Map(); this.mines = []; this.logs = []; this.starRain = []; this.starBits = []; this.shields = []; this.flashes = []; this.water = null; this.potions = []; this.portals = [];
   }
   removeTurrets(id) {
     this.turrets = this.turrets.filter((t) => t.owner !== id);
@@ -493,6 +497,45 @@ class Sim {
     if (p.skill === 'gamble') p.skillCd = SKILLS.gamble.cd; else p.skillCdB = SKILLS.gamble.cd;
     const g = p.gam;
     this.ev({ k: 'gamble', x: r0(p.x), y: r0(p.y - bh(p) / 2), pid: p.id, n: p.name, auto: auto ? 1 : 0, v: [g.reach, g.kbOut, g.kbIn, g.jump, g.speed, g.size] });
+  }
+  // ---------------- 포탈 ----------------
+  // Q 1번: 내 자리에 포탈 / Q 2번: 첫 포탈로 순간이동 + 방금 자리에 두 번째 포탈 (여기서 쿨 10초 시작)
+  // 포탈이 두 개 있을 때 Q: 둘 다 없애고 새 첫 포탈. 두 포탈 중 하나에 들어가면 반대쪽으로 → 두 포탈 다 사라짐
+  usePortal(p) {
+    const s = SKILLS.portal, mine = this.portals.filter((o) => o.owner === p.id), cy = p.y - bh(p) / 2;
+    if (mine.length === 1) {
+      const A = mine[0], ox = p.x, oy = p.y;
+      p.x = A.x; p.y = A.y + bh(p) / 2; p.vx = 0; p.vy = 0; p.inPortal = true; p.attack = null;
+      this.portals.push({ id: ++this.evSeq, owner: p.id, pair: A.pair, x: ox, y: oy - bh(p) / 2 });
+      p.skillCd = s.cd;
+      this.ev({ k: 'portal', x: r0(ox), y: r0(oy - bh(p) / 2), x2: r0(A.x), y2: r0(A.y), pid: p.id, c: p.color });
+      return;
+    }
+    if (p.skillCd > 0) return;
+    this.portals = this.portals.filter((o) => o.owner !== p.id);
+    this.portals.push({ id: ++this.evSeq, owner: p.id, pair: ++this.evSeq, x: p.x, y: cy });
+    p.inPortal = true;
+    this.ev({ k: 'portalmake', x: r0(p.x), y: r0(cy), pid: p.id, c: p.color });
+  }
+  updatePortals(list) {
+    this.portals = this.portals.filter((o) => this.players.has(o.owner));
+    const R = SKILLS.portal.r;
+    for (const p of list) {
+      if (!p.alive || p.inside || p.frozen > 0) { p.inPortal = false; continue; }
+      const cx = p.x, cy = p.y - bh(p) / 2;
+      const touch = this.portals.find((o) => Math.hypot(cx - o.x, cy - o.y) < R + bw(p) * 0.25);
+      if (touch && !p.inPortal) {
+        const other = this.portals.find((o) => o.pair === touch.pair && o !== touch);
+        if (other) {
+          // 들어간 포탈 → 반대쪽 포탈로 (속도는 그대로), 두 포탈 다 사라짐
+          p.x = other.x; p.y = other.y + bh(p) / 2;
+          this.portals = this.portals.filter((o) => o.pair !== touch.pair);
+          this.ev({ k: 'portalgo', x: r0(touch.x), y: r0(touch.y), x2: r0(other.x), y2: r0(other.y), pid: p.id });
+          p.inPortal = true; continue;
+        }
+      }
+      p.inPortal = !!touch;
+    }
   }
   // ---------------- 도핑 물약 ----------------
   updatePotions(list, dt) {
@@ -690,6 +733,7 @@ class Sim {
     this.updateShields(targets, dt);
     this.updateWater(dt);
     this.updatePotions(list, dt);
+    this.updatePortals(list);
     for (const f of this.flashes) f.t -= dt;
     this.flashes = this.flashes.filter((f) => f.t > 0);
     // 판이 끝나면 귀신 상태도 바로 풀림 (대기실까지 귀신으로 남지 않게)
@@ -715,7 +759,7 @@ class Sim {
       mines: structuredClone(this.mines), turrets: structuredClone(this.turrets), bullets: structuredClone(this.bullets), slashes: structuredClone(this.slashes),
       arrows: structuredClone(this.arrows), winds: structuredClone(this.winds), smokes: structuredClone(this.smokes),
       blizzards: structuredClone(this.blizzards), logs: structuredClone(this.logs), starRain: structuredClone(this.starRain),
-      starBits: this.starBits.map((b) => ({ ...b, hit: [...b.hit] })), shields: structuredClone(this.shields), flashes: structuredClone(this.flashes), water: this.water ? { ...this.water } : null, potions: structuredClone(this.potions),
+      starBits: this.starBits.map((b) => ({ ...b, hit: [...b.hit] })), shields: structuredClone(this.shields), flashes: structuredClone(this.flashes), water: this.water ? { ...this.water } : null, potions: structuredClone(this.potions), portals: structuredClone(this.portals),
     };
   }
   restoreWorld(snap, caster) {
@@ -755,6 +799,7 @@ class Sim {
     this.flashes = structuredClone(snap.flashes || []);
     this.water = snap.water ? { ...snap.water } : null;
     this.potions = structuredClone(snap.potions || []).filter((q) => this.players.has(q.owner));
+    this.portals = structuredClone(snap.portals || []).filter((q) => this.players.has(q.owner));
   }
 
   tickTimers(p, dt) {
@@ -966,6 +1011,7 @@ class Sim {
     const k = p.skill;
     if (k === 'empower') return this.useEmpower(p);
     if (k === 'parasite') return this.startParasite(p);
+    if (k === 'portal') return this.usePortal(p);
     if (p.skillCd > 0) return;
     // 촉수로 땅을 짚고 있는 동안은 점멸·화염 돌진 같은 돌진기를 못 씀
     if (p.anchorT > 0 && (k === 'blink' || k === 'fire')) { this.deny(p, '촉수로 땅을 짚는 동안은 못 써요'); return; }
@@ -1218,6 +1264,10 @@ class Sim {
       this.ev({ k: 'wave', x: r0(cx), y: r0(cy), pid: p.id });
     } else if (k === 'dope') {
       return;   // 패시브: 물약이 저절로 떨어짐
+    } else if (k === 'charge') {
+      // 공격 모드 ↔ 충전 모드
+      p.chargeMode = !p.chargeMode; p.skillCd = SKILLS.charge.cd;
+      this.ev({ k: 'chargemode', x: r0(p.x), y: r0(cy), pid: p.id, m: p.chargeMode ? 1 : 0 });
     } else if (k === 'flash') {
       const s = SKILLS.flash;
       this.flashes.push({ id: ++this.evSeq, owner: p.id, team: p.team, x: r0(cx), y: r0(cy), r: s.radius, t: s.zoneTime, max: s.zoneTime });
@@ -2129,6 +2179,12 @@ class Sim {
         return;
       }
     }
+    // 충전: 충전 모드는 때릴 때마다 스택 +1 (넉백 없음), 공격 모드는 스택만큼 피해·넉백 ↑
+    if (has(a, 'charge') && !a.clone) {
+      const cs = SKILLS.charge;
+      if (a.chargeMode) { a.chargeN = Math.min(cs.max, (a.chargeN || 0) + 1); opt = { ...opt, noKB: true }; this.ev({ k: 'chargeup', x: r0(a.x), y: r0(a.y - bh(a)), n: a.chargeN, pid: a.id }); }
+      else if (a.chargeN > 0) { def = { ...def, damage: def.damage * (1 + cs.dmgPer * a.chargeN) }; opt = { ...opt, chg: a.chargeN }; }
+    }
     t.damage = Math.min(t.damage + def.damage, 999);
     t.attack = null;
     t.lastHitBy = a.ownerId || a.id; t.lastHitAt = this.tickCount;
@@ -2146,6 +2202,12 @@ class Sim {
   // 맞은 상대를 날려 보냄 (흑섬이면 더 세게 + 강공격은 스턴)
   launch(a, t, def, type, opt = {}) {
     const black = !!opt.black;
+    if (opt.noKB) {
+      // 충전 모드로 맞음: 넉백 없이 살짝 움찔
+      t.hitstun = Math.max(t.hitstun, 0.12); t.vx *= 0.3;
+      this.ev({ k: 'hit', x: r0(t.x), y: r0(t.y - bh(t) / 2), p: 0, cg: 1 });
+      return;
+    }
     if (black) {
       const s = SKILLS.blackflash;
       if (type === 'heavy') t.stunT = Math.max(t.stunT || 0, s.stun);
@@ -2162,7 +2224,8 @@ class Sim {
     if (black && type === 'heavy') kb *= SKILLS.blackflash.heavyKbMul;
     if (has(a, 'hulk')) kb *= 1 + SKILLS.hulk.power * hulkF(a);
     if (a.sunT > 0 && !opt.small) kb *= SKILLS.sun.kbMul;
-    if (a.waveT > 0 && !opt.small) kb *= SKILLS.wave.kbMul;              // 파동: 팔에 감긴 파동으로 세게 침
+    if (a.waveT > 0 && !opt.small) kb *= SKILLS.wave.kbMul;
+    if (opt.chg) kb *= 1 + SKILLS.charge.kbPer * opt.chg;                // 충전 스택만큼 세게              // 파동: 팔에 감긴 파동으로 세게 침
     kb *= dopeMul(a, 'pow') * dopeMul(t, 'def');                          // 도핑: 힘 · 방어
     if (has(a, 'wind') && !opt.small) kb *= SKILLS.wind.kbMul;               // 바람: 더 날아감                      // 태양: 세게 침          // 헐크: 세게 침
     if (has(t, 'hulk')) kb *= 1 - SKILLS.hulk.tough * hulkF(t);          // 헐크: 덜 날아감
@@ -2294,6 +2357,7 @@ class Sim {
       br: this.headUnder(p) && !has(p, 'flood') ? Math.ceil(p.breath) : undefined, bl: p.blindT > 0 ? Math.round(p.blindT * 10) / 10 : undefined,
       gh: p.ghostT > 0 ? Math.round(p.ghostT * 10) / 10 : 0,
       wv: p.waveT > 0 ? Math.ceil(p.waveT) : 0,
+      cg: has(p, 'charge') ? [p.chargeMode ? 1 : 0, p.chargeN || 0] : 0,
       dp: p.dope ? [DOPE_KINDS.indexOf(p.dope.k), p.dope.bad ? 1 : 0, Math.ceil(p.dope.t)] : 0,
       mk: (() => { let m = 0; for (const g of this.players.values()) if (g.ghostT > 0 && g.gMarks[p.id]) m = Math.max(m, g.gMarks[p.id]); return m; })(),
     });
@@ -2306,6 +2370,7 @@ class Sim {
       lg: this.logs.map((l) => ({ x: r0(l.x), y: r0(l.y), sn: l.sn, t: Math.round(l.t * 10) / 10, s: l.big !== 1 ? Math.round(l.big * 10) / 10 : undefined })),
       fz: this.flashes.map((f) => ({ x: f.x, y: f.y, r: f.r, a: Math.round(Math.min(1, f.t / 0.6) * 100) / 100, o: f.owner, tm: f.team })),
       wa: this.water ? [r0(this.water.y), this.water.lava ? 1 : 0] : 0,
+      pt: this.portals.map((o) => [r0(o.x), r0(o.y), o.owner, this.portals.some((q) => q.pair === o.pair && q !== o) ? 1 : 0]),
       po: this.potions.map((q) => [r0(q.x), r0(q.y), DOPE_KINDS.indexOf(q.kind), q.owner]),
       shw: this.shields.map((q) => ({ x: r0(q.x), y: r0(q.y), vx: q.ground ? 0 : r0(q.vx), vy: q.ground ? 0 : r0(q.vy), g: q.ground ? 1 : 0, o: q.owner, s: q.big !== 1 ? Math.round(q.big * 10) / 10 : undefined })),
       sb: this.starBits.map((b) => { const o = this.players.get(b.owner); return { x: r0(b.x), y: r0(b.y), vx: r0(b.vx), vy: r0(b.vy), r: Math.round(b.r), m: o && skinOn(o, 'meteor') ? 1 : undefined }; }),
@@ -2563,6 +2628,16 @@ function botThink(sim, b) {
         if (sk === 'gamble' && ready && R < 0.01) use(sk);
         if (sk === 'flash' && ready && best < 260 && R < 0.05) use(sk);
         if (sk === 'wave' && ready && best < 200 && R < 0.06) use(sk);
+        if (sk === 'charge' && ready) {
+          // 멀리 있으면 충전 모드로 바꿔 두고 때려서 쌓고, 많이 쌓이면 공격 모드로
+          if (!b.chargeMode && (b.chargeN || 0) < 4 && best > 260 && R < 0.03) use(sk);
+          else if (b.chargeMode && ((b.chargeN || 0) >= 7 || target.damage > 90) && R < 0.06) use(sk);
+        }
+        if (sk === 'portal') {
+          const mine = sim.portals.filter((o) => o.owner === b.id).length;
+          if (mine === 0 && ready && b.grounded && R < 0.02) use(sk);                                           // 서 있는 곳에 포탈 하나 깔아 둠
+          else if (mine === 1 && ((b.damage > 60 && best < 180) || best > 450 || b.y > sim.stage.floor + 40) && R < 0.05) use(sk);   // 위험·멀거나 떨어지는 중이면 순간이동
+        }
         if (sk === 'flood' && ready && !(sim.water && sim.water.drain) && (target.y >= b.y - 20 || sim.water) && R < 0.025) use(sk);
         if (sk === 'starlight' && b.skillCd <= 0 && b.starN >= 3 && best < 420 && R < 0.04) use(sk);
         if (sk === 'reflect' && ready) {

@@ -53,6 +53,8 @@ const SKILLS = {
   gamble:   { name: '도박', desc: '사거리·주는 넉백·받는 넉백·점프·속도·크기가 각각 0.0~2.0배로 랜덤. 판이 시작되면 자동으로 굴림 (그래서 바로는 못 씀). 죽어도 유지', cd: '쿨 20초' },
   shield:   { name: '방패', desc: '방패를 듦. 약공격은 방패 막기(앞에서 오는 공격), 강공격은 방패 휘두르기(넉백↑). Q를 누르고 있다 놓으면 방패를 던짐(오래 누를수록 멀리). 맞히거나 벽에 부딪히면 튕겨 돌아오고, 가까이 가면 주움(나만). 장외로 떨어지면 10초 뒤 다시 생김. 방패가 없으면 보통 공격', cd: '누르고 있다 놓기' },
   tentacle: { name: '촉수', desc: '등 뒤 촉수 4개. 약공격(J)은 위 촉수 2개, 강공격(K)은 아래 촉수 2개를 번갈아 뻗어 공격 (촉수마다 따로 쿨 1.5초). Q는 아래 촉수 2개로 땅을 짚고 8초간 중력 없이 WASD로 이동, 넉백 거의 없음 (맨 밑 바닥 아래로는 못 감, 그동안 아래 촉수 공격·점멸·화염 돌진 불가 — K도 위 촉수로)', cd: '쿨 18초' },
+  portal:   { name: '포탈', desc: 'Q: 내 자리에 포탈 → 다시 Q: 첫 포탈로 순간이동하면서 방금 자리에 두 번째 포탈. 누구든 한쪽 포탈에 들어가면 반대쪽으로 나오고 두 포탈은 사라짐. 포탈이 두 개일 때 Q를 누르면 둘 다 없애고 새로 만듦', cd: '쿨 10초 (두 번째 포탈부터)' },
+  charge:   { name: '충전', desc: 'Q로 공격 모드(빨강) ↔ 충전 모드(초록) 전환. 충전 모드로 때리면 넉백 없이 충전 스택 +1 (최대 10), 공격 모드로 때리면 스택만큼 피해·넉백이 세짐. 죽으면 스택 초기화', cd: '전환 쿨 2초' },
   wave:     { name: '파동', desc: 'Q로 내 몸에서 큰 파동이 퍼져 주변 적을 조금 튕겨냄. 그 뒤 7초간 팔에 파동이 감겨 넉백이 세지고, 점프력·이동 속도도 올라감', cd: '쿨 13초' },
   dope:     { name: '도핑', desc: '맵 곳곳에 내 물약이 7초마다 하나씩 떨어짐 (최대 3개). 하늘=이속, 빨강=공속, 초록=힘(넉백), 노랑=방어(넉백 덜 받음). 먹으면 5초 강화, 끝나면 3초간 그만큼 약화. 약화 전에 다른 물약을 먹으면 약화 없음 (패시브)', cd: '패시브' },
   flash:    { name: '섬광', desc: '내 자리에서 섬광이 터져 주변을 살짝 밀어내고, 가까울수록 상대 화면이 오래 하얘짐. 터진 자리엔 4초간 빛 자국이 남아 나 말고는 그 안이 안 보임', cd: '쿨 10초' },
@@ -67,7 +69,7 @@ const SKILL_COLOR = {
   sword: '#cfe3ff', blackflash: '#c0263a', lightning: '#ffe94a', undying: '#ffd27a',
   hulk: '#5fd35a', fire: '#ff5a1f', ice: '#8fdcff', turret: '#a7b2c4', error: '#39ff88', sun: '#ffc21a',
   wind: '#b8f2e6', archer: '#c98b4a', time: '#7c9cff', combo: '#ff5fa2', reflect: '#e0f0ff', invert: '#c2185b', atom: '#5ad8ff', mine: '#8a8f6a',
-  ninja: '#5b6b8a', gamble: '#3fd07a', starlight: '#ffe27a', shield: '#c9a24a', tentacle: '#3a2a4a', ghost: '#d8d8f0', flash: '#fff6b0', flood: '#3a9ad8', wave: '#5fe0ff', dope: '#c06bff',
+  ninja: '#5b6b8a', gamble: '#3fd07a', starlight: '#ffe27a', shield: '#c9a24a', tentacle: '#3a2a4a', ghost: '#d8d8f0', flash: '#fff6b0', flood: '#3a9ad8', wave: '#5fe0ff', dope: '#c06bff', portal: '#7a5cff', charge: '#3ccf6e',
 };
 // 더블 모드에서 같이 못 쓰는 조합 (서버 game.js와 같음)
 const WEAPONS = ['sword', 'archer', 'ninja', 'shield', 'tentacle'];
@@ -927,7 +929,7 @@ function onEvent(ev) {
     const n = ev.p === 2 ? 22 : ev.p === 0 ? 6 : 12;
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2, s = 150 + Math.random() * (ev.p === 2 ? 520 : 320);
-      const c = ev.fx === 'carnage' ? (i % 3 ? '#c4161c' : '#3a0408') : ev.fx === 'venom' ? (i % 3 ? '#14101a' : '#5a5466') : ev.fx === 'redwind' ? (i % 2 ? '#ff4a26' : '#ffb08a') : ev.fx === 'rainbow' ? `hsl(${(i * 37) % 360},95%,62%)` : ev.p === 2 ? '#ffcf3f' : '#ffffff';
+      const c = ev.cg ? (i % 2 ? '#3ccf6e' : '#b8ffc8') : ev.fx === 'carnage' ? (i % 3 ? '#c4161c' : '#3a0408') : ev.fx === 'venom' ? (i % 3 ? '#14101a' : '#5a5466') : ev.fx === 'redwind' ? (i % 2 ? '#ff4a26' : '#ffb08a') : ev.fx === 'rainbow' ? `hsl(${(i * 37) % 360},95%,62%)` : ev.p === 2 ? '#ffcf3f' : '#ffffff';
       particles.push({ x: ev.x, y: ev.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 0.35, max: 0.35, c, r: ev.p === 2 ? 5 : 3.5 });
     }
     particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.25, max: 0.25, r: ev.p === 2 ? 70 : 42, c: '255,255,255' });
@@ -940,6 +942,18 @@ function onEvent(ev) {
     particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.5, max: 0.5, r: 220, c: '255,255,255' });
     shake = 22;
     banners.push({ text: `${ev.n} 장외!`, life: 1.2, max: 1.2, small: true });
+  } else if (ev.k === 'portalmake') {
+    particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.4, max: 0.4, r: 60, c: '160,130,255' });
+  } else if (ev.k === 'portal' || ev.k === 'portalgo') {
+    for (const [x, y] of [[ev.x, ev.y], [ev.x2, ev.y2]]) {
+      particles.push({ ring: true, x, y, life: 0.45, max: 0.45, r: 70, c: '180,150,255' });
+      for (let i = 0; i < 12; i++) { const a = Math.random() * Math.PI * 2, sp = 80 + Math.random() * 180; particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.4, max: 0.4, c: i % 2 ? '#e0d8ff' : '#7a5cff', r: 4, nograv: true }); }
+    }
+  } else if (ev.k === 'chargemode') {
+    particles.push({ ring: true, fill: true, x: ev.x, y: ev.y, life: 0.35, max: 0.35, r: 70, c: ev.m ? '60,220,110' : '255,60,50', grow: true });
+    if (ev.pid === myId) banners.push({ text: ev.m ? '충전 모드' : '공격 모드', life: 0.9, max: 0.9, small: true, color: ev.m ? '#5ef08a' : '#ff6a5a' });
+  } else if (ev.k === 'chargeup') {
+    for (let i = 0; i < 5; i++) particles.push({ x: ev.x + (Math.random() - 0.5) * 30, y: ev.y, vx: (Math.random() - 0.5) * 40, vy: -60 - Math.random() * 60, life: 0.5, max: 0.5, c: '#7cf5a0', r: 3, nograv: true });
   } else if (ev.k === 'wave' && skinPid(ev.pid, 'electric')) {
     // 전기: 파동 대신 사방으로 번개가 튐
     particles.push({ ring: true, fill: true, x: ev.x, y: ev.y, life: 0.35, max: 0.35, r: 240, c: '120,200,255', grow: true });
@@ -1446,6 +1460,20 @@ function drawPotions(state, time) {
     ctx.restore();
   }
 }
+// 포탈: 주인 색 테두리의 소용돌이 타원. 짝이 아직 없으면 흐리게 (탈 수 없음)
+function drawPortals(state, time) {
+  for (const [x, y, o, done] of state.pt || []) {
+    const pl = state.p.find((q) => q.id === o), col = pl ? pl.c : '#7a5cff';
+    ctx.save(); ctx.translate(x, y); ctx.globalAlpha = done ? 1 : 0.5;
+    const g = ctx.createRadialGradient(0, 0, 4, 0, 0, 40);
+    g.addColorStop(0, 'rgba(255,255,255,0.9)'); g.addColorStop(0.35, 'rgba(150,120,255,0.75)'); g.addColorStop(1, 'rgba(40,20,90,0.15)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(0, 0, 26, 40, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = col; ctx.lineWidth = 5; ctx.stroke();
+    ctx.rotate(time / 300); ctx.strokeStyle = 'rgba(230,220,255,0.75)'; ctx.lineWidth = 2;
+    for (let k = 0; k < 3; k++) { ctx.rotate(Math.PI * 2 / 3); ctx.beginPath(); ctx.ellipse(6, 0, 12, 20, 0.4, 0, Math.PI * 1.2); ctx.stroke(); }
+    ctx.restore();
+  }
+}
 // 트램펄린: 다리 + 빨강·파랑 테두리 + 출렁이는 매트
 function drawTramps(time) {
   for (const t of STAGE.tramps || []) {
@@ -1616,6 +1644,14 @@ function drawPlayer(p, time) {
         ctx.beginPath(); ctx.ellipse(sd * 16, 0, 18, 8, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
       }
     }
+  }
+  if (p.cg) {
+    // 충전: 충전 모드 초록 / 공격 모드 빨강 기운 (스택이 쌓일수록 진하게)
+    const chg = p.cg[0], n = p.cg[1], k2 = 0.18 + n * 0.045 + Math.sin(time / 120) * 0.04;
+    const cg2 = ctx.createRadialGradient(0, -PH / 2, 8, 0, -PH / 2, 46 + n * 2);
+    cg2.addColorStop(0, chg ? `rgba(80,230,120,${k2})` : `rgba(255,60,50,${k2})`); cg2.addColorStop(1, chg ? 'rgba(40,200,90,0)' : 'rgba(220,30,20,0)');
+    ctx.fillStyle = cg2; ctx.beginPath(); ctx.arc(0, -PH / 2, 46 + n * 2, 0, Math.PI * 2); ctx.fill();
+    if (chg) { ctx.fillStyle = 'rgba(140,255,170,0.8)'; for (let i = 0; i < 4; i++) { const ph = ((time / 700) + i / 4) % 1; ctx.beginPath(); ctx.arc(Math.sin(i * 2.1) * 20, 6 - ph * (PH + 20), 2.5, 0, Math.PI * 2); ctx.fill(); } }
   }
   if (p.wv && skinOn(p, 'electric')) {
     // 전기: 몸 주위에 찌직거리는 전기
@@ -1967,6 +2003,12 @@ function drawPlayer(p, time) {
         ctx.beginPath(); ctx.arc(ux, fy, rr, f > 0 ? -0.9 : Math.PI - 0.9, f > 0 ? 0.9 : Math.PI + 0.9); ctx.stroke();
       }
     }
+  }
+  if (p.cg) {
+    const chg = p.cg[0], fr3 = (p.at ? 22 : 15) + p.cg[1] * (chg ? 0 : 1.2);
+    const gl3 = ctx.createRadialGradient(fx, fy, 2, fx, fy, fr3);
+    gl3.addColorStop(0, chg ? 'rgba(170,255,190,0.95)' : 'rgba(255,170,150,0.95)'); gl3.addColorStop(1, chg ? 'rgba(40,200,90,0)' : 'rgba(230,30,20,0)');
+    ctx.fillStyle = gl3; ctx.beginPath(); ctx.arc(fx, fy, fr3, 0, Math.PI * 2); ctx.fill();
   }
   ctx.fillStyle = p.c; ctx.strokeStyle = '#1a1030'; ctx.lineWidth = 3;
   const mus = p.bf && skinOn(p, 'muscle') ? 5 : 0;   // 근육: 굵은 팔·큰 주먹
@@ -2441,6 +2483,11 @@ function finishPlayer(p, x, y, G, light, ownerId, baseAlpha, isClone, time) {
       ctx.closePath(); ctx.fill();
     }
   }
+  if (p.cg && p.cg[1] > 0 && !isClone) {
+    // 충전 스택: 머리 위 작은 칸 (최대 10)
+    const n = p.cg[1], by3 = y - PH * G - 44 - (p.b ? 12 : 0) - (p.br != null ? 12 : 0);
+    for (let i = 0; i < 10; i++) { ctx.fillStyle = i < n ? (p.cg[0] ? '#5ef08a' : '#ff5a4a') : 'rgba(255,255,255,0.15)'; ctx.fillRect(x - 30 + i * 6, by3, 5, 7); }
+  }
   if (p.rv === 2) {
     // 우왕좌왕: 머리 위에 기울어진 금 왕관
     const dx = x, dy = y - PH * G - 44 - (p.b ? 12 : 0) - (p.cb > 0 ? 22 : 0) + Math.sin(time / 200) * 2;
@@ -2636,6 +2683,8 @@ function skillStatus(p) {
   if (k === 'empower') return p.bf ? { ready: true, text: `강화 중 ${p.bt}s` } : { ready: p.chg >= 100, text: p.chg >= 100 ? '충전 완료!' : `충전 ${p.chg || 0}%` };
   if (k === 'undying' || k === 'hulk') return { ready: true, text: '패시브' };
   if (k === 'wave' && p.wv) return { ready: true, text: `강화 ${p.wv}s` };
+  if (k === 'charge' && p.cg) return { ready: !(p.cd > 0), text: `${p.cg[0] ? '충전 중' : '공격'} · ${p.cg[1]}스택` };
+  if (k === 'portal' && latest) { const n = (latest.pt || []).filter((o) => o[2] === p.id).length; if (n === 1) return { ready: true, text: '다시 Q: 이동' }; if (n === 2) return { ready: !(p.cd > 0), text: p.cd > 0 ? `2개 · ${p.cd.toFixed(1)}s` : '2개 (Q: 새로)' }; }
   if (k === 'dope') return p.dp ? { ready: !p.dp[1], text: `${DOPE_NAMES[p.dp[0]]} ${p.dp[1] ? '약화' : '강화'} ${p.dp[2]}s` } : { ready: true, text: '물약 줍기' };
   if (k === 'time' && p.ts) return { ready: !(p.cd > 0), text: '저장됨' };
   if (k === 'combo') return { ready: p.cb > 0, text: `콤보 ${p.cb || 0}` };
@@ -3418,6 +3467,7 @@ function frame(now) {
     drawStage();
     drawTramps(now);
     drawPotions(latest, now);
+    drawPortals(latest, now);
     drawSlashes(latest, now);
     drawTurrets(latest, now);
     for (const q of latest.p) if (q.ts) {
