@@ -17,7 +17,7 @@ const ATTACKS = {
 // 스킬 — 숫자를 바꿔서 밸런스를 조절하세요 (cd = 쿨타임 초)
 const SKILLS = {
   slow:     { name: '둔화', cd: 6, radius: 320, duration: 7, moveMul: 0.5, attackMul: 0.5 },
-  blink:    { name: '점멸', cd: 9, distance: 230 },
+  blink:    { name: '점멸', cd: 8, distance: 230 },
   stealth:  { name: '은신', cd: 12, duration: 5 },
   clone:    { name: '분신', cd: 10, hits: 5 },
   swap:     { name: '전환', cd: 19, heavyLock: 1 },                       // 강공격 맞고 1초 동안은 못 씀
@@ -33,7 +33,7 @@ const SKILLS = {
   rubber:   { name: '고무', cd: 13, duration: 7, reachMul: 2, jumpMul: 1.25 },
   engine:   { name: '엔진', cd: 12, duration: 6, speedMul: 1.6, kbPerSpeed: 0.8, kbMax: 2.2 },
   // 검사: 공격이 검으로 바뀜 (사거리 1.25배). 약공격은 앞으로 돌진하며 베기, 강공격은 주변 부채꼴 베기, Q는 참격 발사
-  sword:    { name: '검사', cd: 12, heavyGap: 0.3, reachMul: 1.25, lunge: 620, fanR: 125, slashSpeed: 950, slashLife: 0.65, slashDmg: 9, slashKB: 380, slashGrowth: 12 },
+  sword:    { name: '검사', cd: 13, heavyGap: 0.8, lightGap: 0.22, reachMul: 1.25, lunge: 520, fanR: 112, slashSpeed: 950, slashLife: 0.65, slashDmg: 9, slashKB: 380, slashGrowth: 12 },
   // 흑섬: Q 자체는 이펙트만. 공격이 맞는 순간과 같은 타이밍(±window초)이면 넉백 강화
   blackflash: { name: '흑섬', cd: 0, window: 0.1, mobWindow: 0.17, heavyKbMul: 1.45, stun: 0.7 },
   lightning: { name: '번개', cd: 13, radius: 480, count: 3, damage: 10, stun: 3 },
@@ -65,7 +65,7 @@ const SKILLS = {
   // 원자: 때릴 때마다 주위를 도는 전자 +1 (최대 5). 3초 안 때리면 1초에 1개씩 사라짐. 전자에 닿아야만 피해
   atom:     { name: '원자', cd: 13, max: 5, radius: 62, spin: 4, boost: 5, decayAfter: 3, decayEvery: 1, dmg: 3, baseKB: 170, growthKB: 4, hitEvery: 0.5 },
   // 지뢰: 최대 10개, 밟으면 폭발 (주인·팀원은 안 터짐)
-  mine:     { name: '지뢰', cd: 8, max: 10, arm: 0.6, radius: 110, dmg: 10, power: 620 },
+  mine:     { name: '지뢰', cd: 7, max: 10, arm: 0.6, radius: 110, dmg: 10, power: 780 },
   // 닌자: 쿠나이를 듦. 강공격 = 바로 직선으로 쿠나이 던지기(중력 X, 던진 뒤 0.4초 뒤 다시). Q = 통나무 남기고 랜덤한 안전한 곳으로 순간이동
   ninja:    { name: '닌자', cd: 13, heavyGap: 0.4, speed: 1150, life: 0.75, dmg: 6, baseKB: 240, growthKB: 7, logLife: 3 },
   // 도박: 판 시작하면 자동으로 굴림. 사거리·주는 넉백·받는 넉백·점프·속도·크기가 각각 0.0~2.0배 (쿨 20초)
@@ -82,14 +82,18 @@ const SKILLS = {
   ghost:    { name: '귀신', time: 5, marks: 3, speed: 430 },
   // 섬광: 내 자리에서 섬광이 터짐 → 주변을 살짝 밀고, 가까울수록 오래 화면이 하얘짐. 터진 자리엔 몇 초간 (나 말고는) 안이 안 보이는 빛 자국
   portal:   { name: '포탈', cd: 10, r: 34 },
-  charge:   { name: '충전', cd: 2, max: 10, kbPer: 0.1, dmgPer: 0.06 },
+  charge:   { name: '충전', cd: 2, kbPer: 0.06, dmgPer: 0.04 },               // 스택 제한 없음
+  // 돌진: 약·강공격을 할 때 앞으로 튀어 나감. Q = time초 동안 앞으로 쭉 돌진 (앞의 상대를 밀고 가다 끝에서 피해 + 튕김, 도중에 방향을 바꾸면 밀던 상대는 그 자리에서 튕겨 나감)
+  dash:     { name: '돌진', cd: 13, speed: 880, time: 0.8, lunge: 360, heavyLunge: 460, dmg: 12, baseKB: 470, growthKB: 13, lift: 0.5 },
+  // 점프: 기본 3단 점프 (패시브). Q = 3초 동안 공중에서 무한 점프
+  hop:      { name: '점프', cd: 14, duration: 3 },
   wave:     { name: '파동', cd: 13, duration: 7, radius: 230, kb: 460, kbMul: 1.45, speedMul: 1.3, jumpMul: 1.25, reachMul: 2 },
   dope:     { name: '도핑', max: 3, every: 7, buff: 5, debuff: 3, amt: 0.35, grab: 50 },
   flash:    { name: '섬광', cd: 10, radius: 210, zoneTime: 4, kbR: 260, kb: 300, blindR: 700, blindMax: 3 },
   // 홍수: Q마다 아래에서 물이 참 (여러 번 쓰면 더 높이). 홍수 사용자는 헤엄치고, 다른 사람은 느려지고 숨이 참
   flood:    { name: '홍수', cd: 12, rise: 120, riseSpeed: 140, hold: 15, recede: 22, fullHold: 10, drainTime: 5, breath: 10,
               moveMul: 0.55, jumpMul: 0.7, atkMul: 0.6, swim: 1.15, proj: 0.45, dash: 0.5, stunMul: 1.6, iceMul: 1.6 },
-  turret:   { name: '터렛', cd: 12, max: 3, hp: 4, range: 560, fireEvery: 0.9, bulletSpeed: 820, bulletLife: 0.9, dmg: 3, baseKB: 210, growthKB: 5 },
+  turret:   { name: '터렛', cd: 13, max: 3, hp: 3, range: 560, fireEvery: 1.1, size: 1.3, bulletSpeed: 820, bulletLife: 0.9, dmg: 3, baseKB: 210, growthKB: 5 },
 };
 const SKILL_IDS = Object.keys(SKILLS);
 
@@ -137,6 +141,7 @@ const dopeMul = (p, kind) => {
 const fireTint = (p) => (skinOn(p, 'bluefire') ? 'blue' : skinOn(p, 'blackfire') ? 'dark' : 'fire');
 const sunTint = (p) => (skinOn(p, 'supernova') ? 'blue' : skinOn(p, 'blackhole') ? 'dark' : 'fire');
 const tintNum = (t) => (t === 'blue' ? 1 : t === 'dark' ? 2 : 0);
+const maxJumps = (p) => CONFIG.EXTRA_JUMPS + (has(p, 'hop') ? 1 : 0);   // 점프 스킬은 3단 점프
 const has = (p, k) => !!p && (p.skill === k || p.skill2 === k);
 // 키 배치: 보통 Q=스킬1, E=스킬2. 자석이 있으면 자석이 Q·E를 쓰고 나머지 스킬은 R
 function slotsOf(p) {
@@ -171,7 +176,7 @@ class Player {
   reset(x, y) {
     this.x = x; this.y = y; this.vx = 0; this.vy = 0;
     this.facing = x < (this.mapMid || 640) ? 1 : -1;
-    this.grounded = false; this.jumpsLeft = CONFIG.EXTRA_JUMPS;
+    this.grounded = false; this.jumpsLeft = maxJumps(this);
     this.damage = 0; this.hitstun = 0; this.invincible = 0;
     this.attack = null; this.dropThrough = 0; this.alive = true;
     this.lastHitBy = null; this.lastHitAt = 0; this.heavyHitAt = -999;
@@ -199,7 +204,8 @@ class Player {
     this.breath = SKILLS.flood.breath; this.blindT = 0;   // 홍수 숨 · 섬광에 눈부심
     this.boingAt = -9;
     this.waveT = 0; this.dope = null; this.dopeSpawn = 0;
-    this.chargeMode = false; this.chargeN = 0; this.inPortal = false;   // 충전 (false = 공격 모드) · 포탈 안에 서 있는지   // 파동 · 도핑 (먹은 물약 { k, t, bad })
+    this.chargeMode = false; this.chargeN = 0; this.inPortal = false;
+    this.rushT = 0; this.rushCarry = []; this.hopT = 0; this.lGap = 0;   // 돌진 · 점프 · 검사 약공격 딜레이   // 충전 (false = 공격 모드) · 포탈 안에 서 있는지   // 파동 · 도핑 (먹은 물약 { k, t, bad })
   }
 }
 
@@ -315,7 +321,7 @@ class Sim {
     if (p.skill2 === skill) p.skill2 = p.skill;   // 두 스킬을 서로 바꾼 것
     p.skill = skill; p.randS1 = false;
     p.skillCd = 0; p.skillCdB = 0; p.skillCd2 = 0; p.charged = false; p.stillT = 0; p.parHits = {};
-    p.flyT = 0; p.rockT = 0; p.buffT = 0; p.stealth = 0; p.giantT = 0; p.rubberT = 0; p.engineT = 0; p.stunT = 0; p.hulkS = 1; p.sunT = 0; p.waveT = 0; p.dope = null; p.chargeMode = false; p.chargeN = 0;
+    p.flyT = 0; p.rockT = 0; p.buffT = 0; p.stealth = 0; p.giantT = 0; p.rubberT = 0; p.engineT = 0; p.stunT = 0; p.hulkS = 1; p.sunT = 0; p.waveT = 0; p.dope = null; p.chargeMode = false; p.chargeN = 0; p.rushT = 0; p.rushCarry = []; p.hopT = 0;
     this.clones.delete(id);
     this.removeTurrets(id);
     this.skillPicked(p);
@@ -331,7 +337,7 @@ class Sim {
     if (conflicts(skill, p.skill)) return '검사·궁수·닌자·방패·촉수는 공격 방식이 바뀌는 스킬이라 같이 쓸 수 없어요. (촉수와 비행도 불가)';
     if (p.parHost) this.endParasite(p, true);
     p.skill2 = skill; p.randS2 = false; p.skillCd = 0; p.skillCdB = 0; p.skillCd2 = 0; p.charged = false; p.stillT = 0; p.parHits = {};
-    p.flyT = 0; p.rockT = 0; p.buffT = 0; p.stealth = 0; p.giantT = 0; p.rubberT = 0; p.engineT = 0; p.sunT = 0; p.waveT = 0; p.dope = null; p.chargeMode = false; p.chargeN = 0;
+    p.flyT = 0; p.rockT = 0; p.buffT = 0; p.stealth = 0; p.giantT = 0; p.rubberT = 0; p.engineT = 0; p.sunT = 0; p.waveT = 0; p.dope = null; p.chargeMode = false; p.chargeN = 0; p.rushT = 0; p.rushCarry = []; p.hopT = 0;
     this.clones.delete(id); this.removeTurrets(id);
     this.skillPicked(p);
     return null;
@@ -764,13 +770,18 @@ class Sim {
   }
   restoreWorld(snap, caster) {
     const keepCd = { skillCd: caster.skillCd, skillCd2: caster.skillCd2, skillCdB: caster.skillCdB };
+    // 시전자가 지금 쌓아 둔 스택(콤보·충전·별빛·원자)은 되돌리지 않음
+    const keepStack = { combo: caster.combo, chargeN: caster.chargeN, chargeMode: caster.chargeMode, starN: caster.starN, starT: caster.starT, electrons: caster.electrons };
     for (const p of this.players.values()) {
       const o = snap.players.get(p.id);
       if (!o) continue;                     // 저장한 뒤에 들어온 사람은 그대로
+      // 시전자 말고는 목숨·탈락이 되돌아가지 않음 (저장한 뒤 잃은 목숨은 그대로 잃은 채) → 시전자에게 유리
+      const keepLife = p === caster ? null : { stocks: p.stocks, alive: p.alive, inMatch: p.inMatch, ghostT: p.ghostT, ghostUsed: p.ghostUsed, wins: p.wins, kos: p.kos, botKos: p.botKos };
       Object.assign(p, structuredClone(o));
+      if (keepLife) Object.assign(p, keepLife);
       p.attack = null; p.prevInput = { ...p.input };
     }
-    Object.assign(caster, keepCd);          // 시전자 쿨타임만 지금 그대로
+    Object.assign(caster, keepCd, keepStack);   // 시전자 쿨타임·스택은 지금 그대로
     // 기생 연결이 깨졌으면 정리
     for (const p of this.players.values()) {
       if (p.parHost && !this.players.has(p.parHost)) { p.inside = false; p.parHost = null; }
@@ -838,6 +849,7 @@ class Sim {
     if (p.parryT > 0) p.parryT = Math.max(0, p.parryT - dt);
     if (p.sunT > 0) p.sunT = Math.max(0, p.sunT - dt);
     if (p.waveT > 0) p.waveT = Math.max(0, p.waveT - dt);
+    if (p.hopT > 0) p.hopT = Math.max(0, p.hopT - dt);
     if (p.quakeCastT > 0) p.quakeCastT = Math.max(0, p.quakeCastT - dt);
     if (p.dope && !p.clone) {   // 도핑: 강화 5초 → 약화 3초 → 끝
       p.dope.t -= dt;
@@ -907,8 +919,8 @@ class Sim {
         if (p.grounded) {
           p.vy = -CONFIG.JUMP_SPEED * jumpMul; p.grounded = false;
           this.ev({ k: 'jump', x: r0(p.x), y: r0(p.y), pid: p.ownerId || p.id });
-        } else if (p.jumpsLeft > 0) {
-          p.vy = -CONFIG.DOUBLE_JUMP_SPEED * jumpMul; p.jumpsLeft--;
+        } else if (p.jumpsLeft > 0 || p.hopT > 0) {
+          p.vy = -CONFIG.DOUBLE_JUMP_SPEED * jumpMul; if (!(p.hopT > 0)) p.jumpsLeft--;   // 점프 스킬 Q: 무한 점프
           this.ev({ k: 'jump2', x: r0(p.x), y: r0(p.y), pid: p.ownerId || p.id });
         }
       }
@@ -924,6 +936,7 @@ class Sim {
       }
       // 강공격 연타 방지: 궁수는 화살 쏜 뒤 0.5초, 검사는 강공격이 끝난 뒤 0.3초 지나야 다시 강공격
       if (p.hGap > 0 && !attacking && !(p.drawT > 0)) p.hGap -= dt;
+      if (p.lGap > 0 && !attacking) p.lGap -= dt;
       if (canFight && has(p, 'tentacle') && !p.clone && !(p.ghostT > 0)) {
         // 촉수: H·J·K·L(t1~t4)로 각각, 약/강 키는 위 촉수/아래 촉수 중 쓸 수 있는 것
         const fire = (i) => this.fireTentacle(p, i);
@@ -934,7 +947,11 @@ class Sim {
         // 방패 막기
         if (!(p.blockGapT > 0)) { p.blockT = SKILLS.shield.blockTime; p.blockGapT = SKILLS.shield.blockTime + SKILLS.shield.blockGap; this.ev({ k: 'shblock', x: r0(p.x), y: r0(p.y - bh(p) / 2), pid: p.id }); }
       } else if (canFight && !attacking && !(p.drawT > 0)) {
-        if (pressed('a')) p.attack = { type: 'light', t: 0, hit: new Set(), victims: [] };
+        if (pressed('a') && !(p.lGap > 0)) {
+          p.attack = { type: 'light', t: 0, hit: new Set(), victims: [] };
+          if (has(p, 'sword') && !p.clone) p.lGap = SKILLS.sword.lightGap;   // 검사 약공격 사이 딜레이
+          if (has(p, 'dash') && !p.clone && !has(p, 'sword')) p.vx = p.facing * SKILLS.dash.lunge * (wet ? SKILLS.flood.dash : 1);   // 돌진: 약공격하며 앞으로
+        }
         else if (pressed('h') && !(p.hGap > 0)) {
           // 궁수: 강공격 = 활 시위 당기기 / 닌자: 바로 쿠나이 던지기
           if (has(p, 'ninja') && !p.clone) { this.throwKunai(p); p.hGap = SKILLS.ninja.heavyGap; }
@@ -942,6 +959,7 @@ class Sim {
           else {
             p.attack = { type: 'heavy', t: 0, hit: new Set(), victims: [] };
             if (has(p, 'sword') && !p.clone) p.hGap = SKILLS.sword.heavyGap;
+            if (has(p, 'dash') && !p.clone) p.vx = p.facing * SKILLS.dash.heavyLunge * (wet ? SKILLS.flood.dash : 1);   // 돌진: 강공격하며 앞으로
           }
         }
       } else if (p.drawT > 0) {
@@ -976,7 +994,14 @@ class Sim {
       this.moveAndCollide(p, dt);
       return;
     }
-    if (p.fdashT > 0) {
+    if (p.rushT > 0) {
+      // 돌진 Q: 앞으로 쭉. 반대 방향을 누르면 확 꺾임 (밀던 상대는 그 자리에서 튕겨 나감)
+      if (dir !== 0 && dir !== p.rushDir && p.hitstun <= 0) { this.rushRelease(p, p.rushDir); p.rushDir = dir; p.facing = dir; p.vx = 0; this.ev({ k: 'rushturn', x: r0(p.x), y: r0(p.y - bh(p) / 2), pid: p.id }); }
+      p.rushT -= dt;
+      p.vx = p.rushDir * SKILLS.dash.speed * (wet ? SKILLS.flood.dash : 1) * (p.slow > 0 ? SKILLS.slow.moveMul : 1);
+      p.vy = Math.min(p.vy + CONFIG.GRAVITY * dt, CONFIG.MAX_FALL);
+      if (p.rushT <= 0) this.rushRelease(p, p.rushDir);
+    } else if (p.fdashT > 0) {
       // 화염 돌진: 수평으로 쭉 (중력 없음) — 물속이면 느림
       p.fdashT -= dt;
       p.vx = p.facing * SKILLS.fire.dashSpeed * (wet ? SKILLS.flood.dash : 1); p.vy = 0;
@@ -1118,7 +1143,7 @@ class Sim {
         if (!o.clone) hits++;
       }
       // 공중에서 쓰면 한 번 더 점프 가능 (3단 점프)
-      if (!p.grounded) p.jumpsLeft = Math.min(p.jumpsLeft + 1, CONFIG.EXTRA_JUMPS + 1);
+      if (!p.grounded) p.jumpsLeft = Math.min(p.jumpsLeft + 1, maxJumps(p) + 1);
       this.smokes.push({ x: cx, y: cy, r: s.smokeR, t: s.smoke, max: s.smoke, nuke: skinOn(p, 'nuke') });   // 핵폭발 스킨: 버섯 구름
       p.skillCd = s.cd;
       this.ev({ k: 'explode', x: r0(cx), y: r0(cy), r: s.radius, h: hits, nk: skinOn(p, 'nuke') ? 1 : 0 });
@@ -1264,6 +1289,12 @@ class Sim {
       this.ev({ k: 'wave', x: r0(cx), y: r0(cy), pid: p.id });
     } else if (k === 'dope') {
       return;   // 패시브: 물약이 저절로 떨어짐
+    } else if (k === 'dash') {
+      p.rushT = SKILLS.dash.time; p.rushDir = p.facing; p.rushCarry = []; p.rushPrevX = null; p.attack = null; p.skillCd = SKILLS.dash.cd;
+      this.ev({ k: 'rush', x: r0(p.x), y: r0(cy), f: p.facing, pid: p.id });
+    } else if (k === 'hop') {
+      p.hopT = SKILLS.hop.duration; p.skillCd = SKILLS.hop.cd; p.jumpsLeft = Math.max(p.jumpsLeft, maxJumps(p));
+      this.ev({ k: 'hop', x: r0(p.x), y: r0(p.y), pid: p.id });
     } else if (k === 'charge') {
       // 공격 모드 ↔ 충전 모드
       p.chargeMode = !p.chargeMode; p.skillCd = SKILLS.charge.cd;
@@ -1704,7 +1735,7 @@ class Sim {
       }
       if (a.t > 0) for (const t of [...this.turrets]) {
         if (!this.foe(a, t)) continue;
-        if (Math.abs(t.x - a.x) < 24 && a.y > t.y - 50 && a.y < t.y) { this.hitTurret(t, owner); a.t = 0; break; }
+        if (Math.abs(t.x - a.x) < 32 && a.y > t.y - 66 && a.y < t.y) { this.hitTurret(t, owner); a.t = 0; break; }
       }
     }
     this.arrows = this.arrows.filter((a) => a.t > 0 && a.y < this.stage.blast.bottom);
@@ -1916,16 +1947,17 @@ class Sim {
       if (p.x + hw * 0.5 <= tr.x || p.x - hw * 0.5 >= tr.x + tr.w) continue;
       if (p.vy >= 0 && prevY <= tr.y && p.y >= tr.y) {
         p.y = tr.y; p.vy = -(tr.power || 1500) * (p.input && p.input.d ? 0.35 : 1);
-        p.grounded = false; p.jumpsLeft = CONFIG.EXTRA_JUMPS; p.hitstun = Math.min(p.hitstun, 0.05);
+        p.grounded = false; p.jumpsLeft = maxJumps(p); p.hitstun = Math.min(p.hitstun, 0.05);
         if (this.time - (p.boingAt || -9) > 0.15) { p.boingAt = this.time; this.ev({ k: 'boing', x: r0(p.x), y: r0(tr.y), pid: p.ownerId || p.id }); }
       }
     }
-    if (p.grounded) p.jumpsLeft = Math.max(p.jumpsLeft, CONFIG.EXTRA_JUMPS);
-    if (p.grounded && p.jumpsLeft > CONFIG.EXTRA_JUMPS) p.jumpsLeft = CONFIG.EXTRA_JUMPS;
+    if (p.grounded) p.jumpsLeft = Math.max(p.jumpsLeft, maxJumps(p));
+    if (p.grounded && p.jumpsLeft > maxJumps(p)) p.jumpsLeft = maxJumps(p);
   }
 
   updateAttack(p, list, dt) {
     if (p.fdashT > 0) this.fireDashHits(p, list);
+    if (p.rushT > 0 || (p.rushCarry && p.rushCarry.length)) this.rushHits(p, list);
     this.updateTentacles(p, list);
     if (!p.attack) return;
     const atk = p.attack, def = ATTACKS[atk.type];
@@ -1977,7 +2009,7 @@ class Sim {
       // 터렛도 때릴 수 있음 (넉백 없음, 4번 맞으면 부서짐)
       for (const t of this.turrets) {
         if (!this.foe(p, t) || atk.hit.has('t' + t.id)) continue;
-        if (overlaps({ x: t.x, y: t.y })) { atk.hit.add('t' + t.id); this.hitTurret(t, p); }
+        if (overlaps({ x: t.x, y: t.y, gam: { size: SKILLS.turret.size } })) { atk.hit.add('t' + t.id); this.hitTurret(t, p); }   // 터렛은 1.3배 크기
       }
     }
     if (atk.t >= def.total) p.attack = null;
@@ -2047,8 +2079,41 @@ class Sim {
     }
     for (const t of this.turrets) {
       if (!this.foe(p, t) || p.fdashHit.has('t' + t.id)) continue;
-      if (Math.abs(t.x - cx) < 66 && Math.abs(t.y - 22 - cy) < 70) { p.fdashHit.add('t' + t.id); this.hitTurret(t, p); }
+      if (Math.abs(t.x - cx) < 76 && Math.abs(t.y - 26 - cy) < 80) { p.fdashHit.add('t' + t.id); this.hitTurret(t, p); }
     }
+  }
+  // 돌진: 앞에 닿은 상대를 몸 앞에 붙여서 밀고 감. 벽에 막히면 바로 끝
+  rushHits(p, list) {
+    p.rushCarry = (p.rushCarry || []).filter((o) => o.alive && !o.inside && !(o.invincible > 0) && (o.clone ? this.clones.get(o.ownerId) === o : this.players.has(o.id)));
+    if (!(p.rushT > 0)) { this.rushRelease(p, p.rushDir); return; }
+    const d = p.rushDir;
+    for (const o of [...list, ...this.clones.values()]) {
+      if (!this.foe(p, o) || !o.alive || o.inside || o.frozen > 0 || o.invincible > 0 || p.rushCarry.includes(o) || o === p) continue;
+      const fx = p.x + d * (bw(p) / 2 + bw(o) / 2);
+      if (Math.abs(o.x - fx) < bw(o) / 2 + 16 && Math.abs((o.y - bh(o) / 2) - (p.y - bh(p) / 2)) < (bh(o) + bh(p)) / 2 - 6) {
+        if (this.parrying(o)) { this.reflectHit(p, o, { damage: SKILLS.dash.dmg, baseKB: SKILLS.dash.baseKB, growthKB: SKILLS.dash.growthKB, lift: SKILLS.dash.lift }, 'heavy', d); p.rushT = 0; return; }
+        p.rushCarry.push(o); this.ev({ k: 'rushgrab', x: r0(o.x), y: r0(o.y - bh(o) / 2), pid: p.id });
+      }
+    }
+    let off = bw(p) / 2;
+    for (const o of p.rushCarry) {
+      off += bw(o) / 2 + 2;
+      o.x = p.x + d * off; o.vx = p.vx; if (o.vy < 0) o.vy = 0; o.hitstun = Math.max(o.hitstun, 0.12); o.attack = null;
+      off += bw(o) / 2;
+    }
+    // 벽에 막혀 거의 못 가면 거기서 끝
+    if (p.rushPrevX != null && Math.abs(p.x - p.rushPrevX) < 2 && p.rushT < SKILLS.dash.time - 0.1) { p.rushT = 0; this.rushRelease(p, d); }
+    p.rushPrevX = p.x;
+  }
+  rushRelease(p, dir) {
+    const s = SKILLS.dash, def = { damage: s.dmg, baseKB: s.baseKB, growthKB: s.growthKB, lift: s.lift };
+    for (const o of p.rushCarry || []) {
+      if (!o.alive) continue;
+      this.applyHit(p, o, def, 'heavy', { dir });
+      if (o.clone) this.hitClone(o);
+    }
+    if ((p.rushCarry || []).length) this.ev({ k: 'rushhit', x: r0(p.x + dir * 40), y: r0(p.y - bh(p) / 2), pid: p.id });
+    p.rushCarry = [];
   }
   hitTurret(t, by) {
     t.hp--;
@@ -2182,10 +2247,11 @@ class Sim {
     // 충전: 충전 모드는 때릴 때마다 스택 +1 (넉백 없음), 공격 모드는 스택만큼 피해·넉백 ↑
     if (has(a, 'charge') && !a.clone) {
       const cs = SKILLS.charge;
-      if (a.chargeMode) { a.chargeN = Math.min(cs.max, (a.chargeN || 0) + 1); opt = { ...opt, noKB: true }; this.ev({ k: 'chargeup', x: r0(a.x), y: r0(a.y - bh(a)), n: a.chargeN, pid: a.id }); }
+      // 충전 모드: 넉백도 없고 퍼센트도 안 오름
+      if (a.chargeMode) { a.chargeN = (a.chargeN || 0) + 1; def = { ...def, damage: 0 }; opt = { ...opt, noKB: true }; this.ev({ k: 'chargeup', x: r0(a.x), y: r0(a.y - bh(a)), n: a.chargeN, pid: a.id }); }
       else if (a.chargeN > 0) { def = { ...def, damage: def.damage * (1 + cs.dmgPer * a.chargeN) }; opt = { ...opt, chg: a.chargeN }; }
     }
-    t.damage = Math.min(t.damage + def.damage, 999);
+    t.damage = Math.min(Math.round(t.damage + def.damage), 999);   // 퍼센트는 정수로
     t.attack = null;
     t.lastHitBy = a.ownerId || a.id; t.lastHitAt = this.tickCount;
     if (type === 'heavy') t.heavyHitAt = this.time;
@@ -2255,7 +2321,7 @@ class Sim {
       if (this.phase === 'countdown' || this.phase === 'ended') continue;
       for (const t of this.turrets) {
         if (!this.foe(sl, t) || sl.hit.has('t' + t.id)) continue;
-        if (Math.abs(t.x - sl.x) < 46 && Math.abs(t.y - 22 - sl.y) < 60) { sl.hit.add('t' + t.id); this.hitTurret(t, owner); }
+        if (Math.abs(t.x - sl.x) < 56 && Math.abs(t.y - 26 - sl.y) < 72) { sl.hit.add('t' + t.id); this.hitTurret(t, owner); }
       }
       for (const o of list) {
         if (!this.foe(sl, o) || !o.alive || o.inside || o.frozen > 0 || o.invincible > 0 || sl.hit.has(o.id)) continue;
@@ -2358,6 +2424,7 @@ class Sim {
       gh: p.ghostT > 0 ? Math.round(p.ghostT * 10) / 10 : 0,
       wv: p.waveT > 0 ? Math.ceil(p.waveT) : 0,
       cg: has(p, 'charge') ? [p.chargeMode ? 1 : 0, p.chargeN || 0] : 0,
+      ru: p.rushT > 0 ? 1 : 0, hj: p.hopT > 0 ? Math.ceil(p.hopT) : 0,
       dp: p.dope ? [DOPE_KINDS.indexOf(p.dope.k), p.dope.bad ? 1 : 0, Math.ceil(p.dope.t)] : 0,
       mk: (() => { let m = 0; for (const g of this.players.values()) if (g.ghostT > 0 && g.gMarks[p.id]) m = Math.max(m, g.gMarks[p.id]); return m; })(),
     });
@@ -2386,7 +2453,7 @@ class Sim {
       sm: this.smokes.map((s) => ({ x: r0(s.x), y: r0(s.y), r: s.r, a: Math.round((s.t / s.max) * 100) / 100, nk: s.nuke ? 1 : undefined })),
       p: this.list().map((p) => ({
         id: p.id, n: p.name, c: p.color, x: r0(p.x), y: r0(p.y), f: p.facing,
-        g: p.grounded ? 1 : 0, vx: r0(p.vx), vy: r0(p.vy), dmg: p.damage, st: p.stocks,
+        g: p.grounded ? 1 : 0, vx: r0(p.vx), vy: r0(p.vy), dmg: Math.round(p.damage), st: p.stocks,
         al: p.alive ? 1 : 0, im: p.inMatch ? 1 : 0, at: p.attack ? (p.attack.type === 'heavy' ? 2 : 1) : 0,
         ap: ap(p), inv: p.invincible > 0 ? 1 : 0, hs: p.hitstun > 0 || p.stunT > 0 ? 1 : 0, ms: has(p, 'undying') ? SKILLS.undying.lives : CONFIG.STOCKS, ko: p.kos, wn: p.wins, b: p.bot ? 1 : 0, dm: p.dummy ? 1 : 0,
         sk: p.skill, cd: ten(p.skillCd), cd2: ten(p.skillCd2), sk2: p.skill2, cdB: ten(p.skillCdB), tm: p.team,
@@ -2433,6 +2500,8 @@ function botThink(sim, b) {
     b.parDir = null;
     return inp;
   }
+  // 돌진 중인 봇: 방향을 그대로 유지 (괜히 꺾지 않음)
+  if (b.rushT > 0) { if (b.rushDir > 0) inp.r = 1; else inp.l = 1; return inp; }
   // 귀신 봇: 가장 가까운 적에게 날아가서 때림
   if (b.ghostT > 0) {
     let tg = null, bd = 1e9;
@@ -2628,6 +2697,8 @@ function botThink(sim, b) {
         if (sk === 'gamble' && ready && R < 0.01) use(sk);
         if (sk === 'flash' && ready && best < 260 && R < 0.05) use(sk);
         if (sk === 'wave' && ready && best < 200 && R < 0.06) use(sk);
+        if (sk === 'dash' && ready && Math.abs(target.x - b.x) < 420 && Math.abs(target.y - b.y) < 60 && Math.sign(target.x - b.x) === b.facing && R < 0.05) use(sk);
+        if (sk === 'hop' && ready && ((b.y > sim.stage.floor + 30 && b.vy > 0 && b.jumpsLeft <= 0) || (target.y < b.y - 180 && Math.abs(target.x - b.x) < 300)) && R < 0.2) use(sk);
         if (sk === 'charge' && ready) {
           // 멀리 있으면 충전 모드로 바꿔 두고 때려서 쌓고, 많이 쌓이면 공격 모드로
           if (!b.chargeMode && (b.chargeN || 0) < 4 && best > 260 && R < 0.03) use(sk);

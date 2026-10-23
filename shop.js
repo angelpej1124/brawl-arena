@@ -20,6 +20,11 @@ const SHOP = {
       skills: ['quake', 'invert', 'error'], skins: [], price: 200,
       from: '2026-10-22', until: '2026-10-25',   // 이번 주 일요일까지
     },
+    {
+      id: 'weapon-2026w44', name: '무기 패키지', desc: '공격 방식이 바뀌는 무기 스킬 4종: 검사 · 궁수 · 닌자 · 방패',
+      skills: ['sword', 'archer', 'ninja', 'shield'], skins: [], price: 300,
+      from: '2026-10-26', until: '2026-11-01',   // 다음 주 월요일 0시(한국)에 자동으로 바뀜 — 그 전엔 상점에 안 보임
+    },
   ],
 };
 module.exports = SHOP;
