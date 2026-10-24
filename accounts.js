@@ -112,7 +112,7 @@ function scrypt(pw, salt) {
 //  보석 · 스킬 뽑기 · 관리자
 //  숫자를 바꾸면 보석 획득량과 뽑기 확률이 바뀌어요.
 // =====================================================================
-const ALL_SKILLS = ['slow', 'blink', 'stealth', 'clone', 'swap', 'fly', 'explode', 'freeze', 'rock', 'magnet', 'empower', 'parasite', 'quake', 'giant', 'rubber', 'engine', 'sword', 'blackflash', 'lightning', 'undying', 'hulk', 'fire', 'ice', 'turret', 'error', 'sun', 'wind', 'archer', 'time', 'combo', 'reflect', 'invert', 'atom', 'mine', 'ninja', 'gamble', 'starlight', 'shield', 'tentacle', 'ghost', 'flash', 'flood', 'wave', 'dope', 'portal', 'charge', 'dash', 'hop'];
+const ALL_SKILLS = ['slow', 'blink', 'stealth', 'clone', 'swap', 'fly', 'explode', 'freeze', 'rock', 'magnet', 'empower', 'parasite', 'quake', 'giant', 'rubber', 'engine', 'sword', 'blackflash', 'lightning', 'undying', 'hulk', 'fire', 'ice', 'turret', 'error', 'sun', 'wind', 'archer', 'time', 'combo', 'reflect', 'invert', 'atom', 'mine', 'ninja', 'gamble', 'starlight', 'shield', 'tentacle', 'ghost', 'flash', 'flood', 'wave', 'dope', 'portal', 'charge', 'dash', 'hop', 'gem', 'shotgun'];
 const BASE_SKILLS = ['slow', 'blink'];          // 게스트·새 계정 기본 스킬
 const GEMS = {
   START: 200,          // 가입 선물
@@ -248,7 +248,7 @@ function setSkill(key, skill) {
 }
 
 // 판이 끝날 때 서버가 호출 (counted = 사람 2명 이상인 판이라 전적에 기록)
-function record(key, { counted, win, kills, botKills }) {
+function record(key, { counted, win, kills, botKills, gemHits }) {
   const a = store.accounts[key];
   if (!a) return null;
   let gems = 0;
@@ -261,6 +261,7 @@ function record(key, { counted, win, kills, botKills }) {
     gems += GEMS.PLAY_BOT;
   }
   gems += GEMS.KILL * Math.max(0, kills | 0) + GEMS.KILL_BOT * Math.max(0, botKills | 0);
+  gems += Math.max(0, Math.min(60, gemHits | 0));   // 보석 스킬로 때려서 모은 보석 (한 판 최대 60)
   a.gems += gems;
   save();
   return { profile: publicProfile(a), gained: gems };

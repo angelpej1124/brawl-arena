@@ -56,6 +56,8 @@ const SKILLS = {
   portal:   { name: '포탈', desc: 'Q: 내 자리에 포탈 → 다시 Q: 첫 포탈로 순간이동하면서 방금 자리에 두 번째 포탈. 누구든 한쪽 포탈에 들어가면 반대쪽으로 나오고 두 포탈은 사라짐. 포탈이 두 개일 때 Q를 누르면 둘 다 없애고 새로 만듦', cd: '쿨 10초 (두 번째 포탈부터)' },
   charge:   { name: '충전', desc: 'Q로 공격 모드(빨강) ↔ 충전 모드(초록) 전환. 충전 모드로 때리면 넉백도 %도 없이 충전 스택 +1 (제한 없음), 공격 모드로 때리면 스택만큼 피해·넉백이 세짐. 죽으면 스택 초기화', cd: '전환 쿨 2초' },
   dash:     { name: '돌진', desc: '약·강공격을 할 때 앞으로 튀어 나가며 공격. Q = 앞으로 쭉 돌진하며 앞의 상대를 밀고 가다가 끝에서 피해 + 튕김. 도중에 반대로 꺾으면 확 방향이 바뀌고 밀던 상대는 그 자리에서 튕겨 나감', cd: '쿨 13초' },
+  gem:      { name: '보석', desc: '판 중에 상대를 때릴 때마다 진짜 보석 +1 (강공격 +2). Q = 5초 동안 2배. 판이 끝나면 계정에 들어옴 (한 판 최대 60개, 더미·분신은 제외)', cd: '쿨 12초' },
+  shotgun:  { name: '샷건', desc: '샷건을 듦. 약공격 = 총으로 때리기, 강공격 = 바로 산탄 발사 (가까울수록 많이 맞음). 한 번 장전하면 3발, 발사 간격 0.5초. Q = 장전', cd: '장전 쿨 5초' },
   hop:      { name: '점프', desc: '기본으로 3단 점프 (패시브). Q = 3초 동안 공중에서 무한 점프', cd: '쿨 14초' },
   wave:     { name: '파동', desc: 'Q로 내 몸에서 큰 파동이 퍼져 주변 적을 조금 튕겨냄. 그 뒤 7초간 팔에 파동이 감겨 넉백이 세지고, 점프력·이동 속도도 올라감', cd: '쿨 13초' },
   dope:     { name: '도핑', desc: '맵 곳곳에 내 물약이 7초마다 하나씩 떨어짐 (최대 3개). 하늘=이속, 빨강=공속, 초록=힘(넉백), 노랑=방어(넉백 덜 받음). 먹으면 5초 강화, 끝나면 3초간 그만큼 약화. 약화 전에 다른 물약을 먹으면 약화 없음 (패시브)', cd: '패시브' },
@@ -71,15 +73,15 @@ const SKILL_COLOR = {
   sword: '#cfe3ff', blackflash: '#c0263a', lightning: '#ffe94a', undying: '#ffd27a',
   hulk: '#5fd35a', fire: '#ff5a1f', ice: '#8fdcff', turret: '#a7b2c4', error: '#39ff88', sun: '#ffc21a',
   wind: '#b8f2e6', archer: '#c98b4a', time: '#7c9cff', combo: '#ff5fa2', reflect: '#e0f0ff', invert: '#c2185b', atom: '#5ad8ff', mine: '#8a8f6a',
-  ninja: '#5b6b8a', gamble: '#3fd07a', starlight: '#ffe27a', shield: '#c9a24a', tentacle: '#3a2a4a', ghost: '#d8d8f0', flash: '#fff6b0', flood: '#3a9ad8', wave: '#5fe0ff', dope: '#c06bff', portal: '#7a5cff', charge: '#3ccf6e', dash: '#ff8a3d', hop: '#7fe0ff',
+  ninja: '#5b6b8a', gamble: '#3fd07a', starlight: '#ffe27a', shield: '#c9a24a', tentacle: '#3a2a4a', ghost: '#d8d8f0', flash: '#fff6b0', flood: '#3a9ad8', wave: '#5fe0ff', dope: '#c06bff', portal: '#7a5cff', charge: '#3ccf6e', dash: '#ff8a3d', hop: '#7fe0ff', gem: '#5ef2ff', shotgun: '#8a6a4a',
 };
 // 더블 모드에서 같이 못 쓰는 조합 (서버 game.js와 같음)
-const WEAPONS = ['sword', 'archer', 'ninja', 'shield', 'tentacle'];
+const WEAPONS = ['sword', 'archer', 'ninja', 'shield', 'tentacle', 'shotgun'];
 const conflictsK = (a, b) => a !== b && ((WEAPONS.includes(a) && WEAPONS.includes(b)) || (a === 'tentacle' && b === 'fly') || (a === 'fly' && b === 'tentacle'));
 // 스킬 목록 순서 = 나온 순서 (새 스킬은 항상 맨 뒤에 추가)
 const SKILL_ORDER = ['slow', 'blink', 'stealth', 'clone', 'swap', 'fly', 'explode', 'freeze', 'rock', 'magnet', 'empower', 'parasite', 'quake', 'giant', 'rubber', 'engine',
   'sword', 'blackflash', 'lightning', 'undying', 'hulk', 'fire', 'ice', 'turret', 'error', 'sun', 'wind', 'archer', 'time', 'combo', 'reflect', 'invert', 'atom', 'mine',
-  'ninja', 'gamble', 'starlight', 'shield', 'tentacle', 'ghost', 'flash', 'flood', 'wave', 'dope', 'portal', 'charge', 'dash', 'hop'];
+  'ninja', 'gamble', 'starlight', 'shield', 'tentacle', 'ghost', 'flash', 'flood', 'wave', 'dope', 'portal', 'charge', 'dash', 'hop', 'gem', 'shotgun'];
 const SKILL_IDS = [...SKILL_ORDER.filter((k) => SKILLS[k]), ...Object.keys(SKILLS).filter((k) => !SKILL_ORDER.includes(k))];
 const MAPS = window.BRAWL_MAPS;   // maps.js (서버와 같은 맵 정보)
 let STAGE = MAPS[0];               // 지금 판의 맵
@@ -951,6 +953,21 @@ function onEvent(ev) {
     particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.5, max: 0.5, r: 220, c: '255,255,255' });
     shake = 22;
     banners.push({ text: `${ev.n} 장외!`, life: 1.2, max: 1.2, small: true });
+  } else if (ev.k === 'shotgun') {
+    particles.push({ ring: true, fill: true, x: ev.x + ev.f * 10, y: ev.y, life: 0.15, max: 0.15, r: 34, c: '255,220,130', grow: true });
+    for (let i = 0; i < 8; i++) particles.push({ x: ev.x, y: ev.y, vx: ev.f * (200 + Math.random() * 300), vy: (Math.random() - 0.5) * 200, life: 0.2, max: 0.2, c: i % 2 ? '#ffe9a0' : '#ff9a3a', r: 3, nograv: true });
+    for (let i = 0; i < 4; i++) particles.push({ x: ev.x - ev.f * 10, y: ev.y, vx: -ev.f * 60 + (Math.random() - 0.5) * 40, vy: -40 - Math.random() * 40, life: 0.7, max: 0.7, c: 'rgba(200,200,210,0.6)', r: 8, nograv: true });
+    shake = Math.max(shake, 7);
+  } else if (ev.k === 'reload') {
+    if (ev.pid === myId) banners.push({ text: '장전 완료 ●●●', life: 0.9, max: 0.9, small: true, color: '#ffcf3f' });
+    for (let i = 0; i < 3; i++) particles.push({ x: ev.x, y: ev.y, vx: (Math.random() - 0.5) * 80, vy: -120 - Math.random() * 60, life: 0.5, max: 0.5, c: '#d8452a', r: 4 });
+  } else if (ev.k === 'sgempty') {
+    if (ev.pid === myId) banners.push({ text: '탄이 없어요! Q로 장전', life: 0.8, max: 0.8, small: true, color: '#ff9b9b' });
+  } else if (ev.k === 'gemget') {
+    particles.push({ txt: `+${ev.n}💎`, x: ev.x, y: ev.y - 10, vx: 0, vy: -70, life: 0.9, max: 0.9, c: '#5ef2ff', nograv: true });
+  } else if (ev.k === 'gemrush') {
+    particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.4, max: 0.4, r: 70, c: '94,242,255' });
+    if (ev.pid === myId) banners.push({ text: '보석 2배!', life: 1, max: 1, small: true, color: '#5ef2ff' });
   } else if (ev.k === 'rush') {
     particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.3, max: 0.3, r: 60, c: '255,150,70' });
     for (let i = 0; i < 10; i++) particles.push({ x: ev.x - ev.f * 20, y: ev.y + (Math.random() - 0.5) * 40, vx: -ev.f * (150 + Math.random() * 200), vy: (Math.random() - 0.5) * 60, life: 0.35, max: 0.35, c: i % 2 ? '#ffb070' : '#fff0d8', r: 4, nograv: true });
@@ -1677,6 +1694,13 @@ function drawPlayer(p, time) {
     for (const sd of [-10, 10]) { ctx.beginPath(); for (let k = 0; k <= 8; k++) { const yy = 2 + k * 1.6 + Math.sin(time / 60) * 1.5; ctx.lineTo(sd + (k % 2 ? 5 : -5), yy); } ctx.stroke(); }
     ctx.fillStyle = 'rgba(200,245,255,0.55)'; for (let i = 0; i < 3; i++) { const ph = ((time / 400) + i / 3) % 1; ctx.beginPath(); ctx.ellipse(0, 16 + ph * 14, 18 * (1 - ph * 0.4), 3, 0, 0, Math.PI * 2); ctx.fill(); }
   }
+  if (p.jw && p.jw[1]) {
+    // 보석 2배: 몸 주위에 반짝이는 보석
+    for (let i = 0; i < 5; i++) {
+      const a = time / 500 + i * 1.256, xx = Math.cos(a) * 34, yy = -PH / 2 + Math.sin(a) * 26;
+      ctx.save(); ctx.translate(xx, yy); ctx.rotate(Math.PI / 4); ctx.fillStyle = i % 2 ? 'rgba(94,242,255,0.9)' : 'rgba(200,250,255,0.9)'; ctx.fillRect(-4, -4, 8, 8); ctx.restore();
+    }
+  }
   if (p.cg) {
     // 충전: 충전 모드 초록 / 공격 모드 빨강 기운 (스택이 쌓일수록 진하게)
     const chg = p.cg[0], n = p.cg[1], k2 = 0.18 + n * 0.045 + Math.sin(time / 120) * 0.04;
@@ -2001,6 +2025,17 @@ function drawPlayer(p, time) {
     ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(fx, fy, fr, 0, Math.PI * 2); ctx.fill();
   }
   if (hasK(p, 'ninja')) drawKunaiHand(p, f, fx, fy, time);
+  if (hasK(p, 'shotgun')) {
+    // 샷건: 주먹에 쥔 총 (나무 개머리판 + 검은 총열 두 개), 때릴 땐 개머리판으로
+    ctx.save(); ctx.translate(fx, fy); ctx.scale(f * 1.3, 1.3);
+    if (p.at === 1 && p.ap === 2) ctx.rotate(-0.5);
+    ctx.fillStyle = '#7a4e26'; ctx.beginPath(); ctx.moveTo(-22, -2); ctx.lineTo(-4, -4); ctx.lineTo(-2, 5); ctx.lineTo(-24, 9); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#2a2a32'; ctx.fillRect(-4, -6, 34, 5); ctx.fillRect(-4, -1, 34, 4);
+    ctx.fillStyle = '#5a5a66'; ctx.fillRect(4, 3, 10, 4);
+    ctx.fillStyle = '#9a9aa8'; ctx.fillRect(28, -6, 3, 9);
+    ctx.restore();
+    if (p.am != null && p.id === myId) { ctx.fillStyle = '#ffcf3f'; for (let i = 0; i < p.am; i++) { ctx.beginPath(); ctx.arc(fx - f * 6 + i * 6 * f, fy + 14, 2.4, 0, Math.PI * 2); ctx.fill(); } }
+  }
   if (p.shd && p.shd[0] && !(p.shd[2] > 0) && !p.shd[1]) drawShieldHand(p, f, fx, fy, time);
   if (p.wv && skinOn(p, 'electric')) {
     // 전기: 팔을 타고 흐르는 번개 + 주먹에 스파크, 때리면 앞으로 번개가 뻗음
@@ -2632,6 +2667,10 @@ function drawParticles(dt) {
         for (let y = top; y <= p.y - 30; y += 40) { x = p.x + (rnd() - 0.5) * 50; ctx.lineTo(x, y); }
         ctx.lineTo(p.x, p.y - 30); ctx.stroke();
       }
+    } else if (p.txt) {
+      p.y += p.vy * dt;
+      ctx.globalAlpha = Math.min(1, a * 1.5); ctx.font = '400 18px "Black Han Sans", sans-serif'; ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillText(p.txt, p.x + 1, p.y + 1); ctx.fillStyle = p.c; ctx.fillText(p.txt, p.x, p.y); ctx.globalAlpha = 1;
     } else if (p.fw) {
       // 불꽃놀이: 플레이어 자리에서 바로 펑 터져 불티가 둥글게 퍼지고 떨어짐 (콤보가 클수록 겹 고리가 늘어남)
       const t = p.max - p.life, fade = Math.max(0, 1 - t / p.max);
@@ -2715,6 +2754,8 @@ function skillStatus(p) {
   if (k === 'empower') return p.bf ? { ready: true, text: `강화 중 ${p.bt}s` } : { ready: p.chg >= 100, text: p.chg >= 100 ? '충전 완료!' : `충전 ${p.chg || 0}%` };
   if (k === 'undying' || k === 'hulk') return { ready: true, text: '패시브' };
   if (k === 'wave' && p.wv) return { ready: true, text: `강화 ${p.wv}s` };
+  if (k === 'shotgun' && p.am != null) return { ready: p.am > 0, text: `탄 ${'●'.repeat(p.am)}${'○'.repeat(Math.max(0, 3 - p.am))}${p.cd > 0 ? ' · 장전 ' + p.cd.toFixed(1) + 's' : p.am < 3 ? ' · Q 장전' : ''}` };
+  if (k === 'gem' && p.jw) return { ready: !(p.cd > 0), text: `💎${p.jw[0]}${p.jw[1] ? ` · 2배 ${p.jw[1]}s` : p.cd > 0 ? ` · ${p.cd.toFixed(1)}s` : ''}` };
   if (k === 'hop') return p.hj ? { ready: true, text: `무한 점프 ${p.hj}s` } : { ready: !(p.cd > 0), text: p.cd > 0 ? `${p.cd.toFixed(1)}s · 3단 점프` : '준비 · 3단 점프' };
   if (k === 'charge' && p.cg) return { ready: !(p.cd > 0), text: `${p.cg[0] ? '충전 중' : '공격'} · ${p.cg[1]}스택` };
   if (k === 'portal' && latest) { const n = (latest.pt || []).filter((o) => o[2] === p.id).length; if (n === 1) return { ready: true, text: '다시 Q: 이동' }; if (n === 2) return { ready: !(p.cd > 0), text: p.cd > 0 ? `2개 · ${p.cd.toFixed(1)}s` : '2개 (Q: 새로)' }; }
@@ -2883,6 +2924,13 @@ function drawArrowsWinds(state, now) {
   for (const a of state.ar || []) {
     const x = a.x + a.vx * age, y = a.y + a.vy * age, ang = Math.atan2(a.vy, a.vx);
     ctx.save(); ctx.translate(x, y); ctx.rotate(ang); if (a.s) ctx.scale(a.s, a.s);
+    if (a.sg) {
+      // 샷건 산탄: 작은 탄 + 짧은 불꽃 꼬리
+      const tg2 = ctx.createLinearGradient(-30, 0, 4, 0); tg2.addColorStop(0, 'rgba(255,200,90,0)'); tg2.addColorStop(1, 'rgba(255,220,120,0.9)');
+      ctx.fillStyle = tg2; ctx.fillRect(-30, -1.5, 32, 3);
+      ctx.fillStyle = '#fff2c0'; ctx.beginPath(); ctx.arc(0, 0, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.restore(); continue;
+    }
     if (a.ku) {
       // 닌자 쿠나이(고드름): 직선으로 날아감 + 속도선
       const tc2 = a.el === 'fire' ? 'rgba(255,120,30,0.7)' : a.el === 'blue' ? 'rgba(60,140,255,0.7)' : a.el === 'dark' ? 'rgba(120,40,200,0.75)' : a.el === 'ice' ? 'rgba(150,220,255,0.7)' : a.el ? fxColor(a.el, 0.6, now) : a.sw ? 'rgba(200,240,255,0.55)' : 'rgba(230,235,245,0.4)';

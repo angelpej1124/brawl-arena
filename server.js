@@ -265,7 +265,7 @@ class GameRoom {
       if (!c || !c.accountKey) continue;
       const r = accounts.record(c.accountKey, {
         counted, win: counted && (this.sim.teamMode ? !!this.sim.winTeam && p.team === this.sim.winTeam : p.id === this.sim.winnerId),
-        kills: p.kos, botKills: p.botKos || 0,
+        kills: p.kos, botKills: p.botKos || 0, gemHits: p.gemEarn || 0,
       });
       if (r) c.socket.send(JSON.stringify({ t: 'profile', profile: r.profile, gained: r.gained }));
     }

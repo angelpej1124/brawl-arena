@@ -87,6 +87,10 @@ const SKILLS = {
   dash:     { name: '돌진', cd: 13, speed: 880, time: 0.8, lunge: 360, heavyLunge: 460, dmg: 12, baseKB: 470, growthKB: 13, lift: 0.5 },
   // 점프: 기본 3단 점프 (패시브). Q = 3초 동안 공중에서 무한 점프
   hop:      { name: '점프', cd: 14, duration: 3 },
+  // 보석: 판 중에 때릴 때마다 진짜 보석 +1 (강공격 +2). Q = 5초 동안 2배. 한 판 최대 cap개 (판이 끝나면 계정에 들어감)
+  gem:      { name: '보석', cd: 12, duration: 5, cap: 60 },
+  // 샷건: 약공격 = 총으로 때리기, 강공격 = 바로 산탄 발사 (탄 3발, 발사 간격 0.5초). Q = 장전 (쿨 5초)
+  shotgun:  { name: '샷건', cd: 5, ammo: 3, gap: 0.5, pellets: 5, spread: 0.34, speed: 1250, life: 0.24, dmg: 3, baseKB: 260, growthKB: 7 },
   wave:     { name: '파동', cd: 13, duration: 7, radius: 230, kb: 460, kbMul: 1.45, speedMul: 1.3, jumpMul: 1.25, reachMul: 2 },
   dope:     { name: '도핑', max: 3, every: 7, buff: 5, debuff: 3, amt: 0.35, grab: 50 },
   flash:    { name: '섬광', cd: 10, radius: 210, zoneTime: 4, kbR: 260, kb: 300, blindR: 700, blindMax: 3 },
@@ -122,7 +126,7 @@ const skinOn = (p, id) => activeSkins(p).includes(id);
 const iceSkin = (p) => (skinOn(p, 'sand') ? 'sand' : skinOn(p, 'aurora') ? 'aurora' : skinOn(p, 'shadowice') ? 'shadow' : null);
 const skinFx = (p) => { for (const id of activeSkins(p)) if (SKIN_DB[id] && SKIN_DB[id].fx) return SKIN_DB[id].fx; return undefined; };
 // 더블 모드에서 같이 쓸 수 없는 조합 (둘 다 무기를 바꾸는 스킬)
-const WEAPONS = ['sword', 'archer', 'ninja', 'shield', 'tentacle'];   // 공격 방식을 바꾸는 스킬끼리는 더블 모드에서 같이 못 씀
+const WEAPONS = ['sword', 'archer', 'ninja', 'shield', 'tentacle', 'shotgun'];   // 공격 방식을 바꾸는 스킬끼리는 더블 모드에서 같이 못 씀
 const CONFLICTS = [...WEAPONS.flatMap((a, i) => WEAPONS.slice(i + 1).map((b) => [a, b])), ['tentacle', 'fly']];
 // 빗면 { x1, y1, x2, y2 }: 윗면이 기울어진 땅 (아래로는 큰 쪽 y까지 꽉 참)
 const slopeY = (sl, x) => sl.y1 + ((sl.y2 - sl.y1) * (x - sl.x1)) / (sl.x2 - sl.x1);
@@ -205,7 +209,8 @@ class Player {
     this.boingAt = -9;
     this.waveT = 0; this.dope = null; this.dopeSpawn = 0;
     this.chargeMode = false; this.chargeN = 0; this.inPortal = false;
-    this.rushT = 0; this.rushCarry = []; this.hopT = 0; this.lGap = 0;   // 돌진 · 점프 · 검사 약공격 딜레이   // 충전 (false = 공격 모드) · 포탈 안에 서 있는지   // 파동 · 도핑 (먹은 물약 { k, t, bad })
+    this.rushT = 0; this.rushCarry = []; this.hopT = 0; this.lGap = 0;
+    this.ammo = SKILLS.shotgun.ammo; this.gemT = 0;   // 샷건 탄 · 보석 2배 시간   // 돌진 · 점프 · 검사 약공격 딜레이   // 충전 (false = 공격 모드) · 포탈 안에 서 있는지   // 파동 · 도핑 (먹은 물약 { k, t, bad })
   }
 }
 
@@ -317,11 +322,11 @@ class Sim {
     if (this.phase !== 'waiting') return '스킬은 게임 시작 전에만 바꿀 수 있어요.';
     if (p.parHost) this.endParasite(p, true);
     skill = validSkill(skill);
-    if (p.skill2 && p.skill2 !== skill && conflicts(skill, p.skill2)) return '검사·궁수·닌자·방패·촉수는 공격 방식이 바뀌는 스킬이라 같이 쓸 수 없어요. (촉수와 비행도 불가)';
+    if (p.skill2 && p.skill2 !== skill && conflicts(skill, p.skill2)) return '검사·궁수·닌자·방패·촉수·샷건은 공격 방식이 바뀌는 스킬이라 같이 쓸 수 없어요. (촉수와 비행도 불가)';
     if (p.skill2 === skill) p.skill2 = p.skill;   // 두 스킬을 서로 바꾼 것
     p.skill = skill; p.randS1 = false;
     p.skillCd = 0; p.skillCdB = 0; p.skillCd2 = 0; p.charged = false; p.stillT = 0; p.parHits = {};
-    p.flyT = 0; p.rockT = 0; p.buffT = 0; p.stealth = 0; p.giantT = 0; p.rubberT = 0; p.engineT = 0; p.stunT = 0; p.hulkS = 1; p.sunT = 0; p.waveT = 0; p.dope = null; p.chargeMode = false; p.chargeN = 0; p.rushT = 0; p.rushCarry = []; p.hopT = 0;
+    p.flyT = 0; p.rockT = 0; p.buffT = 0; p.stealth = 0; p.giantT = 0; p.rubberT = 0; p.engineT = 0; p.stunT = 0; p.hulkS = 1; p.sunT = 0; p.waveT = 0; p.dope = null; p.chargeMode = false; p.chargeN = 0; p.rushT = 0; p.rushCarry = []; p.hopT = 0; p.ammo = SKILLS.shotgun.ammo; p.gemT = 0;
     this.clones.delete(id);
     this.removeTurrets(id);
     this.skillPicked(p);
@@ -334,10 +339,10 @@ class Sim {
     if (!this.doubleMode) return '더블 모드에서만 두 번째 스킬을 고를 수 있어요.';
     skill = validSkill(skill);
     if (skill === p.skill) return '첫 번째 스킬과 다른 스킬을 골라 주세요.';
-    if (conflicts(skill, p.skill)) return '검사·궁수·닌자·방패·촉수는 공격 방식이 바뀌는 스킬이라 같이 쓸 수 없어요. (촉수와 비행도 불가)';
+    if (conflicts(skill, p.skill)) return '검사·궁수·닌자·방패·촉수·샷건은 공격 방식이 바뀌는 스킬이라 같이 쓸 수 없어요. (촉수와 비행도 불가)';
     if (p.parHost) this.endParasite(p, true);
     p.skill2 = skill; p.randS2 = false; p.skillCd = 0; p.skillCdB = 0; p.skillCd2 = 0; p.charged = false; p.stillT = 0; p.parHits = {};
-    p.flyT = 0; p.rockT = 0; p.buffT = 0; p.stealth = 0; p.giantT = 0; p.rubberT = 0; p.engineT = 0; p.sunT = 0; p.waveT = 0; p.dope = null; p.chargeMode = false; p.chargeN = 0; p.rushT = 0; p.rushCarry = []; p.hopT = 0;
+    p.flyT = 0; p.rockT = 0; p.buffT = 0; p.stealth = 0; p.giantT = 0; p.rubberT = 0; p.engineT = 0; p.sunT = 0; p.waveT = 0; p.dope = null; p.chargeMode = false; p.chargeN = 0; p.rushT = 0; p.rushCarry = []; p.hopT = 0; p.ammo = SKILLS.shotgun.ammo; p.gemT = 0;
     this.clones.delete(id); this.removeTurrets(id);
     this.skillPicked(p);
     return null;
@@ -627,7 +632,7 @@ class Sim {
     this.list().forEach((p, i) => {
       const s = this.stage.spawns[i % this.stage.spawns.length];
       p.mapMid = this.stage.width / 2; p.hulkS = 1;
-      p.reset(s.x, s.y); p.stocks = has(p, 'undying') ? SKILLS.undying.lives : CONFIG.STOCKS; p.kos = 0; p.botKos = 0; p.inMatch = true;
+      p.reset(s.x, s.y); p.stocks = has(p, 'undying') ? SKILLS.undying.lives : CONFIG.STOCKS; p.kos = 0; p.botKos = 0; p.inMatch = true; p.gemEarn = 0;
       this.skillPicked(p);   // 도박은 시작하자마자 자동으로 굴림 (그래서 바로 또 못 씀), 별빛은 별 1개로 시작
     });
     this.ev({ k: 'start' });
@@ -850,6 +855,7 @@ class Sim {
     if (p.sunT > 0) p.sunT = Math.max(0, p.sunT - dt);
     if (p.waveT > 0) p.waveT = Math.max(0, p.waveT - dt);
     if (p.hopT > 0) p.hopT = Math.max(0, p.hopT - dt);
+    if (p.gemT > 0) p.gemT = Math.max(0, p.gemT - dt);
     if (p.quakeCastT > 0) p.quakeCastT = Math.max(0, p.quakeCastT - dt);
     if (p.dope && !p.clone) {   // 도핑: 강화 5초 → 약화 3초 → 끝
       p.dope.t -= dt;
@@ -955,6 +961,7 @@ class Sim {
         else if (pressed('h') && !(p.hGap > 0)) {
           // 궁수: 강공격 = 활 시위 당기기 / 닌자: 바로 쿠나이 던지기
           if (has(p, 'ninja') && !p.clone) { this.throwKunai(p); p.hGap = SKILLS.ninja.heavyGap; }
+          else if (has(p, 'shotgun') && !p.clone) { this.fireShotgun(p); }
           else if (has(p, 'archer') && !p.clone) p.drawT = 0.001;
           else {
             p.attack = { type: 'heavy', t: 0, hit: new Set(), victims: [] };
@@ -1289,6 +1296,12 @@ class Sim {
       this.ev({ k: 'wave', x: r0(cx), y: r0(cy), pid: p.id });
     } else if (k === 'dope') {
       return;   // 패시브: 물약이 저절로 떨어짐
+    } else if (k === 'shotgun') {
+      p.ammo = SKILLS.shotgun.ammo; p.skillCd = SKILLS.shotgun.cd;
+      this.ev({ k: 'reload', x: r0(p.x), y: r0(cy), pid: p.id });
+    } else if (k === 'gem') {
+      p.gemT = SKILLS.gem.duration; p.skillCd = SKILLS.gem.cd;
+      this.ev({ k: 'gemrush', x: r0(p.x), y: r0(cy), pid: p.id });
     } else if (k === 'dash') {
       p.rushT = SKILLS.dash.time; p.rushDir = p.facing; p.rushCarry = []; p.rushPrevX = null; p.attack = null; p.skillCd = SKILLS.dash.cd;
       this.ev({ k: 'rush', x: r0(p.x), y: r0(cy), f: p.facing, pid: p.id });
@@ -1643,6 +1656,22 @@ class Sim {
     this.arrows.push({ id: ++this.evSeq, owner: p.id, x, y, vx: p.facing * s.speed, vy: 0, c: 0.5, ku: 1, t: s.life * clamp(range, 0.3, 2), el, big, sw: skinOn(p, 'snowninja') ? 1 : 0 });
     this.ev({ k: 'kunai', x: r0(x), y: r0(y), pid: p.id, sn: skinOn(p, 'snowninja') ? 1 : 0 });
   }
+  // 샷건: 강공격 → 바로 산탄 5발 부채꼴 발사 (탄이 없으면 철컥 소리만)
+  fireShotgun(p) {
+    const s = SKILLS.shotgun;
+    if (!(p.ammo > 0)) { p.hGap = 0.25; this.ev({ k: 'sgempty', x: r0(p.x), y: r0(p.y - bh(p) / 2), pid: p.id }); return; }
+    p.ammo--; p.hGap = s.gap;
+    const big = sizeOf(p), y = p.y - bh(p) / 2 - 2, x = p.x + p.facing * (bw(p) / 2 + 18 * big);
+    const el = (has(p, 'fire') || p.sunT > 0) ? (has(p, 'fire') ? fireTint(p) : sunTint(p)) : has(p, 'ice') ? (skinOn(p, 'sand') ? 'sand' : 'ice') : skinFx(p) || (has(p, 'wind') ? 'wind' : '');
+    const range = this.reachBuff(p) * (p.rubberT > 0 ? 1.3 : 1);
+    for (let i = 0; i < s.pellets; i++) {
+      const a = (i / (s.pellets - 1) - 0.5) * 2 * s.spread + (Math.random() - 0.5) * 0.05;
+      const vx = Math.cos(a) * s.speed * p.facing, vy = Math.sin(a) * s.speed;
+      this.arrows.push({ id: ++this.evSeq, owner: p.id, x, y, vx, vy, c: 0.3, ku: 1, sg: 1, t: s.life * clamp(range, 0.5, 2), el, big });
+    }
+    p.vx -= p.facing * 160;   // 반동
+    this.ev({ k: 'shotgun', x: r0(x), y: r0(y), f: p.facing, pid: p.id, n: p.ammo });
+  }
   // 통나무: 중력으로 떨어져 땅에 놓였다가 사라짐
   updateLogs(dt) {
     if (!this.logs.length) return;
@@ -1719,7 +1748,7 @@ class Sim {
       { const k = this.waterK(a.y); a.x += a.vx * dt * k; a.y += a.vy * dt * k; }
       if (this.solidAt(a.x, a.y)) { a.t = 0; this.ev({ k: 'thunk', x: r0(a.x), y: r0(a.y) }); continue; }
       if (this.phase === 'countdown' || this.phase === 'ended') continue;
-      const def = a.ku ? { damage: SKILLS.ninja.dmg, baseKB: SKILLS.ninja.baseKB, growthKB: SKILLS.ninja.growthKB, lift: 0.3 }
+      const def = a.sg ? { damage: SKILLS.shotgun.dmg, baseKB: SKILLS.shotgun.baseKB, growthKB: SKILLS.shotgun.growthKB, lift: 0.35 } : a.ku ? { damage: SKILLS.ninja.dmg, baseKB: SKILLS.ninja.baseKB, growthKB: SKILLS.ninja.growthKB, lift: 0.3 }
         : { damage: 4 + Math.round(9 * a.c) + (a.homing ? 3 : 0), baseKB: 200 + 420 * a.c + (a.homing ? 120 : 0), growthKB: 6 + 8 * a.c, lift: 0.35 };
       for (const o of list) {
         if (!this.foe(a, o) || !o.alive || o.inside || o.frozen > 0 || o.invincible > 0) continue;
@@ -2251,6 +2280,12 @@ class Sim {
       if (a.chargeMode) { a.chargeN = (a.chargeN || 0) + 1; def = { ...def, damage: 0 }; opt = { ...opt, noKB: true }; this.ev({ k: 'chargeup', x: r0(a.x), y: r0(a.y - bh(a)), n: a.chargeN, pid: a.id }); }
       else if (a.chargeN > 0) { def = { ...def, damage: def.damage * (1 + cs.dmgPer * a.chargeN) }; opt = { ...opt, chg: a.chargeN }; }
     }
+    // 보석 스킬: 판 중에 (더미·분신 말고) 때리면 진짜 보석이 쌓임
+    if (has(a, 'gem') && !a.clone && !a.bot && this.phase === 'playing' && !t.clone && !t.dummy && !opt.small) {
+      const add = (type === 'heavy' ? 2 : 1) * (a.gemT > 0 ? 2 : 1), before = a.gemEarn || 0;
+      a.gemEarn = Math.min(SKILLS.gem.cap, before + add);
+      if (a.gemEarn > before) this.ev({ k: 'gemget', x: r0(t.x), y: r0(t.y - bh(t)), n: a.gemEarn - before, tot: a.gemEarn, only: a.id });
+    }
     t.damage = Math.min(Math.round(t.damage + def.damage), 999);   // 퍼센트는 정수로
     t.attack = null;
     t.lastHitBy = a.ownerId || a.id; t.lastHitAt = this.tickCount;
@@ -2425,6 +2460,7 @@ class Sim {
       wv: p.waveT > 0 ? Math.ceil(p.waveT) : 0,
       cg: has(p, 'charge') ? [p.chargeMode ? 1 : 0, p.chargeN || 0] : 0,
       ru: p.rushT > 0 ? 1 : 0, hj: p.hopT > 0 ? Math.ceil(p.hopT) : 0,
+      am: has(p, 'shotgun') ? p.ammo : undefined, jw: has(p, 'gem') ? [p.gemEarn || 0, p.gemT > 0 ? Math.ceil(p.gemT) : 0] : undefined,
       dp: p.dope ? [DOPE_KINDS.indexOf(p.dope.k), p.dope.bad ? 1 : 0, Math.ceil(p.dope.t)] : 0,
       mk: (() => { let m = 0; for (const g of this.players.values()) if (g.ghostT > 0 && g.gMarks[p.id]) m = Math.max(m, g.gMarks[p.id]); return m; })(),
     });
@@ -2433,7 +2469,7 @@ class Sim {
       md: [this.teamMode ? 1 : 0, this.doubleMode ? 1 : 0], s: this.tickCount, mp: this.stage.id,
       mv: this.phase === 'waiting' && this.mapVote ? [this.mapVote.cands, Object.fromEntries(Object.entries(this.mapVote.votes).filter(([pid]) => this.players.has(pid)).map(([pid, m]) => [pid, this.mapVote.cands.indexOf(m)]))] : 0,
       ev: this.recent.slice(-10),
-      ar: this.arrows.map((a) => ({ x: r0(a.x), y: r0(a.y), vx: r0(a.vx), vy: r0(a.vy), h: a.homing ? 1 : 0, de: a.de ? 1 : undefined, lf: a.lf ? 1 : undefined, el: a.el || undefined, s: a.big !== 1 ? Math.round(a.big * 10) / 10 : undefined, ku: a.ku || undefined, sw: a.sw || undefined })),
+      ar: this.arrows.map((a) => ({ x: r0(a.x), y: r0(a.y), vx: r0(a.vx), vy: r0(a.vy), h: a.homing ? 1 : 0, de: a.de ? 1 : undefined, lf: a.lf ? 1 : undefined, el: a.el || undefined, s: a.big !== 1 ? Math.round(a.big * 10) / 10 : undefined, ku: a.ku || undefined, sw: a.sw || undefined, sg: a.sg || undefined })),
       lg: this.logs.map((l) => ({ x: r0(l.x), y: r0(l.y), sn: l.sn, t: Math.round(l.t * 10) / 10, s: l.big !== 1 ? Math.round(l.big * 10) / 10 : undefined })),
       fz: this.flashes.map((f) => ({ x: f.x, y: f.y, r: f.r, a: Math.round(Math.min(1, f.t / 0.6) * 100) / 100, o: f.owner, tm: f.team })),
       wa: this.water ? [r0(this.water.y), this.water.lava ? 1 : 0] : 0,
@@ -2697,6 +2733,8 @@ function botThink(sim, b) {
         if (sk === 'gamble' && ready && R < 0.01) use(sk);
         if (sk === 'flash' && ready && best < 260 && R < 0.05) use(sk);
         if (sk === 'wave' && ready && best < 200 && R < 0.06) use(sk);
+        if (sk === 'shotgun' && ready && (b.ammo === 0 || (b.ammo < 3 && best > 380)) && R < 0.1) use(sk);
+        if (sk === 'gem' && ready && best < 160 && R < 0.05) use(sk);
         if (sk === 'dash' && ready && Math.abs(target.x - b.x) < 420 && Math.abs(target.y - b.y) < 60 && Math.sign(target.x - b.x) === b.facing && R < 0.05) use(sk);
         if (sk === 'hop' && ready && ((b.y > sim.stage.floor + 30 && b.vy > 0 && b.jumpsLeft <= 0) || (target.y < b.y - 180 && Math.abs(target.x - b.x) < 300)) && R < 0.2) use(sk);
         if (sk === 'charge' && ready) {
