@@ -284,6 +284,8 @@ function renderAccount() {
   else if ($('gachaMsg').dataset.keep !== '1') $('gachaMsg').textContent = p.gems < GACHA_COST ? `뽑기까지 보석 ${GACHA_COST - p.gems}개 더 필요해요.` : '';
   // 스킬 잠금
   const owned = p ? p.owned : BASE_SKILLS;
+  // 가진 스킬 수 / 전체 스킬 수
+  $('skillCount').textContent = `${SKILL_IDS.filter((k) => owned.includes(k)).length}/${SKILL_IDS.length}`;
   document.querySelectorAll('.skill').forEach((b) => {
     const locked = !owned.includes(b.dataset.skill);
     b.classList.toggle('locked', locked);

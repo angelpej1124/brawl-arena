@@ -307,6 +307,7 @@
   .skin-txt small { display: block; color: var(--muted); font-size: 12px; line-height: 1.45; margin-top: 2px; }
   .skin-act { flex: none; border: 0; border-radius: 8px; padding: 8px 12px; font-weight: 700; font-family: inherit; font-size: 13px; cursor: pointer; background: var(--accent); color: #2a1a00; }
   .skin-act.ghost { background: #2f2a55; color: var(--text); }
+  .skill-count { margin-left: 6px; color: var(--accent); font-size: 13px; }
   .shop-open { border-color: var(--accent); color: var(--accent); margin-bottom: 6px; position: relative; }
   .shop-dot { margin-left: 6px; background: #ff4d6a; color: #fff; border-radius: 99px; padding: 1px 7px; font-size: 11px; }
   .shop-card h4.shop-h { margin: 14px 0 0; font-size: 14px; color: var(--gem); }
@@ -381,7 +382,7 @@
         <label for="roomcode">초대 코드 (같은 코드를 쓴 친구끼리만 · 목록에 안 보여요)</label>
         <input id="roomcode" maxlength="20" placeholder="예: ourroom" autocomplete="off" autocapitalize="off">
       </div>
-      <span class="lbl" id="skillLbl">스킬 선택 (Q)</span>
+      <span class="lbl"><span id="skillLbl">스킬 선택 (Q)</span> <b class="skill-count" id="skillCount"></b></span>
       <div class="skills" id="skillBox" role="group" aria-labelledby="skillLbl"></div>
       <button class="play" id="playBtn">빠른 입장</button>
       <div id="err" role="status"></div>
