@@ -17,7 +17,7 @@ const ATTACKS = {
 // 스킬 — 숫자를 바꿔서 밸런스를 조절하세요 (cd = 쿨타임 초)
 const SKILLS = {
   slow:     { name: '둔화', cd: 6, radius: 320, duration: 7, moveMul: 0.5, attackMul: 0.5 },
-  blink:    { name: '점멸', cd: 8, distance: 230 },
+  blink:    { name: '점멸', cd: 7, distance: 230 },
   stealth:  { name: '은신', cd: 12, duration: 5 },
   clone:    { name: '분신', cd: 10, hits: 5 },
   swap:     { name: '전환', cd: 19, heavyLock: 1 },                       // 강공격 맞고 1초 동안은 못 씀
@@ -28,15 +28,15 @@ const SKILLS = {
   magnet:   { name: '자석', cd: 9, cd2: 9, radius: 330, power: 720 },     // Q 끌어당김, E 밀어냄
   empower:  { name: '강화', charge: 8, duration: 6, kbMul: 0.35, reachMul: 1.3, speedMul: 1.35, jumpMul: 1.2 },
   parasite: { name: '기생', hitsNeeded: 3, duration: 5 },
-  quake:    { name: '지진', cd: 12, duration: 3 },                        // 시전자 빼고 모두의 화면이 흔들림
-  giant:    { name: '거인', cd: 14, duration: 9, size: 2, kbMul: 0.8, speedMul: 0.85, reachMul: 1.6 },
-  rubber:   { name: '고무', cd: 13, duration: 7, reachMul: 2, jumpMul: 1.25 },
-  engine:   { name: '엔진', cd: 12, duration: 6, speedMul: 1.6, kbPerSpeed: 0.8, kbMax: 2.2 },
+  quake:    { name: '지진', cd: 11, duration: 3 },                        // 시전자 빼고 모두의 화면이 흔들림
+  giant:    { name: '거인', cd: 13, duration: 9, size: 2, kbMul: 0.8, speedMul: 0.85, reachMul: 1.6 },
+  rubber:   { name: '고무', cd: 12, duration: 7, reachMul: 2, jumpMul: 1.25 },
+  engine:   { name: '엔진', cd: 11, duration: 6, speedMul: 1.6, kbPerSpeed: 0.8, kbMax: 2.2 },
   // 검사: 공격이 검으로 바뀜 (사거리 1.25배). 약공격은 앞으로 돌진하며 베기, 강공격은 주변 부채꼴 베기, Q는 참격 발사
   sword:    { name: '검사', cd: 13, heavyGap: 0.8, lightGap: 0.22, reachMul: 1.25, lunge: 520, fanR: 112, slashSpeed: 950, slashLife: 0.65, slashDmg: 9, slashKB: 380, slashGrowth: 12 },
   // 흑섬: Q 자체는 이펙트만. 공격이 맞는 순간과 같은 타이밍(±window초)이면 넉백 강화
   blackflash: { name: '흑섬', cd: 0, window: 0.1, mobWindow: 0.17, heavyKbMul: 1.45, stun: 0.7 },
-  lightning: { name: '번개', cd: 13, radius: 480, count: 3, damage: 10, stun: 3 },
+  lightning: { name: '번개', cd: 14, radius: 400, count: 2, damage: 10, stun: 3 },
   undying:  { name: '불사', lives: 5 },                                   // 목숨 5개 (패시브)
   // 헐크: 퍼센트(맞은 정도)가 높을수록 커지고 강해짐 (패시브). maxAt% 에서 최대
   hulk:     { name: '헐크', maxAt: 110, size: 0.9, reach: 0.8, power: 1.8, slow: 0.25, tough: 0.5, grow: 1.1 },
@@ -44,14 +44,14 @@ const SKILLS = {
   fire:     { name: '화염', cd: 9, burnHits: 2, dashBurn: 4, burnEvery: 0.4, burnKB: 170, burnDmg: 1,
               dashSpeed: 950, dashTime: 0.32, dashDmg: 8, dashKB: 420, dashGrowth: 10 },
   // 얼음: 때리면 상대 얼음 게이지가 참. 100이 되면 2초 얼어붙음 (얼어도 공격은 맞음). Q는 5초 눈보라
-  ice:      { name: '얼음', cd: 12, blizzard: 4, fillLight: 20, fillHeavy: 34, blizRate: 24, freeze: 2, decay: 6 },
+  ice:      { name: '얼음', cd: 12, blizzard: 4, fillLight: 16, fillHeavy: 28, blizRate: 24, freeze: 2, decay: 6 },
   // 터렛: 최대 3개. 가까운 적에게 총알 발사, 4번 맞으면 부서짐
   // 에러: 나를 뺀 모두의 화면이 끊기고 조작이 제멋대로 (5초)
   error:    { name: '에러', cd: 12, duration: 5 },             // 랜덤한 적 1명
   // 태양: 6초간 빨라지고, 평타에 불이 붙고(화염처럼 2번 더 밀림), 넉백이 세짐
   sun:      { name: '태양', cd: 11, duration: 6, speedMul: 1.35, kbMul: 1.3, burnHits: 2 },
   // 바람: 공격 넉백 1.3배. Q는 앞으로 나아가며 휩쓸어 가는 소용돌이
-  wind:     { name: '바람', cd: 11, kbMul: 1.3, speed: 520, life: 1.6, w: 70, h: 170, dmg: 5, throwKB: 720 },
+  wind:     { name: '바람', cd: 12, kbMul: 1.3, speed: 520, life: 1.6, w: 70, h: 170, dmg: 5, throwKB: 720 },
   // 궁수: 강공격을 누르고 있으면 시위를 당김 (full초면 최대), 놓으면 발사. Q는 다음 화살을 유도 화살로
   archer:   { name: '궁수', heavyGap: 0.5, cd: 13, full: 1, minSpeed: 650, maxSpeed: 1400, gravity: 520, homingSpeed: 760, homingLife: 3, turn: 7 },
   // 시간: 모든 것을 10초 전으로 (시간 스킬 쿨타임은 제외)
@@ -59,19 +59,19 @@ const SKILLS = {
   // 콤보: 때릴 때마다 스택. Q로 스택만큼 강한 스매시 (범위도 커짐)
   combo:    { name: '콤보', maxStack: 30, baseR: 90, perR: 16, maxR: 520 },
   // 반사: Q를 누르고 window초 안에 들어온 공격을 되돌려 보냄
-  reflect:  { name: '반사', cd: 3, window: 0.22 },
+  reflect:  { name: '반사', cd: 2, window: 0.22 },
   // 반전: 나를 뺀 상대의 절반(올림)이 7초간 좌우 키가 반대로
   invert:   { name: '반전', cd: 13, duration: 7 },
   // 원자: 때릴 때마다 주위를 도는 전자 +1 (최대 5). 3초 안 때리면 1초에 1개씩 사라짐. 전자에 닿아야만 피해
-  atom:     { name: '원자', cd: 13, max: 5, radius: 62, spin: 4, boost: 5, decayAfter: 3, decayEvery: 1, dmg: 3, baseKB: 170, growthKB: 4, hitEvery: 0.5 },
+  atom:     { name: '원자', cd: 15, max: 5, radius: 62, spin: 4, boost: 5, decayAfter: 2, decayEvery: 1, dmg: 3, baseKB: 170, growthKB: 4, hitEvery: 0.5 },
   // 지뢰: 최대 10개, 밟으면 폭발 (주인·팀원은 안 터짐)
-  mine:     { name: '지뢰', cd: 7, max: 10, arm: 0.6, radius: 110, dmg: 10, power: 780 },
+  mine:     { name: '지뢰', cd: 6, max: 10, arm: 0.6, radius: 110, dmg: 10, power: 780 },
   // 닌자: 쿠나이를 듦. 강공격 = 바로 직선으로 쿠나이 던지기(중력 X, 던진 뒤 0.4초 뒤 다시). Q = 통나무 남기고 랜덤한 안전한 곳으로 순간이동
-  ninja:    { name: '닌자', cd: 13, heavyGap: 0.4, speed: 1150, life: 0.75, dmg: 6, baseKB: 240, growthKB: 7, logLife: 3 },
+  ninja:    { name: '닌자', cd: 15, heavyGap: 0.4, speed: 1150, life: 0.75, dmg: 6, baseKB: 240, growthKB: 7, logLife: 3 },
   // 도박: 판 시작하면 자동으로 굴림. 사거리·주는 넉백·받는 넉백·점프·속도·크기가 각각 0.0~2.0배 (쿨 20초)
   gamble:   { name: '도박', cd: 20, minSize: 0.3 },
   // 별빛: 별 카운트(시작 1, 10초마다 +1, 죽을 때마다 +1, 최대 5)를 모두 써서 하늘에서 사선으로 별비. 카운트가 많을수록 별이 많고 크고 세게 밀어냄
-  starlight: { name: '별빛', cd: 1, every: 10, max: 5, start: 1, spawnTime: 1.1, fallVX: 330, fallVY: 760 },
+  starlight: { name: '별빛', cd: 1, every: 9, max: 5, start: 1, spawnTime: 1.1, fallVX: 330, fallVY: 760 },
   // 방패: 약공격 = 방패 막기(앞에서 오는 공격), 강공격 = 방패 휘두르기(넉백↑). Q를 누르고 있다 놓으면 던짐(오래 누를수록 멀리).
   //       맞거나 벽에 부딪히면 살짝 튕겨 돌아옴. 내가 가까이 가면 주움. 장외로 떨어지면 10초 뒤 다시 생김
   shield:   { name: '방패', blockTime: 0.45, blockGap: 0.2, bashKB: 1.25, full: 1, minSpeed: 520, maxSpeed: 1300, flyMin: 0.22, flyMax: 0.75,
@@ -97,7 +97,7 @@ const SKILLS = {
   // 홍수: Q마다 아래에서 물이 참 (여러 번 쓰면 더 높이). 홍수 사용자는 헤엄치고, 다른 사람은 느려지고 숨이 참
   flood:    { name: '홍수', cd: 12, rise: 120, riseSpeed: 140, hold: 15, recede: 22, fullHold: 10, drainTime: 5, breath: 10,
               moveMul: 0.55, jumpMul: 0.7, atkMul: 0.6, swim: 1.15, proj: 0.45, dash: 0.5, stunMul: 1.6, iceMul: 1.6 },
-  turret:   { name: '터렛', cd: 13, max: 3, hp: 3, range: 560, fireEvery: 1.1, size: 1.3, bulletSpeed: 820, bulletLife: 0.9, dmg: 3, baseKB: 210, growthKB: 5 },
+  turret:   { name: '터렛', cd: 12, max: 3, hp: 3, range: 560, fireEvery: 1.1, size: 1.3, bulletSpeed: 820, bulletLife: 0.9, dmg: 3, baseKB: 210, growthKB: 5 },
 };
 const SKILL_IDS = Object.keys(SKILLS);
 
@@ -534,7 +534,8 @@ class Sim {
     for (const p of list) {
       if (!p.alive || p.inside || p.frozen > 0) { p.inPortal = false; continue; }
       const cx = p.x, cy = p.y - bh(p) / 2;
-      const touch = this.portals.find((o) => Math.hypot(cx - o.x, cy - o.y) < R + bw(p) * 0.25);
+      // 포탈은 만든 사람과 같은 팀만 탈 수 있음
+      const touch = this.portals.find((o) => Math.hypot(cx - o.x, cy - o.y) < R + bw(p) * 0.25 && (o.owner === p.id || !this.foe(this.players.get(o.owner), p)));
       if (touch && !p.inPortal) {
         const other = this.portals.find((o) => o.pair === touch.pair && o !== touch);
         if (other) {
@@ -1006,7 +1007,7 @@ class Sim {
       if (dir !== 0 && dir !== p.rushDir && p.hitstun <= 0) { this.rushRelease(p, p.rushDir); p.rushDir = dir; p.facing = dir; p.vx = 0; this.ev({ k: 'rushturn', x: r0(p.x), y: r0(p.y - bh(p) / 2), pid: p.id }); }
       p.rushT -= dt;
       p.vx = p.rushDir * SKILLS.dash.speed * (wet ? SKILLS.flood.dash : 1) * (p.slow > 0 ? SKILLS.slow.moveMul : 1);
-      p.vy = Math.min(p.vy + CONFIG.GRAVITY * dt, CONFIG.MAX_FALL);
+      p.vy = Math.min(p.vy + CONFIG.GRAVITY * 0.3 * dt, 320);   // 돌진 중엔 덜 떨어짐
       if (p.rushT <= 0) this.rushRelease(p, p.rushDir);
     } else if (p.fdashT > 0) {
       // 화염 돌진: 수평으로 쭉 (중력 없음) — 물속이면 느림
