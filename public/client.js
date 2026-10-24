@@ -57,7 +57,7 @@ const SKILLS = {
   charge:   { name: '충전', desc: 'Q로 공격 모드(빨강) ↔ 충전 모드(초록) 전환. 충전 모드로 때리면 넉백도 %도 없이 충전 스택 +1 (제한 없음), 공격 모드로 때리면 스택만큼 피해·넉백이 세짐. 죽으면 스택 초기화', cd: '전환 쿨 2초' },
   dash:     { name: '돌진', desc: '약·강공격을 할 때 앞으로 튀어 나가며 공격. Q = 앞으로 쭉 돌진하며 앞의 상대를 밀고 가다가 끝에서 피해 + 튕김. 도중에 반대로 꺾으면 확 방향이 바뀌고 밀던 상대는 그 자리에서 튕겨 나감', cd: '쿨 13초' },
   gem:      { name: '보석', desc: '판 중에 상대를 때릴 때마다 진짜 보석 +1 (강공격 +2). Q = 5초 동안 2배. 판이 끝나면 계정에 들어옴 (한 판 최대 60개, 더미·분신은 제외)', cd: '쿨 12초' },
-  shotgun:  { name: '샷건', desc: '샷건을 듦. 약공격 = 총으로 때리기, 강공격 = 바로 산탄 발사 (가까울수록 많이 맞음). 한 번 장전하면 3발, 발사 간격 0.5초. Q = 장전', cd: '장전 쿨 5초' },
+  shotgun:  { name: '샷건', desc: '샷건을 듦. 약공격 = 총으로 때리기, 강공격 = 바로 산탄 발사 (가까울수록 많이 맞음). 한 번 장전하면 5발, 발사 간격 0.5초. Q = 장전', cd: '장전 쿨 5초' },
   hop:      { name: '점프', desc: '기본으로 3단 점프 (패시브). Q = 3초 동안 공중에서 무한 점프', cd: '쿨 14초' },
   wave:     { name: '파동', desc: 'Q로 내 몸에서 큰 파동이 퍼져 주변 적을 조금 튕겨냄. 그 뒤 7초간 팔에 파동이 감겨 넉백이 세지고, 점프력·이동 속도도 올라감', cd: '쿨 13초' },
   dope:     { name: '도핑', desc: '맵 곳곳에 내 물약이 7초마다 하나씩 떨어짐 (최대 3개). 하늘=이속, 빨강=공속, 초록=힘(넉백), 노랑=방어(넉백 덜 받음). 먹으면 5초 강화, 끝나면 3초간 그만큼 약화. 약화 전에 다른 물약을 먹으면 약화 없음 (패시브)', cd: '패시브' },
@@ -959,7 +959,7 @@ function onEvent(ev) {
     for (let i = 0; i < 4; i++) particles.push({ x: ev.x - ev.f * 10, y: ev.y, vx: -ev.f * 60 + (Math.random() - 0.5) * 40, vy: -40 - Math.random() * 40, life: 0.7, max: 0.7, c: 'rgba(200,200,210,0.6)', r: 8, nograv: true });
     shake = Math.max(shake, 7);
   } else if (ev.k === 'reload') {
-    if (ev.pid === myId) banners.push({ text: '장전 완료 ●●●', life: 0.9, max: 0.9, small: true, color: '#ffcf3f' });
+    if (ev.pid === myId) banners.push({ text: '장전 완료 ●●●●●', life: 0.9, max: 0.9, small: true, color: '#ffcf3f' });
     for (let i = 0; i < 3; i++) particles.push({ x: ev.x, y: ev.y, vx: (Math.random() - 0.5) * 80, vy: -120 - Math.random() * 60, life: 0.5, max: 0.5, c: '#d8452a', r: 4 });
   } else if (ev.k === 'sgempty') {
     if (ev.pid === myId) banners.push({ text: '탄이 없어요! Q로 장전', life: 0.8, max: 0.8, small: true, color: '#ff9b9b' });
@@ -2754,7 +2754,7 @@ function skillStatus(p) {
   if (k === 'empower') return p.bf ? { ready: true, text: `강화 중 ${p.bt}s` } : { ready: p.chg >= 100, text: p.chg >= 100 ? '충전 완료!' : `충전 ${p.chg || 0}%` };
   if (k === 'undying' || k === 'hulk') return { ready: true, text: '패시브' };
   if (k === 'wave' && p.wv) return { ready: true, text: `강화 ${p.wv}s` };
-  if (k === 'shotgun' && p.am != null) return { ready: p.am > 0, text: `탄 ${'●'.repeat(p.am)}${'○'.repeat(Math.max(0, 3 - p.am))}${p.cd > 0 ? ' · 장전 ' + p.cd.toFixed(1) + 's' : p.am < 3 ? ' · Q 장전' : ''}` };
+  if (k === 'shotgun' && p.am != null) return { ready: p.am > 0, text: `탄 ${'●'.repeat(p.am)}${'○'.repeat(Math.max(0, 5 - p.am))}${p.cd > 0 ? ' · 장전 ' + p.cd.toFixed(1) + 's' : p.am < 5 ? ' · Q 장전' : ''}` };
   if (k === 'gem' && p.jw) return { ready: !(p.cd > 0), text: `💎${p.jw[0]}${p.jw[1] ? ` · 2배 ${p.jw[1]}s` : p.cd > 0 ? ` · ${p.cd.toFixed(1)}s` : ''}` };
   if (k === 'hop') return p.hj ? { ready: true, text: `무한 점프 ${p.hj}s` } : { ready: !(p.cd > 0), text: p.cd > 0 ? `${p.cd.toFixed(1)}s · 3단 점프` : '준비 · 3단 점프' };
   if (k === 'charge' && p.cg) return { ready: !(p.cd > 0), text: `${p.cg[0] ? '충전 중' : '공격'} · ${p.cg[1]}스택` };

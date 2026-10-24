@@ -89,8 +89,8 @@ const SKILLS = {
   hop:      { name: '점프', cd: 14, duration: 3 },
   // 보석: 판 중에 때릴 때마다 진짜 보석 +1 (강공격 +2). Q = 5초 동안 2배. 한 판 최대 cap개 (판이 끝나면 계정에 들어감)
   gem:      { name: '보석', cd: 12, duration: 5, cap: 60 },
-  // 샷건: 약공격 = 총으로 때리기, 강공격 = 바로 산탄 발사 (탄 3발, 발사 간격 0.5초). Q = 장전 (쿨 5초)
-  shotgun:  { name: '샷건', cd: 5, ammo: 3, gap: 0.5, pellets: 5, spread: 0.34, speed: 1250, life: 0.24, dmg: 3, baseKB: 260, growthKB: 7 },
+  // 샷건: 약공격 = 총으로 때리기, 강공격 = 바로 산탄 발사 (탄 5발, 발사 간격 0.5초). Q = 장전 (쿨 5초)
+  shotgun:  { name: '샷건', cd: 5, ammo: 5, gap: 0.5, pellets: 5, spread: 0.34, speed: 1250, life: 0.24, dmg: 3, baseKB: 260, growthKB: 7 },
   wave:     { name: '파동', cd: 13, duration: 7, radius: 230, kb: 460, kbMul: 1.45, speedMul: 1.3, jumpMul: 1.25, reachMul: 2 },
   dope:     { name: '도핑', max: 3, every: 7, buff: 5, debuff: 3, amt: 0.35, grab: 50 },
   flash:    { name: '섬광', cd: 10, radius: 210, zoneTime: 4, kbR: 260, kb: 300, blindR: 700, blindMax: 3 },
@@ -2733,7 +2733,7 @@ function botThink(sim, b) {
         if (sk === 'gamble' && ready && R < 0.01) use(sk);
         if (sk === 'flash' && ready && best < 260 && R < 0.05) use(sk);
         if (sk === 'wave' && ready && best < 200 && R < 0.06) use(sk);
-        if (sk === 'shotgun' && ready && (b.ammo === 0 || (b.ammo < 3 && best > 380)) && R < 0.1) use(sk);
+        if (sk === 'shotgun' && ready && (b.ammo === 0 || (b.ammo < SKILLS.shotgun.ammo && best > 380)) && R < 0.1) use(sk);
         if (sk === 'gem' && ready && best < 160 && R < 0.05) use(sk);
         if (sk === 'dash' && ready && Math.abs(target.x - b.x) < 420 && Math.abs(target.y - b.y) < 60 && Math.sign(target.x - b.x) === b.facing && R < 0.05) use(sk);
         if (sk === 'hop' && ready && ((b.y > sim.stage.floor + 30 && b.vy > 0 && b.jumpsLeft <= 0) || (target.y < b.y - 180 && Math.abs(target.x - b.x) < 300)) && R < 0.2) use(sk);
