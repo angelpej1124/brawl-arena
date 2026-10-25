@@ -74,29 +74,58 @@ const clean = (s, n) => String(s || '').normalize('NFC')
   .replace(/[<>&"'\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]/g, '').trim().slice(0, n);
 
 // ---------- 난투 아레나 서버와 통신 ----------
-// 무료 서버는 자고 있으면 깨어나는 데 1분쯤 걸려서 넉넉히 기다림
+// 무료 서버는 15분 동안 아무도 없으면 잠들고, 깨어나는 데 1~2분 걸림.
+// 체스 사이트만 깨어 있고 계정 서버(난투 아레나)는 자고 있으면 로그인이 오래 걸리다 끊기므로:
+//   - 체스 서버가 켜지거나 누가 체스 사이트를 열면 계정 서버를 바로 깨우기 시작
+//   - 로그인 요청은 계정 서버가 깰 때까지 오래 붙잡지 않고 "깨우는 중"이라고 바로 알려 줌 (화면이 저절로 다시 시도)
+//   - 체스 사이트에 사람이 있는 동안은 계정 서버가 잠들지 않게 가끔 깨워 둠
+const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
+let brawlOkAt = 0;          // 계정 서버가 마지막으로 응답한 시간
+let waking = null;          // 깨우는 중인 작업
+let lastVisit = Date.now(); // 체스 사이트에 마지막으로 사람이 온 시간
+const brawlAwake = () => Date.now() - brawlOkAt < 5 * 60000;
+async function pingBrawl() {
+  try {
+    const r = await fetch(BRAWL_URL + '/health', { signal: AbortSignal.timeout(20000) });
+    if (r.ok) { brawlOkAt = Date.now(); return true; }
+  } catch (_) {}
+  return false;
+}
+// 계정 서버가 깰 때까지 최대 maxMs 기다림 (깨우기는 뒤에서 최대 3분 계속함)
+function ensureAwake(maxMs) {
+  if (brawlAwake()) return Promise.resolve(true);
+  if (!waking) {
+    waking = (async () => {
+      const end = Date.now() + 180000;
+      while (Date.now() < end) { if (await pingBrawl()) return true; await sleepMs(2000); }
+      return false;
+    })().finally(() => { waking = null; });
+  }
+  return maxMs ? Promise.race([waking, sleepMs(maxMs).then(() => brawlAwake())]) : waking;
+}
+const WAKING = { error: '계정 서버를 깨우는 중이에요… 잠시만 기다려 주세요.', waking: true };
 async function brawl(p, { method = 'GET', body, token, ip } = {}) {
   const headers = { 'Content-Type': 'application/json', 'X-Chess-Key': CHESS_SECRET };
   if (token) headers.Authorization = 'Bearer ' + token;
   if (ip) headers['X-Client-Ip'] = ip;
   const ctl = new AbortController();
-  const t = setTimeout(() => ctl.abort(), 90000);
+  const t = setTimeout(() => ctl.abort(), 25000);
   try {
     const r = await fetch(BRAWL_URL + p, { method, headers, body: body ? JSON.stringify(body) : undefined, signal: ctl.signal });
-    let json = {};
+    let json = null;
     try { json = await r.json(); } catch (_) {}
+    if (!json) { brawlOkAt = 0; ensureAwake(0); return { status: 503, json: WAKING }; }   // 깨어나는 중이라 JSON이 아닌 응답
+    brawlOkAt = Date.now();
     return { status: r.status, json };
   } catch (e) {
-    return { status: 503, json: { error: '계정 서버에 연결하지 못했어요. 잠시 후 다시 해 주세요.' } };
+    brawlOkAt = 0; ensureAwake(0);
+    return { status: 503, json: WAKING };
   } finally { clearTimeout(t); }
 }
-// 누가 체스 사이트를 열면 난투 아레나 서버도 미리 깨워 둠 (로그인이 빨라지게)
-let lastWake = 0;
-function wakeBrawl() {
-  if (Date.now() - lastWake < 5 * 60000) return;
-  lastWake = Date.now();
-  fetch(BRAWL_URL + '/health').catch(() => {});
-}
+// 체스 서버가 켜지자마자 (= 누가 사이트를 열었음) 계정 서버도 깨우기
+ensureAwake(0);
+// 체스 사이트에 최근 15분 안에 사람이 있었으면 계정 서버가 잠들지 않게 10분마다 깨워 둠
+setInterval(() => { if (Date.now() - lastVisit < 15 * 60000 || onlineCount() > 0) pingBrawl(); }, 10 * 60000).unref();
 // 로그인 토큰 → 계정 닉네임 (잠깐 기억해 둠)
 const tokenCache = new Map();
 async function profileFromToken(token) {
@@ -113,6 +142,11 @@ setInterval(() => { const now = Date.now(); for (const [k, v] of tokenCache) if 
 // ---------- 웹사이트 · API ----------
 async function api(req, res, urlPath) {
   const ip = clientIp(req);
+  lastVisit = Date.now();
+  // 계정 서버가 필요한 요청: 자고 있으면 8초만 기다려 보고, 그래도 안 깼으면 "깨우는 중"이라고 바로 답함
+  if (['/api/signup', '/api/login', '/api/me', '/api/ranking'].includes(urlPath) && !(await ensureAwake(8000))) {
+    return sendJson(res, 503, WAKING);
+  }
   if (req.method === 'POST' && (urlPath === '/api/signup' || urlPath === '/api/login')) {
     const signup = urlPath === '/api/signup';
     if (limited(ip, urlPath, signup ? 10 : 20, signup ? 3600000 : 600000)) return sendJson(res, 429, { error: '시도가 너무 많아요. 잠시 후 다시 해 주세요.' });
@@ -135,7 +169,7 @@ async function api(req, res, urlPath) {
     return sendJson(res, r.status, { ...r.json, online: onlineCount() });
   }
   if (req.method === 'GET' && urlPath === '/api/rooms') {
-    wakeBrawl();
+    ensureAwake(0);
     return sendJson(res, 200, { rooms: publicRooms(), online: onlineCount(), brawl: BRAWL_URL });
   }
   return sendJson(res, 404, { error: '없는 주소예요.' });
@@ -628,6 +662,9 @@ server.on('upgrade', (req, sock) => {
         }
         if (m.resumeOnly) return socket.send(JSON.stringify({ t: 'noresume' }));
       }
+      // 로그인 확인·게스트 닉네임 확인에 계정 서버가 필요함 (자고 있으면 깰 때까지 기다림)
+      if (!brawlAwake()) socket.send(JSON.stringify({ t: 'notice', msg: '계정 서버를 깨우는 중이에요… 최대 1~2분 걸릴 수 있어요.' }));
+      if (!(await ensureAwake(150000))) return fail('계정 서버가 아직 깨어나지 않았어요. 잠시 후 다시 해 주세요.');
       let name, nick = null;
       if (m.token) {
         let p;

@@ -64,14 +64,36 @@ const SFX = {
 // ---------------- 계정 ----------------
 const account = { token: store.get('chess_token'), profile: null };
 let authMode = 'login';
+// 계정 서버(난투 아레나)가 자다가 깨어나는 중이면 서버가 waking 으로 답함 → 깰 때까지 저절로 다시 시도
+//   onWait(초): 기다리는 동안 화면에 보여 줄 때 씀
 async function api(p, opts = {}) {
-  const headers = { 'Content-Type': 'application/json' };
-  if (account.token) headers.Authorization = 'Bearer ' + account.token;
-  const r = await fetch(p, { method: opts.method || 'GET', headers, body: opts.body ? JSON.stringify(opts.body) : undefined });
-  let j = {};
-  try { j = await r.json(); } catch (e) {}
-  if (!r.ok) { const e = new Error(j.error || '서버와 연결하지 못했어요.'); e.status = r.status; throw e; }
-  return j;
+  const start = Date.now();
+  for (;;) {
+    const headers = { 'Content-Type': 'application/json' };
+    if (account.token) headers.Authorization = 'Bearer ' + account.token;
+    let r = null, j = null;
+    try {
+      r = await fetch(p, { method: opts.method || 'GET', headers, body: opts.body ? JSON.stringify(opts.body) : undefined });
+      try { j = await r.json(); } catch (e) {}
+    } catch (e) {}
+    // 연결 실패 · JSON이 아닌 응답(서버가 깨는 중) · waking → 잠깐 뒤 다시
+    const wakingNow = !r || !j || (r.status === 503 && j.waking) || r.status === 502 || r.status === 504;
+    if (wakingNow && opts.wait !== false && Date.now() - start < 240000) {
+      if (opts.onWait) opts.onWait(Math.round((Date.now() - start) / 1000));
+      await new Promise((res) => setTimeout(res, 2500));
+      continue;
+    }
+    if (!r || !r.ok) { const e = new Error((j && j.error) || '서버와 연결하지 못했어요. 잠시 후 다시 해 주세요.'); e.status = r ? r.status : 0; throw e; }
+    return j;
+  }
+}
+const wakeMsg = (sec) => `계정 서버를 깨우는 중이에요… (${sec}초) 오래 안 들어오면 서버가 잠들어서 처음엔 1~2분 걸릴 수 있어요.`;
+// 브라우저에서도 바로 계정 서버를 깨움 (체스 서버보다 먼저 깨어날 수 있게)
+let brawlPinged = false;
+function pingBrawlFromBrowser(url) {
+  if (brawlPinged || !/^https?:\/\//.test(url || '')) return;
+  brawlPinged = true;
+  fetch(url.replace(/\/+$/, '') + '/health', { mode: 'no-cors', cache: 'no-store' }).catch(() => {});
 }
 function setAuthMode(m) {
   authMode = m;
@@ -93,9 +115,9 @@ $('authForm').onsubmit = async (e) => {
   const nick = $('aNick').value.trim(), pw = $('aPw').value;
   if (authMode === 'signup' && pw !== $('aPw2').value) { $('authMsg').textContent = '비밀번호 확인이 달라요.'; return; }
   $('authBtn').disabled = true;
-  $('authMsg').textContent = '계정 서버에 연결하는 중… (처음엔 최대 1분 걸릴 수 있어요)';
+  $('authMsg').textContent = '계정 서버에 연결하는 중…';
   try {
-    const r = await api('/api/' + authMode, { method: 'POST', body: { nick, pw } });
+    const r = await api('/api/' + authMode, { method: 'POST', body: { nick, pw }, onWait: (sec) => { $('authMsg').textContent = wakeMsg(sec); } });
     account.token = r.token; store.set('chess_token', r.token);
     setProfile(r.profile);
     $('aPw').value = ''; $('aPw2').value = '';
@@ -122,8 +144,8 @@ function setProfile(p) {
 }
 async function loadMe() {
   if (!account.token) return setProfile(null);
-  $('acctText').textContent = '계정 확인 중… (처음엔 최대 1분 걸릴 수 있어요)';
-  try { setProfile((await api('/api/me')).profile); }
+  $('acctText').textContent = '계정 확인 중…';
+  try { setProfile((await api('/api/me', { onWait: (sec) => { $('acctText').textContent = wakeMsg(sec); } })).profile); }
   catch (e) {
     if (e.status === 401) { account.token = null; store.set('chess_token', null); setProfile(null); }
     else $('acctText').textContent = e.message;
@@ -156,7 +178,8 @@ const timeLabel = (m) => (m ? m + '분' : '무제한');
 async function loadRooms() {
   if (!$('lobby').hidden) {
     try {
-      const r = await api('/api/rooms');
+      const r = await api('/api/rooms', { wait: false });
+      pingBrawlFromBrowser(r.brawl);
       $('onlineNow').textContent = r.online;
       if (r.brawl && /^https?:\/\//.test(r.brawl)) $('brawlLink').href = r.brawl;
       const ul = $('roomList');
@@ -170,7 +193,7 @@ async function loadRooms() {
 }
 async function loadRanking() {
   try {
-    const r = await api('/api/ranking');
+    const r = await api('/api/ranking', { onWait: () => { $('rankEmpty').textContent = '랭킹 불러오는 중…'; } });
     $('rank').innerHTML = (r.ranking || []).map((x, i) => `<li><span>${i + 1}. ${esc(x.nick)}</span><small>${x.w}승 ${x.l}패 ${x.d}무</small></li>`).join('');
     $('rankEmpty').textContent = (r.ranking || []).length ? '' : '아직 기록이 없어요. 첫 승리의 주인공이 되어 보세요!';
   } catch (e) { $('rankEmpty').textContent = '랭킹을 불러오지 못했어요.'; }
