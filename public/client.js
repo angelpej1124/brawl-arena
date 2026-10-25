@@ -908,14 +908,18 @@ function keyAt(x, y) {
   return b ? b.dataset.k : null;
 }
 function refreshTouch() {
-  const held = new Set(touchMap.values());
+  // 버튼 하나가 키 여러 개일 수 있음 (입체 모드 대각선: 'l+u')
+  const vals = new Set(touchMap.values()), held = new Set();
+  for (const v of vals) for (const k of v.split('+')) held.add(k);
+  const keys = new Set();
   document.querySelectorAll('.tbtn').forEach((b) => {
-    if (b.hidden && 'lrd'.includes(b.dataset.k)) return;   // 입체 모드: 이동은 조이스틱
-    const on = held.has(b.dataset.k);
-    b.classList.toggle('on', on);
-    setKey(b.dataset.k, on ? 1 : 0);
+    if (b.hidden || (b.parentElement && b.parentElement.hidden)) return;   // 지금 안 보이는 버튼(모드에 따라)은 무시
+    b.classList.toggle('on', vals.has(b.dataset.k));
+    for (const k of b.dataset.k.split('+')) keys.add(k);
   });
+  keys.forEach((k) => setKey(k, held.has(k) ? 1 : 0));
 }
+const isMoveKey = (v) => /^[lrdu](\+[lrdu])?$/.test(v || '');
 const touchEl = $('touch');
 touchEl.addEventListener('pointerdown', (e) => {
   const k = keyAt(e.clientX, e.clientY);
@@ -929,38 +933,22 @@ addEventListener('pointermove', (e) => {
   const prev = touchMap.get(e.pointerId);
   // 이동 버튼끼리, 그리고 공격(약·강) → 스킬로 미끄러지는 것만 됨 (공격 연타 방지)
   //  약을 누른 엄지를 그대로 스킬 버튼으로 쓱 올리면 흑섬 타이밍 맞추기가 쉬움
-  if (k && k !== prev && (('lrd'.includes(k) && 'lrd'.includes(prev)) || ('ah'.includes(prev) && 'sex'.includes(k)))) { touchMap.set(e.pointerId, k); refreshTouch(); }
+  if (k && k !== prev && ((isMoveKey(k) && isMoveKey(prev) && (isTD() || 'lrd'.includes(k) && 'lrd'.includes(prev))) || ('ah'.includes(prev) && 'sex'.includes(k)))) { touchMap.set(e.pointerId, k); refreshTouch(); }
 });
 const endTouch = (e) => { if (touchMap.delete(e.pointerId)) refreshTouch(); };
 addEventListener('pointerup', endTouch);
 addEventListener('pointercancel', endTouch);
 touchEl.addEventListener('contextmenu', (e) => e.preventDefault());
-// 입체 모드 조이스틱: 끄는 방향으로 8방향 이동
-let joyId = null;
-function joyMove(e) {
-  const r = $('tJoy').getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-  let dx = e.clientX - cx, dy = e.clientY - cy;
-  const d = Math.hypot(dx, dy), max = r.width / 2 - 10;
-  if (d > max) { dx *= max / d; dy *= max / d; }
-  $('tJoyKnob').style.transform = `translate(${dx}px, ${dy}px)`;
-  const on = d > r.width * 0.12, c = on ? dx / Math.hypot(dx, dy) : 0, sn = on ? dy / Math.hypot(dx, dy) : 0;
-  setKey('r', c > 0.38 ? 1 : 0); setKey('l', c < -0.38 ? 1 : 0); setKey('d', sn > 0.38 ? 1 : 0); setKey('u', sn < -0.38 ? 1 : 0);
-}
-function joyEnd() { joyId = null; $('tJoyKnob').style.transform = ''; for (const k of ['l', 'r', 'u', 'd']) setKey(k, 0); }
-$('tJoy').addEventListener('pointerdown', (e) => { e.preventDefault(); joyId = e.pointerId; joyMove(e); });
-addEventListener('pointermove', (e) => { if (e.pointerId === joyId) joyMove(e); });
-addEventListener('pointerup', (e) => { if (e.pointerId === joyId) joyEnd(); });
-addEventListener('pointercancel', (e) => { if (e.pointerId === joyId) joyEnd(); });
-// 모드에 맞게 터치 버튼 바꾸기 (입체: 조이스틱 + 점프 버튼은 jp)
+// 모드에 맞게 터치 버튼 바꾸기 (입체: 8방향 버튼 + 점프 버튼은 jp)
 let touchTD = null;
 function syncTouchMode() {
   const td = isTD();
   if (td === touchTD) return;
   touchTD = td;
-  $('tJoy').hidden = !td;
+  $('tDpad').hidden = !td;
   for (const c of ['.tb-l', '.tb-r', '.tb-d']) touchEl.querySelector(c).hidden = td;
   touchEl.querySelector('.tb-u').dataset.k = td ? 'jp' : 'u';
-  if (joyId != null) joyEnd();
+  touchMap.clear(); document.querySelectorAll('.tbtn.on').forEach((b) => b.classList.remove('on'));
   for (const k of ['l', 'r', 'u', 'd', 'jp']) setKey(k, 0);
 }
 
@@ -3590,7 +3578,7 @@ function updateRoomPanel(m) {
   const sl = slotsOf(me);
   $('keysNote').hidden = !md[1] && !md[2];
   let kn = !md[1] ? '' : sl.x ? `자석 당기기 Q · 밀기 E · ${SKILLS[validSkill(sl.x)].name} R` : `${SKILLS[validSkill(me.sk)].name} Q · ${me.sk2 ? SKILLS[validSkill(me.sk2)].name : '?'} E`;
-  if (md[2]) { const wip = SKILL_IDS.filter(tdNotReady).length; kn += (kn ? ' · ' : '') + `입체: 이동 ${isTouch ? '조이스틱' : 'WASD·방향키'} · 점프 ${isTouch ? '점프 버튼' : '스페이스'}` + (wip ? ` · 준비 중인 스킬 ${wip}개` : ''); }
+  if (md[2]) { const wip = SKILL_IDS.filter(tdNotReady).length; kn += (kn ? ' · ' : '') + `입체: 이동 ${isTouch ? '방향 버튼 8개' : 'WASD·방향키'} · 점프 ${isTouch ? '점프 버튼' : '스페이스'}` + (wip ? ` · 준비 중인 스킬 ${wip}개` : ''); }
   $('keysNote').textContent = kn;
   // 스킨 (내 스킬의 가진 스킨 중에서 바로 바꾸기)
   const mySkills = [me.sk, md[1] ? me.sk2 : null].filter(Boolean);
