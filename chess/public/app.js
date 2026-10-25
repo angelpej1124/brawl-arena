@@ -28,6 +28,18 @@ const store = {
     if (btn && !btn.disabled) btn.click();
   }, { passive: false });
   document.addEventListener('dblclick', (e) => e.preventDefault(), { passive: false });
+  // 두 손가락 확대(핀치) 막기 (한 손가락 스크롤은 그대로)
+  document.addEventListener('touchmove', (e) => { if (e.touches.length > 1 || (e.scale && e.scale !== 1)) e.preventDefault(); }, { passive: false });
+  for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
+  // 삼성 인터넷처럼 그래도 확대해 버리는 브라우저: 원래 크기로 되돌림
+  const vp = document.querySelector('meta[name=viewport]');
+  const unzoom = () => {
+    if (!window.visualViewport || window.visualViewport.scale <= 1.01 || !vp) return;
+    const c = vp.getAttribute('content');
+    vp.setAttribute('content', c.replace(/maximum-scale=[\d.]+/, 'maximum-scale=1.01'));
+    setTimeout(() => vp.setAttribute('content', c), 60);
+  };
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', unzoom);
 }
 
 // ---------------- 기물 그림 (직접 그린 SVG) ----------------
