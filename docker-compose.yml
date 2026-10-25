@@ -1,0 +1,34 @@
+# 시놀로지 Container Manager → 프로젝트 → 생성 에서 이 파일을 그대로 씀
+# 접속: http://NAS주소:3000 (난투 아레나), http://NAS주소:3100 (럭키 체스)
+# 비밀 값(DATABASE_URL 등)은 같은 폴더의 .env 파일에 넣기 (.env.example 참고)
+services:
+  brawl:
+    build: .
+    image: brawl-arena:latest
+    container_name: brawl-arena
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      DATA_DIR: /app/data
+      DATABASE_URL: ${DATABASE_URL:-}
+      ADMIN_NICKS: ${ADMIN_NICKS:-}
+      CHESS_URL: ${CHESS_URL:-}
+      CHESS_SECRET: ${CHESS_SECRET:-}
+    volumes:
+      - ./data:/app/data
+
+  chess:
+    image: brawl-arena:latest
+    container_name: lucky-chess
+    restart: unless-stopped
+    depends_on:
+      - brawl
+    command: ["node", "chess/server.js"]
+    ports:
+      - "3100:3100"
+    environment:
+      PORT: 3100
+      BRAWL_URL: http://brawl:3000
+      CHESS_SECRET: ${CHESS_SECRET:-}

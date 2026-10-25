@@ -132,3 +132,6 @@ brawl-online/
 - 로그인·가입 시도 횟수를 IP별로 제한해요.
 - 승패와 기록은 서버가 판정하고 저장해서 브라우저에서 조작할 수 없어요.
 - `DATABASE_URL` 연결 문자열은 절대 GitHub 코드에 넣지 말고 Render 환경 변수에만 넣으세요.
+
+## Docker / 시놀로지 NAS
+`Dockerfile`과 `docker-compose.yml`이 있어요. 시놀로지 NAS에서 실행하는 방법은 [NAS.md](NAS.md)를 보세요.
