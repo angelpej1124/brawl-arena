@@ -131,16 +131,26 @@ async function loadMe() {
 }
 
 // ---------------- 로비: 방 고르기 ----------------
-let roomTab = 'list', pickedRoom = null;
+let roomTab = 'list', pickedRoom = null, botDiff = store.get('chess_bot') || 'medium';
+const DIFF_KO = { easy: '이지', medium: '미들', hard: '하드' };
+const DIFF_SUB = { easy: '아무 데나 둬요', medium: '손해는 피해요', hard: '두 수 앞을 봐요' };
 function setRoomTab(t) {
   roomTab = t;
-  for (const [id, k] of [['rtList', 'list'], ['rtCreate', 'create'], ['rtCode', 'code']]) $(id).setAttribute('aria-selected', String(t === k));
-  $('rpList').hidden = t !== 'list'; $('rpCreate').hidden = t !== 'create'; $('rpCode').hidden = t !== 'code';
-  $('playBtn').textContent = t === 'list' ? '빠른 입장' : t === 'create' ? '방 만들기' : '입장하기';
+  for (const [id, k] of [['rtList', 'list'], ['rtCreate', 'create'], ['rtCode', 'code'], ['rtBot', 'bot']]) $(id).setAttribute('aria-selected', String(t === k));
+  $('rpList').hidden = t !== 'list'; $('rpCreate').hidden = t !== 'create'; $('rpCode').hidden = t !== 'code'; $('rpBot').hidden = t !== 'bot';
+  $('playBtn').textContent = t === 'list' ? '빠른 입장' : t === 'create' ? '방 만들기' : t === 'bot' ? `봇이랑 시작 (${DIFF_KO[botDiff]})` : '입장하기';
 }
 $('rtList').onclick = () => setRoomTab('list');
 $('rtCreate').onclick = () => setRoomTab('create');
 $('rtCode').onclick = () => setRoomTab('code');
+$('rtBot').onclick = () => setRoomTab('bot');
+function setBotDiff(d) {
+  botDiff = DIFF_KO[d] ? d : 'medium'; store.set('chess_bot', botDiff);
+  for (const b of $('diffs').querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.d === botDiff));
+  if (roomTab === 'bot') setRoomTab('bot');
+}
+for (const b of $('diffs').querySelectorAll('button')) b.onclick = () => setBotDiff(b.dataset.d);
+setBotDiff(botDiff);
 $('roomcode').value = store.get('chess_room') || '';
 const timeLabel = (m) => (m ? m + '분' : '무제한');
 async function loadRooms() {
@@ -168,6 +178,7 @@ async function loadRanking() {
 $('playBtn').onclick = () => {
   if (roomTab === 'list') go('quick');
   else if (roomTab === 'create') go('create', { title: $('roomTitle').value.trim() });
+  else if (roomTab === 'bot') go('bot', { diff: botDiff });
   else {
     const code = $('roomcode').value.trim().toLowerCase();
     if (!code) { $('err').textContent = '초대 코드를 써 주세요.'; return; }
@@ -225,7 +236,7 @@ function onMsg(m) {
     myId = m.id; reconnectUntil = 0;
     $('playBtn').disabled = false;
     $('lobby').hidden = true; $('play').hidden = false;
-    $('roomName').innerHTML = m.isPublic ? `<b>${esc(m.title)}</b>` : `초대 코드 <b>${esc(m.room)}</b>`;
+    $('roomName').innerHTML = m.isPublic || m.bot ? `<b>${esc(m.title)}</b>` : `초대 코드 <b>${esc(m.room)}</b>`;
     resultSeen = false; gemsMsg = null; flipped = false;
   } else if (m.t === 'state') {
     onState(m.room);
@@ -397,6 +408,7 @@ function renderStrips() {
     const tags = [];
     if (s.host) tags.push('<span class="tag">방장</span>');
     if (s.guest) tags.push('<span class="tag">게스트</span>');
+    if (s.bot) tags.push('<span class="tag bot">봇</span>');
     if (s.away) tags.push('<span class="tag away">연결 끊김</span>');
     else if (room.phase === 'waiting' && s.ready) tags.push('<span class="tag rdy">준비 완료</span>');
     if (i === room.you) tags.push('<span class="tag">나</span>');
@@ -467,9 +479,10 @@ function renderPanel() {
     if (me) {
       if (!both) { status = '상대를 기다리는 중…'; sub = room.isPublic ? '공개 방 목록에 보여요. 빠른 입장으로도 들어와요.' : `친구에게 초대 코드 <b>${esc(room.code)}</b> 를 알려 주세요.`; }
       else if (me.ready && !(opp && opp.ready)) { status = '준비 완료! 상대를 기다려요'; sub = '둘 다 준비하면 흑백을 랜덤으로 정하고 바로 시작해요.'; }
+      else if (room.bot) { status = '준비를 누르면 바로 시작해요'; sub = '봇은 항상 준비돼 있어요. 흑백은 랜덤!'; }
       else { status = '준비를 누르면 시작해요'; sub = '둘 다 준비하면 흑백을 랜덤으로 정하고 바로 시작해요.'; }
       btns.push(`<button class="btn ${me.ready ? 'ok' : 'main'} wide" data-a="ready" ${both ? '' : 'disabled'}>${me.ready ? '준비 취소' : (room.result ? '한 판 더! 준비' : '준비')}</button>`);
-      btns.push('<button class="btn wide" data-a="stand">일어나서 구경하기</button>');
+      if (!room.bot) btns.push('<button class="btn wide" data-a="stand">일어나서 구경하기</button>');
     } else {
       status = both ? '두 사람이 준비하고 있어요' : '빈자리가 있어요';
       sub = '구경하는 중이에요';
@@ -484,6 +497,14 @@ function renderPanel() {
   $('timeWho').textContent = room.hostMe ? '(방장이 정해요)' : '(방장만 바꿀 수 있어요)';
   $('times').innerHTML = [3, 5, 10, 0].map((m) => `<button type="button" data-m="${m}" aria-pressed="${room.time === m}" ${room.hostMe ? '' : 'disabled'}>${timeLabel(m)}</button>`).join('');
   for (const b of $('times').querySelectorAll('button')) b.onclick = () => send({ t: 'time', min: Number(b.dataset.m) });
+  // 봇전: 방 안에서도 난이도 바꾸기
+  const botSeat = room.seats.find((x) => x && x.bot);
+  $('botBox').hidden = !botSeat;
+  if (botSeat) {
+    $('botWho').textContent = room.hostMe ? '' : '(방장만 바꿀 수 있어요)';
+    $('roomDiffs').innerHTML = ['easy', 'medium', 'hard'].map((d) => `<button type="button" data-d="${d}" aria-pressed="${botSeat.bot === d}" ${room.hostMe ? '' : 'disabled'}><b>${DIFF_KO[d]}</b><small>${DIFF_SUB[d]}</small></button>`).join('');
+    for (const b of $('roomDiffs').querySelectorAll('button')) b.onclick = () => { send({ t: 'botdiff', diff: b.dataset.d }); store.set('chess_bot', b.dataset.d); botDiff = b.dataset.d; };
+  }
   const specs = room.specs;
   $('specs').hidden = !specs.length;
   $('specs').innerHTML = `구경 중 ${specs.length}명: ${specs.map((s) => esc(s.name) + (s.host ? ' (방장)' : '')).join(', ')}`;
@@ -531,7 +552,7 @@ function renderResult() {
   let gems = '';
   if (gemsMsg) gems = gemsMsg.gained ? `<div class="gems">보석 +${gemsMsg.gained}</div>` : `<div class="small">${esc(gemsMsg.why || '')}</div>`;
   else if (mc && room.you >= 0 && !room.seats[room.you].guest && r.enough) gems = '<div class="small">보석 받는 중…</div>';
-  else if (mc && room.seats[room.you] && room.seats[room.you].guest) gems = '<div class="small">게스트는 보석을 받지 않아요. 가입하면 이기면 +100!</div>';
+  else if (mc && room.seats[room.you] && room.seats[room.you].guest) gems = '<div class="small">게스트는 보석을 받지 않아요. 가입하면 보석이 쌓여요!</div>';
   box.hidden = false;
   box.innerHTML = `<div><div class="big">${big}</div><div class="small">${esc(r.text)}${r.winner ? ` · ${esc(name(r.winner))} (${r.winner === 'w' ? '백' : '흑'})` : ''}</div>${gems}
     <button class="btn" type="button" id="resultClose" style="margin-top:12px">판 보기</button></div>`;

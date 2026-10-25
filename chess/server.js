@@ -14,6 +14,10 @@ const path = require('path');
 const crypto = require('crypto');
 const { handleUpgrade } = require('../ws');
 const R = require('./public/rules.js');
+const BOT = require('./bot.js');
+// 봇전: 난이도 이름 · 봇이 행동하기 전에 기다리는 시간 (사람이 볼 수 있게)
+const BOT_DIFFS = { easy: '이지', medium: '미들', hard: '하드' };
+const BOT_DELAY = { coin: 800, dice: 800, move: 750, rps: 1200 };
 
 const PORT = process.env.PORT || 3100;
 const BRAWL_URL = String(process.env.BRAWL_URL || 'http://localhost:3000').replace(/\/+$/, '');
@@ -39,7 +43,7 @@ const LUCKY = {
   RPS_SHOW_MS: 2400,  // 가위바위보 결과를 보여 주는 시간
   TIE_SHOW_MS: 1500,  // 비겼을 때 보여 주고 다시 하기까지
 };
-if (process.env.LUCKY_FAST) for (const k of Object.keys(LUCKY)) LUCKY[k] = Math.round(LUCKY[k] / 20);   // 테스트용
+
 const RPS = ['r', 'p', 's'];   // 바위 · 보 · 가위
 const beats = (a, b) => (a === 'r' && b === 's') || (a === 's' && b === 'p') || (a === 'p' && b === 'r');
 
@@ -160,6 +164,7 @@ const REASON = {
   repetition: '같은 수 3번 반복', kingcap: '킹을 잡음', resign: '기권', timeout: '시간 초과', abandon: '나감', agreed: '서로 무승부 합의',
 };
 
+if (process.env.LUCKY_FAST) for (const o of [LUCKY, BOT_DELAY]) for (const k of Object.keys(o)) o[k] = Math.round(o[k] / 20);   // 테스트용
 class ChessRoom {
   constructor(code, { isPublic = false, title = '' } = {}) {
     this.code = code;
@@ -204,7 +209,7 @@ class ChessRoom {
     if (i < 0) return;
     if (this.phase === 'playing') return '게임 중에는 일어날 수 없어요. 기권을 눌러 주세요.';
     this.seats[i] = null;
-    for (const s of this.seats) if (s) s.ready = false;
+    for (const s of this.seats) if (s) s.ready = !!s.bot;
   }
   setReady(cid, on) {
     const i = this.seatOf(cid);
@@ -217,8 +222,56 @@ class ChessRoom {
     if (this.phase !== 'waiting') return '게임 중에는 시간을 바꿀 수 없어요.';
     if (!CONFIG.TIME_OPTIONS.includes(min)) return '고를 수 없는 시간이에요.';
     this.time = min;
-    for (const s of this.seats) if (s) s.ready = false;
+    for (const s of this.seats) if (s) s.ready = !!s.bot;
   }
+
+  // ---------- 봇전 ----------
+  // 빈자리에 봇을 앉힘 (봇은 항상 준비 완료)
+  addBot(diff) {
+    const i = this.seats.findIndex((s) => !s);
+    if (i < 0 || !BOT_DIFFS[diff]) return false;
+    this.seats[i] = { cid: 'bot' + nextId++, name: `봇 (${BOT_DIFFS[diff]})`, nick: null, bot: diff, ready: true, secret: '', away: null };
+    this.botNext = 0;
+    return true;
+  }
+  setBotDiff(cid, diff) {
+    const s = this.seats.find((x) => x && x.bot);
+    if (!s) return;
+    if (cid !== this.host) return '봇 난이도는 방장만 정할 수 있어요.';
+    if (this.phase !== 'waiting') return '게임 중에는 난이도를 바꿀 수 없어요.';
+    if (!BOT_DIFFS[diff]) return '없는 난이도예요.';
+    s.bot = diff; s.name = `봇 (${BOT_DIFFS[diff]})`;
+  }
+  // 봇 차례면 잠깐 기다렸다가 동전·주사위·이동·가위바위보를 대신 함
+  botTick() {
+    const g = this.game;
+    if (!g || !g.lucky || this.phase !== 'playing') return;
+    const now = Date.now();
+    const seatOfColor = (c) => this.seats[g.color.indexOf(c)];
+    let who = null, kind = null;
+    if (g.stage === 'rps') {
+      for (const c of ['w', 'b']) { const s = seatOfColor(c); if (s && s.bot && !g.rps.picks[c]) { who = s; kind = 'rps'; } }
+    } else if (['coin', 'dice', 'move'].includes(g.stage)) {
+      const s = seatOfColor(g.st.turn);
+      if (s && s.bot) { who = s; kind = g.stage; }
+    }
+    if (!who) { this.botNext = 0; return; }
+    const key = kind + g.turns.length + ':' + g.left;
+    if (this.botKey !== key) { this.botKey = key; this.botNext = now + BOT_DELAY[kind] + Math.random() * 300; }
+    if (now < this.botNext) return;
+    this.botKey = null;
+    if (kind === 'coin') this.throwCoin(who.cid);
+    else if (kind === 'dice') this.rollDice(who.cid);
+    else if (kind === 'rps') { this.pickRps(who.cid, BOT.pickRps()); this.broadcast(); }
+    else if (kind === 'move') {
+      const m = BOT.chooseMove(g.st, who.bot, g.left);
+      if (!m) { this.endTurn(); this.broadcast(); return; }
+      const err = this.luckyMove(who.cid, m.from, m.to, m.promo);
+      if (err) { console.error('봇 수 오류', err); this.endTurn(); }
+      this.broadcast();
+    }
+  }
+  hasBot() { return this.seats.some((s) => s && s.bot); }
 
   // 흑·백은 매 판 랜덤
   start() {
@@ -229,7 +282,7 @@ class ChessRoom {
     this.game = { st, history: [R.posKey(st)], moves: [], last: null, color, clock: { w: ms, b: ms }, turnAt: Date.now(), draw: null };
     this.phase = 'playing';
     this.result = null;
-    for (const s of this.seats) s.ready = false;
+    for (const s of this.seats) s.ready = !!s.bot;
     if (this.lucky) {
       Object.assign(this.game, { lucky: true, turns: [], stage: null, until: 0, coin: null, dice: null, left: 0, rps: null });
       this.beginTurn('w');
@@ -433,6 +486,8 @@ class ChessRoom {
     if (this.time && this.left(g.st.turn) <= 0) { g.clock[g.st.turn] = 0; this.flag(g.st.turn); return; }
     if (g.lucky) this.luckyTick();
     if (this.phase !== 'playing') return;
+    this.botTick();
+    if (this.phase !== 'playing') return;
     // 연결이 끊긴 채 오래 안 돌아오면 패배
     for (let i = 0; i < 2; i++) {
       const s = this.seats[i];
@@ -456,7 +511,8 @@ class ChessRoom {
       const res = winner === null ? 'draw' : winner === g.color[i] ? 'win' : 'loss';
       if (!enough) { this.tell(s.cid, { t: 'gems', gained: 0, why: '너무 일찍 끝난 판은 보석을 받지 못해요 (둘 다 2수 이상 둬야 해요).' }); continue; }
       const nick = s.nick, cid = s.cid;
-      brawl('/api/chess/internal/result', { method: 'POST', body: { nick, result: res } }).then((r) => {
+      const botSeat = this.seats.find((x) => x && x.bot);
+      brawl('/api/chess/internal/result', { method: 'POST', body: { nick, result: res, bot: botSeat ? botSeat.bot : undefined } }).then((r) => {
         if (r.status === 200) this.tell(cid, { t: 'gems', gained: r.json.gained, profile: r.json.profile });
         else { console.error('보석 지급 실패', nick, r.status, r.json.error); this.tell(cid, { t: 'gems', gained: 0, why: '보석을 지급하지 못했어요: ' + (r.json.error || '계정 서버 오류') }); }
       });
@@ -472,7 +528,8 @@ class ChessRoom {
     const g = this.game;
     const base = {
       code: this.code, title: this.title, isPublic: this.isPublic, time: this.time, phase: this.phase, lucky: this.lucky,
-      seats: this.seats.map((s, i) => s && { name: s.name, guest: !s.nick, ready: s.ready, away: !!s.away, color: g ? g.color[i] : null, host: s.cid === this.host }),
+      bot: this.hasBot(),
+      seats: this.seats.map((s, i) => s && { name: s.name, guest: !s.nick && !s.bot, bot: s.bot || null, ready: s.ready, away: !!s.away, color: g ? g.color[i] : null, host: s.cid === this.host }),
       specs: [...this.members.entries()].filter(([cid]) => this.seatOf(cid) < 0).map(([cid, m]) => ({ id: cid, name: m.name, host: cid === this.host })),
       game: g && {
         st: g.st, moves: g.moves, last: g.last, draw: g.draw,
@@ -512,9 +569,10 @@ class ChessRoom {
     const i = this.seatOf(cid);
     if (i >= 0) {
       if (this.phase === 'playing') { this.seats[i].away = Date.now(); this.seats[i].cid = null; }
-      else { this.seats[i] = null; for (const s of this.seats) if (s) s.ready = false; }
+      else { this.seats[i] = null; for (const s of this.seats) if (s) s.ready = !!s.bot; }
     }
     if (this.host === cid) this.host = this.members.keys().next().value || null;
+    if (this.hasBot() && this.members.size === 0 && !this.seats.some((s) => s && s.away)) return this.close();
     if (this.members.size === 0 && !(this.phase === 'playing' && this.seats.some((s) => s && s.away))) return this.close();
     if (this.members.size === 0) return;   // 게임 중 둘 다 끊김: 돌아올 시간 동안 방을 남겨 둠
     this.event({ k: i >= 0 && this.phase === 'playing' ? 'away' : 'leave', n: m.name });
@@ -587,7 +645,20 @@ server.on('upgrade', (req, sock) => {
       }
       if (!socket.open) return;
       let r;
-      if (m.mode === 'create') {
+      if (m.mode === 'bot') {
+        // 봇전: 나만 들어가는 비공개 방 + 봇
+        const diff = BOT_DIFFS[m.diff] ? m.diff : 'medium';
+        let code;
+        do { code = 'bot-' + crypto.randomBytes(4).toString('hex'); } while (rooms.has(code));
+        r = new ChessRoom(code, { isPublic: false, title: `봇전 · ${BOT_DIFFS[diff]}` });
+        rooms.set(code, r);
+        r.join(id, socket, name, nick);
+        r.addBot(diff);
+        room = r;
+        socket.send(JSON.stringify({ t: 'welcome', id, room: r.code, title: r.title, isPublic: false, bot: true }));
+        r.broadcast();
+        return;
+      } else if (m.mode === 'create') {
         const code = newPublicCode();
         r = new ChessRoom(code, { isPublic: true, title: clean(m.title, 20) || `${name}의 방` });
         rooms.set(code, r);
@@ -638,6 +709,7 @@ server.on('upgrade', (req, sock) => {
       else if (m.t === 'sit') err = room.sit(id, false);
       else if (m.t === 'stand') err = room.stand(id);
       else if (m.t === 'time') err = room.setTime(id, Number(m.min));
+      else if (m.t === 'botdiff') err = room.setBotDiff(id, String(m.diff || ''));
       else if (m.t === 'coin' && room.phase === 'playing' && room.game.lucky) err = room.throwCoin(id);
       else if (m.t === 'dice' && room.phase === 'playing' && room.game.lucky) err = room.rollDice(id);
       else if (m.t === 'rps') err = room.pickRps(id, String(m.pick || ''));

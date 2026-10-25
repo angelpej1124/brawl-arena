@@ -46,6 +46,15 @@
   .tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; background: #15122a; padding: 4px; border-radius: 12px; }
   .tabs button { border: 0; border-radius: 9px; padding: 9px 4px; background: transparent; color: var(--muted); font-size: 14px; font-weight: 700; cursor: pointer; }
   .tabs button[aria-selected="true"] { background: var(--panel-2); color: var(--text); }
+  .tabs.four { grid-template-columns: repeat(4, 1fr); }
+  .tabs.four button { font-size: 13px; padding: 9px 2px; }
+  .diffs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .diffs button { display: grid; gap: 2px; justify-items: center; padding: 10px 4px; border-radius: 10px; border: 1.5px solid var(--line); background: #15122a; color: var(--muted); cursor: pointer; }
+  .diffs button b { font-family: var(--display); font-weight: 400; font-size: 20px; color: var(--text); }
+  .diffs button small { font-size: 11px; }
+  .diffs button[aria-pressed="true"] { border-color: var(--accent); background: var(--panel-2); color: var(--text); }
+  .diffs button[aria-pressed="true"] b { color: var(--accent); }
+  .diffs button:disabled { cursor: default; opacity: .6; }
   .sub-btn { width: 100%; margin-top: 14px; padding: 11px; border-radius: 10px; border: 1.5px solid var(--accent); background: transparent;
     color: var(--accent); font-size: 15px; font-weight: 700; cursor: pointer; }
   .sub-btn:disabled { opacity: .5; cursor: wait; }
@@ -105,6 +114,7 @@
   .strip .tag { font-size: 11px; font-weight: 700; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; white-space: nowrap; }
   .strip .tag.rdy { color: var(--ok); border-color: var(--ok); }
   .strip .tag.away { color: var(--danger); border-color: var(--danger); }
+  .strip .tag.bot { color: var(--gem); border-color: var(--gem); }
   .strip .tag.turn { color: #2a1a00; background: var(--accent); border-color: var(--accent); }
   .colorchip { width: 16px; height: 16px; border-radius: 50%; flex: none; border: 2px solid var(--line); }
   .colorchip.w { background: #fffaf0; } .colorchip.b { background: #231c3d; border-color: #6b62a0; }
@@ -263,10 +273,11 @@
       </div>
 
       <span class="lbl" id="roomLbl">방 고르기</span>
-      <div class="tabs" role="tablist" aria-labelledby="roomLbl">
+      <div class="tabs four" role="tablist" aria-labelledby="roomLbl">
         <button role="tab" id="rtList" aria-selected="true">공개 방</button>
         <button role="tab" id="rtCreate" aria-selected="false">방 만들기</button>
         <button role="tab" id="rtCode" aria-selected="false">초대 코드</button>
+        <button role="tab" id="rtBot" aria-selected="false">봇전</button>
       </div>
       <div id="rpList" class="room-pane">
         <ul class="rooms" id="roomList" aria-label="공개 방 목록"></ul>
@@ -279,6 +290,15 @@
       <div id="rpCode" class="room-pane" hidden>
         <label for="roomcode">초대 코드 (같은 코드를 쓴 친구끼리만 · 목록에 안 보여요)</label>
         <input id="roomcode" maxlength="20" placeholder="예: ourroom" autocomplete="off" autocapitalize="off">
+      </div>
+      <div id="rpBot" class="room-pane" hidden>
+        <span class="lbl" style="margin-top:0">봇 난이도</span>
+        <div class="diffs" id="diffs" role="group" aria-label="봇 난이도">
+          <button type="button" data-d="easy"><b>이지</b><small>아무 데나 둬요</small></button>
+          <button type="button" data-d="medium" aria-pressed="true"><b>미들</b><small>손해는 피해요</small></button>
+          <button type="button" data-d="hard"><b>하드</b><small>두 수 앞을 봐요</small></button>
+        </div>
+        <p class="hint" id="botGemHint">봇전 보석: 이기면 이지 +10 · 미들 +25 · 하드 +50, 지거나 비기면 +5 (랭킹에는 안 들어가요)</p>
       </div>
       <button class="play" id="playBtn">빠른 입장</button>
       <div id="err" role="status"></div>
@@ -333,7 +353,11 @@
         <div class="status" id="status" role="status"></div>
         <div class="btns" id="btns"></div>
         <div id="timeBox">
-          <p class="hint" id="ruleHelp" style="margin-top:0">차례마다 동전 → 앞면이면 주사위 수만큼 이동 · 뒷면이면 상대 차례 · 잡을 땐 가위바위보 (지면 내 기물이 죽음) · 킹을 잡으면 승리</p>
+          <div id="botBox" hidden style="margin-top:14px">
+            <span class="lbl" style="margin-top:0">봇 난이도 <small id="botWho"></small></span>
+            <div class="diffs" id="roomDiffs"></div>
+          </div>
+          <p class="hint" id="ruleHelp" style="margin-top:8px">차례마다 동전 → 앞면이면 주사위 수만큼 이동 · 뒷면이면 상대 차례 · 잡을 땐 가위바위보 (지면 내 기물이 죽음) · 킹을 잡으면 승리</p>
           <span class="lbl">한 사람 시간 <small id="timeWho"></small></span>
           <div class="times" id="times"></div>
         </div>

@@ -193,7 +193,9 @@ async function api(req, res, urlPath) {
       }
       if (req.method === 'POST' && urlPath === '/api/chess/internal/result') {
         const b = await readBody(req);
-        const r = accounts.chessRecord(accounts.keyOf(String(b.nick || '')), String(b.result || ''));
+        const nk = accounts.keyOf(String(b.nick || ''));
+        // 봇전이면 보석만 (난이도별), 사람끼리면 전적·랭킹도
+        const r = b.bot ? accounts.chessBotRecord(nk, String(b.result || ''), String(b.bot)) : accounts.chessRecord(nk, String(b.result || ''));
         if (!r) return sendJson(res, 404, { error: '그런 계정이 없어요.' });
         // 난투 아레나에 접속해 있으면 보석이 바로 바뀌어 보임
         const k = accounts.keyOf(r.profile.nick);

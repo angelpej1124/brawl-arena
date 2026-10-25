@@ -123,6 +123,8 @@ const GEMS = {
   KILL_BOT: 5,        // 봇을 장외로 보냄
   CHESS_WIN: 100,     // 럭키 체스에서 이김
   CHESS_PLAY: 20,     // 럭키 체스 한 판 끝까지 둠 (지거나 비김)
+  // 럭키 체스 봇전 (난이도별 이기면 받는 보석 · 지거나 비기면 PLAY). 체스 랭킹·전적에는 안 들어감
+  CHESS_BOT: { easy: 10, medium: 25, hard: 50, PLAY: 5 },
 };
 const GACHA = {
   COST: 150,          // 뽑기 1회 가격
@@ -280,6 +282,18 @@ function chessRecord(key, result) {
   a.chess.g += 1;
   a.chess[result === 'win' ? 'w' : result === 'loss' ? 'l' : 'd'] += 1;
   const gems = result === 'win' ? GEMS.CHESS_WIN : GEMS.CHESS_PLAY;
+  a.gems += gems;
+  save();
+  return { profile: publicProfile(a), gained: gems };
+}
+function chessBotRecord(key, result, diff) {
+  const a = store.accounts[key];
+  if (!a) return null;
+  if (!['win', 'loss', 'draw'].includes(result) || !['easy', 'medium', 'hard'].includes(diff)) throw new Error('잘못된 결과예요.');
+  const gems = result === 'win' ? GEMS.CHESS_BOT[diff] : GEMS.CHESS_BOT.PLAY;
+  a.chessBot = a.chessBot || {};
+  const k = diff + (result === 'win' ? 'W' : 'G');
+  a.chessBot[k] = (a.chessBot[k] || 0) + 1;
   a.gems += gems;
   save();
   return { profile: publicProfile(a), gained: gems };
@@ -542,6 +556,6 @@ setInterval(() => {
 
 module.exports = {
   init, storage: () => storageName, signup, login, logout, fromToken, profileOf, nickOf, isTaken,
-  keyOf, owns, ownedOf, chessRecord, chessRanking, setSkill, record, buySkin, equipSkin, skinsOf, adminWarn, changeNick, ranking, cleanNick, gacha, buySkill, shopInfo, shopDaily, shopBuy, todayShop, patchSeen, patchClaim, isAdmin, adminList, adminUpdate,
+  keyOf, owns, ownedOf, chessRecord, chessBotRecord, chessRanking, setSkill, record, buySkin, equipSkin, skinsOf, adminWarn, changeNick, ranking, cleanNick, gacha, buySkill, shopInfo, shopDaily, shopBuy, todayShop, patchSeen, patchClaim, isAdmin, adminList, adminUpdate,
   GEMS, GACHA, BASE_SKILLS, ALL_SKILLS,
 };
