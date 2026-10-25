@@ -13,6 +13,23 @@ const store = {
   sset(k, v) { try { if (v == null) sessionStorage.removeItem(k); else sessionStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
 };
 
+// ---------------- 모바일: 두 번 탭해도 화면이 확대되지 않게 ----------------
+// 빠르게 두 번째로 탭하면 확대 동작을 막음. 버튼이었다면 막힌 클릭을 대신 눌러 줘서 그대로 동작함.
+// (입력칸은 글자 선택·커서 이동을 위해 그대로 둠)
+{
+  let lastTap = 0;
+  document.addEventListener('touchend', (e) => {
+    const now = Date.now();
+    const quick = now - lastTap < 400;
+    lastTap = now;
+    if (!quick || e.touches.length || e.target.closest('input, textarea, select')) return;
+    e.preventDefault();
+    const btn = e.target.closest('button, a[href], [data-a], [data-pick]');
+    if (btn && !btn.disabled) btn.click();
+  }, { passive: false });
+  document.addEventListener('dblclick', (e) => e.preventDefault(), { passive: false });
+}
+
 // ---------------- 기물 그림 (직접 그린 SVG) ----------------
 const SHAPES = {
   p: '<circle cx="50" cy="30" r="13"/><path d="M36 80 C38 62 41 52 44 46 L56 46 C59 52 62 62 64 80Z"/><ellipse cx="50" cy="46" rx="15" ry="5"/>',
