@@ -20,20 +20,20 @@ DSM 7.2 이상, **Container Manager**가 되는 모델(대부분의 plus 모델,
 2. 프로젝트 이름: `brawl-arena` · 경로: `/docker/brawl-arena` 선택
 3. 원본: **"기존 docker-compose.yml 사용"** → 다음 → (웹 포털 설정은 건너뛰기) → **완료**
 4. 처음엔 이미지를 만들고(빌드) 켜느라 1~3분 걸려요. 컨테이너 `brawl-arena`, `lucky-chess`가 **실행 중**이 되면 끝!
-5. 같은 와이파이에서 `http://NAS내부IP:3000` 으로 들어가 봐요 (체스는 `:3100`).
+5. 같은 와이파이에서 `http://NAS내부IP:8580` 으로 들어가 봐요 (체스는 `:8581`).
    체스를 안 쓰면 `lucky-chess` 컨테이너는 꺼 둬도 돼요.
 
 ## 4. 밖(친구 폰·다른 집)에서 들어오게 하기
 QuickConnect로는 게임에 못 들어와요. 아래 둘 중 하나를 해요.
 
-**A. 간단하게 (http)**: 공유기 설정에서 **포트 포워딩** 외부 3000 → NAS내부IP:3000 (체스는 3100).
-주소는 `http://집공인IP:3000` 또는 DDNS 주소 `http://내이름.synology.me:3000`.
+**A. 간단하게 (http)**: 공유기 설정에서 **포트 포워딩** 외부 8580 → NAS내부IP:8580 (체스는 8581).
+주소는 `http://집공인IP:8580` 또는 DDNS 주소 `http://내이름.synology.me:8580`.
 
 **B. 추천 (https, 포트 번호 없이)**
 1. **제어판 → 외부 액세스 → DDNS**에서 `내이름.synology.me` 만들기 (Let's Encrypt 인증서도 같이 받기)
 2. **제어판 → 로그인 포털 → 고급 → 역방향 프록시 → 생성**
    - 소스: HTTPS · 호스트 이름 `내이름.synology.me` (또는 `game.내이름.synology.me`) · 포트 443
-   - 대상: HTTP · `localhost` · 포트 3000
+   - 대상: HTTP · `localhost` · 포트 8580
    - **사용자 지정 머리글 → 생성 → WebSocket** 을 꼭 눌러 추가 (이게 없으면 게임 접속이 안 돼요)
 3. 공유기에서 443 포트를 NAS로 포트 포워딩
 4. 주소: `https://내이름.synology.me`
@@ -41,6 +41,11 @@ QuickConnect로는 게임에 못 들어와요. 아래 둘 중 하나를 해요.
 ## 5. 업데이트할 때
 새 소스코드로 파일을 덮어쓴 뒤 (`.env`와 `data` 폴더는 그대로 두기)
 **Container Manager → 프로젝트 → brawl-arena → 작업 → 빌드** (끝나면 자동으로 다시 켜짐)
+
+## 오류가 날 때
+- **`driver failed programming external connectivity` / `port is already allocated` / `address already in use`**
+  NAS의 다른 앱이 같은 포트를 쓰고 있어요. `.env`에 `BRAWL_PORT=8590`, `CHESS_PORT=8591`처럼 다른 숫자를 넣고
+  프로젝트를 **정지 → 시작** (또는 작업 → 빌드) 하세요. 컨테이너 목록에 예전에 만든 `brawl-arena`가 남아 있으면 지우고 다시 해요.
 
 ## 참고
 - `DATABASE_URL`을 안 쓰면 계정 기록은 `docker/brawl-arena/data/accounts.json`에 저장돼요. 이 폴더를 가끔 백업하세요.

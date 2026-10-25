@@ -1,5 +1,6 @@
 # 시놀로지 Container Manager → 프로젝트 → 생성 에서 이 파일을 그대로 씀
-# 접속: http://NAS주소:3000 (난투 아레나), http://NAS주소:3100 (럭키 체스)
+# 접속: http://NAS주소:8580 (난투 아레나), http://NAS주소:8581 (럭키 체스)
+# NAS에서 이미 쓰는 포트와 겹치면 .env의 BRAWL_PORT · CHESS_PORT 를 다른 숫자로 바꾸기
 # 비밀 값(DATABASE_URL 등)은 같은 폴더의 .env 파일에 넣기 (.env.example 참고)
 services:
   brawl:
@@ -8,7 +9,7 @@ services:
     container_name: brawl-arena
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "${BRAWL_PORT:-8580}:3000"
     environment:
       PORT: 3000
       DATA_DIR: /app/data
@@ -27,7 +28,7 @@ services:
       - brawl
     command: ["node", "chess/server.js"]
     ports:
-      - "3100:3100"
+      - "${CHESS_PORT:-8581}:3100"
     environment:
       PORT: 3100
       BRAWL_URL: http://brawl:3000
