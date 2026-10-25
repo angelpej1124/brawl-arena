@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#12101f">
 <title>난투 아레나</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -34,7 +34,8 @@
   body { margin: 0; background: var(--bg); color: var(--text); overflow: hidden; font-family: var(--body);
     user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
   /* 모바일: 두 번 탭해도 화면이 확대되지 않게 */
-  html, body, * { touch-action: manipulation; }
+  html, body, * { touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+  #touch, #touch * { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
   #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
 
   /* ---------- 로비 ---------- */

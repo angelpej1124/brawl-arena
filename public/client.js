@@ -714,15 +714,34 @@ if (isTouch) { $('keysPc').hidden = true; $('keysTouch').hidden = false; }
 $('playBtn').addEventListener('click', () => enter());
 ['gNick', 'roomcode', 'roomTitle'].forEach((id) => $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') enter(); }));
 $('exitBtn').addEventListener('click', () => { location.reload(); });
-// 모바일: 빠르게 두 번 탭할 때 화면이 확대되는 것 막기 (버튼·입력칸은 그대로 눌림)
+// 모바일: 두 번 탭·두 손가락으로 화면이 확대되는 것 막기 (삼성 인터넷 등 user-scalable=no를 무시하는 브라우저 포함)
 {
-  let lastTap = 0;
+  let lastTap = 0, lastEl = null;
   document.addEventListener('touchend', (e) => {
-    const now2 = Date.now();
-    if (now2 - lastTap < 350 && !e.target.closest('input, textarea, select, button, a, label')) e.preventDefault();
-    lastTap = now2;
+    const now2 = Date.now(), el = e.target;
+    if (now2 - lastTap < 400 && !el.closest('input, textarea, select')) {
+      e.preventDefault();   // 확대 막기
+      // 버튼·링크는 두 번째 탭도 눌린 것으로 처리 (preventDefault 때문에 click이 안 생기므로 직접)
+      const btn = el.closest('button, a, label, [role="button"]');
+      if (btn && !btn.disabled && !el.closest('#touch')) btn.click();
+    }
+    lastTap = now2; lastEl = el;
   }, { passive: false });
   document.addEventListener('dblclick', (e) => e.preventDefault(), { passive: false });
+  // 두 손가락 확대(핀치) 막기 — 게임 버튼을 여러 손가락으로 누르는 건 포인터 이벤트라 그대로 됨
+  document.addEventListener('touchmove', (e) => { if (e.touches.length > 1 || (e.scale && e.scale !== 1)) e.preventDefault(); }, { passive: false });
+  for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
+  // 게임 화면·게임 버튼: 터치 기본 동작(확대·스크롤·길게 누르기 메뉴)을 아예 끔
+  for (const id of ['touch', 'game']) $(id).addEventListener('touchstart', (e) => { if (!e.target.closest('input, textarea, select')) e.preventDefault(); }, { passive: false });
+  // 그래도 확대돼 버렸으면 원래 크기로 되돌림
+  const vp = document.querySelector('meta[name=viewport]');
+  const unzoom = () => {
+    if (!window.visualViewport || window.visualViewport.scale <= 1.01 || !vp) return;
+    const c = vp.getAttribute('content');
+    vp.setAttribute('content', c.replace(/maximum-scale=[\d.]+/, 'maximum-scale=1.01'));
+    setTimeout(() => vp.setAttribute('content', c), 60);
+  };
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', unzoom);
 }
 try { const km = sessionStorage.getItem('kickMsg'); if (km) { sessionStorage.removeItem('kickMsg'); $('err').textContent = km; } } catch (_) {}
 
