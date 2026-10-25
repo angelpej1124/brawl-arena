@@ -7,6 +7,7 @@ DSM 7.2 이상, **Container Manager**가 되는 모델(대부분의 plus 모델,
 2. **File Station**의 `docker` 공유 폴더 안에 `brawl-arena` 폴더를 만들어요.
 3. 소스코드 zip을 그 폴더에 올리고, 오른쪽 클릭 → **압축 풀기 → 여기에 압축 풀기**를 해요.
    `docker/brawl-arena/` 바로 안에 `Dockerfile`, `docker-compose.yml`, `server.js`가 보이면 돼요. 폴더가 한 겹 더 생겼으면 안의 파일을 위로 옮겨요.
+4. `docker/brawl-arena/` 안에 **`data`** 폴더가 있는지 확인하고, 없으면 만들어요 (계정 파일 저장용 — 없으면 실행이 안 돼요).
 
 ## 2. 설정 파일 (.env)
 1. PC에서 `.env.example`을 복사해 이름을 **`.env`**로 바꾸고 메모장으로 값을 채워요.
@@ -46,6 +47,9 @@ QuickConnect로는 게임에 못 들어와요. 아래 둘 중 하나를 해요.
 - **`driver failed programming external connectivity` / `port is already allocated` / `address already in use`**
   NAS의 다른 앱이 같은 포트를 쓰고 있어요. `.env`에 `BRAWL_PORT=8590`, `CHESS_PORT=8591`처럼 다른 숫자를 넣고
   프로젝트를 **정지 → 시작** (또는 작업 → 빌드) 하세요. 컨테이너 목록에 예전에 만든 `brawl-arena`가 남아 있으면 지우고 다시 해요.
+
+- **`Bind mount failed: '/volume1/docker/brawl-arena/data' does not exist`**
+  File Station에서 `docker/brawl-arena` 안에 `data` 폴더를 만들고 다시 빌드하세요.
 
 ## 참고
 - `DATABASE_URL`을 안 쓰면 계정 기록은 `docker/brawl-arena/data/accounts.json`에 저장돼요. 이 폴더를 가끔 백업하세요.
