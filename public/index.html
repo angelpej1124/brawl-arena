@@ -245,6 +245,22 @@
   #rpBody { display: flex; flex-direction: column; gap: 8px; }
   .rp-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
   .rp-lbl { font-size: 12px; color: var(--muted); width: 34px; flex: none; }
+  .chip .tdwip { font-size: 10px; margin-left: 4px; padding: 0 5px; border-radius: 6px; background: #3a2f10; color: #ffcf3f; }
+  .tgls { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+  .tgls button { border: 1.5px solid var(--line); border-radius: 99px; background: #15122a; color: var(--muted); font: 700 13px inherit; font-family: inherit;
+    padding: 5px 13px; cursor: pointer; touch-action: manipulation; }
+  .tgls button::before { content: '○ '; font-weight: 400; }
+  .tgls button.on { background: var(--accent); border-color: var(--accent); color: #2a1a00; }
+  .tgls button.on::before { content: '● '; }
+  .tgls button:disabled { cursor: default; }
+  .tgls button:disabled:not(.on) { opacity: .55; }
+  /* 입체 모드 조이스틱 (터치) */
+  .joy { position: absolute; left: calc(18px + env(safe-area-inset-left, 0px)); bottom: calc(22px + env(safe-area-inset-bottom, 0px)); width: 150px; height: 150px;
+    border-radius: 50%; background: rgba(255,255,255,.08); border: 2px solid rgba(255,255,255,.22); pointer-events: auto; touch-action: none; }
+  .joy-knob { position: absolute; left: 50%; top: 50%; width: 60px; height: 60px; margin: -30px 0 0 -30px; border-radius: 50%; background: rgba(255,255,255,.3);
+    border: 2px solid rgba(255,255,255,.5); pointer-events: none; }
+  @media (orientation: landscape) and (max-height: 500px) { .joy { width: 128px; height: 128px; } .joy-knob { width: 52px; height: 52px; margin: -26px 0 0 -26px; } }
+  @media (pointer: coarse) and (min-width: 700px) and (min-height: 600px) { .joy { width: 200px; height: 200px; left: calc(28px + env(safe-area-inset-left, 0px)); bottom: calc(30px + env(safe-area-inset-bottom, 0px)); } .joy-knob { width: 80px; height: 80px; margin: -40px 0 0 -40px; } }
   .seg { display: inline-flex; border: 1.5px solid var(--line); border-radius: 99px; overflow: hidden; flex: none; }
   .seg button { border: 0; background: #15122a; color: var(--muted); font: 700 13px inherit; font-family: inherit; padding: 5px 12px; cursor: pointer; touch-action: manipulation; }
   .seg button.on { background: var(--accent); color: #2a1a00; }
@@ -479,8 +495,11 @@
     </div>
     <div class="rp-row"><span class="rp-lbl" id="colorLbl">색</span><div class="swatches" id="swatches" role="group" aria-labelledby="colorLbl"></div></div>
     <div class="rp-row"><span class="rp-lbl" id="modeLbl">모드</span>
-      <div class="seg" id="segTeam" role="group" aria-label="개인 또는 팀"><button type="button" data-v="0">개인</button><button type="button" data-v="1">팀</button></div>
-      <div class="seg" id="segDbl" role="group" aria-label="일반 또는 더블"><button type="button" data-v="0">일반</button><button type="button" data-v="1">더블</button></div>
+      <div class="tgls" id="modeTgls" role="group" aria-labelledby="modeLbl">
+        <button type="button" data-f="0" aria-pressed="false" title="같은 팀끼리는 공격·스킬이 안 통해요">팀</button>
+        <button type="button" data-f="1" aria-pressed="false" title="스킬 2개 (Q · E)">더블</button>
+        <button type="button" data-f="2" aria-pressed="false" title="위에서 내려다보는 모드: 8방향 이동, 바닥 밖으로 떨어지면 장외">입체</button>
+      </div>
       <span class="rp-note" id="modeNote"></span>
     </div>
     <div class="rp-row" id="teamRow" hidden><span class="rp-lbl" id="teamLbl">팀</span><div class="teams" id="teamList" role="group" aria-labelledby="teamLbl"></div></div>
@@ -496,6 +515,7 @@
 <div id="rotate" hidden>가로로 돌리면 더 크게 보여요</div>
 
 <div id="touch" hidden>
+  <div class="joy" id="tJoy" hidden><div class="joy-knob" id="tJoyKnob"></div></div>
   <div class="tbtn tb-l" data-k="l">◀</div>
   <div class="tbtn tb-r" data-k="r">▶</div>
   <div class="tbtn tb-d" data-k="d">▼</div>
@@ -557,6 +577,7 @@
 </div>
 
 <script src="maps.js"></script>
+<script src="tdmaps.js"></script>
 <script src="skins.js"></script>
 <script src="patch.js"></script>
 <script src="sound.js"></script>

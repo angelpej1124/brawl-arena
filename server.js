@@ -505,7 +505,7 @@ server.on('upgrade', (req, sock) => {
         if (err) return notice(err);
       } else if (m.t === 'mode' && room) {
         if (id !== room.hostId) return notice('모드는 방장만 바꿀 수 있어요.');
-        const err = room.sim.setMode(!!m.team, !!m.dbl);
+        const err = room.sim.setMode(!!m.team, !!m.dbl, m.td === undefined ? room.sim.td : !!m.td);
         if (err) return notice(err);
         if (room.sim.doubleMode) for (const cid of room.clients.keys()) room.giveSkill2(cid);
       } else if (m.t === 'team' && room) {
