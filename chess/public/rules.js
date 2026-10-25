@@ -61,7 +61,8 @@
   function inCheck(st, c = st.turn) { const k = kingSq(st.b, c); return k >= 0 && attacked(st.b, k, other(c)); }
 
   // 규칙상 가능한 수 (자기 왕이 체크에 남는 수 포함)
-  function pseudo(st) {
+  //  lucky = 럭키 룰: 체크 개념이 없어서 캐슬링할 때 공격받는 칸을 따지지 않음
+  function pseudo(st, lucky) {
     const { b, turn } = st, out = [];
     const add = (from, to, flag) => {
       const p = b[from];
@@ -85,7 +86,7 @@
           if (!onBoard(f + df, r + dir)) continue;
           const to = (r + dir) * 8 + f + df;
           if (b[to] && colorOf(b[to]) !== turn) add(s, to, 'c');
-          else if (to === st.ep) out.push({ from: s, to, flag: 'e' });
+          else if (to === st.ep && colorOf(b[to + (turn === 'w' ? 8 : -8)]) === other(turn)) out.push({ from: s, to, flag: 'e' });
         }
       } else if (t === 'n' || t === 'k') {
         for (const [df, dr] of t === 'n' ? KNIGHT : KING) {
@@ -98,11 +99,12 @@
           // 캐슬링: 권리가 있고, 사이가 비고, 왕이 지나가는 칸이 공격받지 않을 때
           const home = turn === 'w' ? 60 : 4, opp = other(turn);
           const [KS, QS, R] = turn === 'w' ? ['K', 'Q', 'R'] : ['k', 'q', 'r'];
-          if (s === home && !attacked(b, home, opp)) {
+          const safe = (q) => lucky || !attacked(b, q, opp);
+          if (s === home && safe(home)) {
             if (st.castle[KS] && b[home + 3] === R && !b[home + 1] && !b[home + 2]
-              && !attacked(b, home + 1, opp) && !attacked(b, home + 2, opp)) out.push({ from: s, to: home + 2, flag: 'k' });
+              && safe(home + 1) && safe(home + 2)) out.push({ from: s, to: home + 2, flag: 'k' });
             if (st.castle[QS] && b[home - 4] === R && !b[home - 1] && !b[home - 2] && !b[home - 3]
-              && !attacked(b, home - 1, opp) && !attacked(b, home - 2, opp)) out.push({ from: s, to: home - 2, flag: 'q' });
+              && safe(home - 1) && safe(home - 2)) out.push({ from: s, to: home - 2, flag: 'q' });
           }
         }
       } else {
@@ -188,7 +190,8 @@
   }
 
   // 기보 표기 (예: Nf3, exd5, O-O, e8=Q+, Qh4#)
-  function san(st, m) {
+  //  lucky = 럭키 룰: 체크 표시(+ #) 없이
+  function san(st, m, lucky) {
     const p = st.b[m.from], t = p.toLowerCase();
     let s;
     if (m.flag === 'k') s = 'O-O';
@@ -199,7 +202,7 @@
         s = (cap ? FILES[fileOf(m.from)] + 'x' : '') + sqName(m.to) + (m.promo ? '=' + m.promo.toUpperCase() : '');
       } else {
         // 같은 칸에 갈 수 있는 같은 종류 기물이 있으면 구별
-        const twins = legalMoves(st).filter((x) => x.to === m.to && x.from !== m.from && st.b[x.from] === p);
+        const twins = (lucky ? luckyMoves(st) : legalMoves(st)).filter((x) => x.to === m.to && x.from !== m.from && st.b[x.from] === p);
         let dis = '';
         if (twins.length) {
           if (!twins.some((x) => fileOf(x.from) === fileOf(m.from))) dis = FILES[fileOf(m.from)];
@@ -209,6 +212,7 @@
         s = t.toUpperCase() + dis + (cap ? 'x' : '') + sqName(m.to);
       }
     }
+    if (lucky) return s;
     const n = apply(st, m);
     if (inCheck(n)) s += legalMoves(n).length ? '+' : '#';
     return s;
@@ -222,7 +226,47 @@
     return list[0];
   }
 
-  const api = { initial, clone, apply, legalMoves, inCheck, status, san, posKey, findMove, insufficient, cannotMate, sqName, colorOf, other, kingSq };
+  // ---------------- 럭키 룰 ----------------
+  //  - 한 턴에 주사위 수만큼 여러 번 움직임 → 체크·체크메이트 대신 킹을 잡으면 승리
+  //  - 자기 킹을 공격받는 칸에 둬도 됨 (상대가 동전에서 뒷면이 나올 수도 있으니까)
+  function luckyMoves(st) { return pseudo(st, true); }
+  // 수를 둔 뒤에도 차례는 그대로 (턴을 넘기는 건 서버가 정함)
+  function applyLucky(st, m) {
+    const n = apply(st, m);
+    n.turn = st.turn; n.full = st.full;
+    return n;
+  }
+  // 가위바위보에 져서 공격한 기물이 죽음 (그 자리에서 사라짐)
+  function removeAt(st, sq) {
+    const n = clone(st);
+    n.b[sq] = null;
+    for (const [q, right] of [[63, 'K'], [56, 'Q'], [7, 'k'], [0, 'q']]) if (sq === q) n.castle[right] = false;
+    if (sq === 60) n.castle.K = n.castle.Q = false;
+    if (sq === 4) n.castle.k = n.castle.q = false;
+    n.ep = -1;
+    return n;
+  }
+  function findLuckyMove(st, from, to, promo) {
+    const list = luckyMoves(st).filter((m) => m.from === from && m.to === to);
+    if (!list.length) return null;
+    if (list[0].promo) return list.find((m) => m.promo === String(promo || '').toLowerCase()) || null;
+    return list[0];
+  }
+  // 이 수가 상대 기물을 잡는 수인지 → 잡히는 칸 (앙파상이면 옆 칸)
+  function victimSq(st, m) {
+    if (m.flag === 'e') return m.to + (st.turn === 'w' ? 8 : -8);
+    return m.flag === 'c' ? m.to : -1;
+  }
+  // 럭키 룰 판 상태: 킹이 없어진 쪽이 짐, 킹만 둘 남으면 무승부
+  function luckyStatus(st) {
+    const wk = st.b.includes('K'), bk = st.b.includes('k');
+    if (!wk) return { over: true, winner: 'b', reason: 'kingcap' };
+    if (!bk) return { over: true, winner: 'w', reason: 'kingcap' };
+    if (st.b.every((p) => !p || p.toLowerCase() === 'k')) return { over: true, winner: null, reason: 'material' };
+    return { over: false };
+  }
+
+  const api = { luckyMoves, applyLucky, removeAt, findLuckyMove, victimSq, luckyStatus, initial, clone, apply, legalMoves, inCheck, status, san, posKey, findMove, insufficient, cannotMate, sqName, colorOf, other, kingSq };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.ChessRules = api;
 })(typeof window !== 'undefined' ? window : globalThis);

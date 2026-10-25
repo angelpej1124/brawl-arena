@@ -80,6 +80,7 @@
   .gem-row small { color: var(--muted); }
   .link-note { background: rgba(111,227,154,.08); border: 1px solid rgba(111,227,154,.3); border-radius: 10px; padding: 10px 12px; font-size: 13px; line-height: 1.55; margin-top: 12px; }
   .link-note a { color: var(--lucky); font-weight: 700; }
+  .rules-note { background: rgba(255,207,63,.07); border-color: rgba(255,207,63,.3); }
   .rank { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
   .rank li { display: flex; justify-content: space-between; gap: 8px; background: #15122a; border-radius: 8px; padding: 8px 10px; font-size: 14px; }
   .rank li span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -104,6 +105,7 @@
   .strip .tag { font-size: 11px; font-weight: 700; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; white-space: nowrap; }
   .strip .tag.rdy { color: var(--ok); border-color: var(--ok); }
   .strip .tag.away { color: var(--danger); border-color: var(--danger); }
+  .strip .tag.turn { color: #2a1a00; background: var(--accent); border-color: var(--accent); }
   .colorchip { width: 16px; height: 16px; border-radius: 50%; flex: none; border: 2px solid var(--line); }
   .colorchip.w { background: #fffaf0; } .colorchip.b { background: #231c3d; border-color: #6b62a0; }
   .caps { display: flex; flex-wrap: wrap; align-items: center; min-height: 18px; }
@@ -120,6 +122,8 @@
   .sq.l { background: var(--sq-light); } .sq.d { background: var(--sq-dark); }
   .sq.last::before { content: ''; position: absolute; inset: 0; background: rgba(255,207,63,.45); }
   .sq.sel::before { content: ''; position: absolute; inset: 0; background: rgba(111,227,154,.55); }
+  .sq.atk::before { content: ''; position: absolute; inset: 0; background: rgba(94,242,255,.5); }
+  .sq.vic::before { content: ''; position: absolute; inset: 0; background: rgba(255,90,90,.55); }
   .sq.chk::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle, rgba(255,60,60,.95) 0%, rgba(255,60,60,.5) 45%, transparent 75%); }
   .sq svg { position: relative; width: 88%; height: 88%; pointer-events: none; filter: drop-shadow(0 2px 1px rgba(0,0,0,.25)); }
   .sq .co { position: absolute; font-size: clamp(8px, 1.6vw, 11px); font-weight: 700; pointer-events: none; z-index: 1; }
@@ -140,6 +144,58 @@
   .promo button { width: 64px; height: 64px; border-radius: 12px; border: 1px solid var(--line); background: var(--sq-light); cursor: pointer; padding: 4px; }
   .promo button svg { width: 100%; height: 100%; }
 
+  /* ---------- 럭키 룰: 동전 · 주사위 · 가위바위보 ---------- */
+  .board-msg.lucky-msg > div { min-width: 0; width: min(88%, 380px); padding: 16px 14px; }
+  .lk { display: grid; justify-items: center; gap: 6px; perspective: 600px; }
+  .lk-who { font-family: var(--display); font-size: 22px; color: var(--text); letter-spacing: .5px; }
+  .lk .small b { color: var(--text); }
+  .lk .auto { font-size: 12px; opacity: .8; }
+  .coin { position: relative; width: 104px; height: 104px; border: 0; padding: 0; background: none; cursor: pointer; transform-style: preserve-3d; margin: 6px 0; }
+  .coin:disabled { cursor: default; }
+  .coin:not(:disabled) { animation: bob 1.2s ease-in-out infinite; }
+  .coin .cf { position: absolute; inset: 0; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; backface-visibility: hidden; -webkit-backface-visibility: hidden;
+    font-size: 44px; line-height: 1; font-weight: 700; box-shadow: inset 0 0 0 6px rgba(0,0,0,.12), 0 8px 18px rgba(0,0,0,.45); }
+  .coin .cf small { font-size: 14px; margin-top: 2px; }
+  .coin .front { background: radial-gradient(circle at 35% 30%, #fff2a8, #ffcf3f 55%, #c98a10); color: #1f6b45; }
+  .coin .back { background: radial-gradient(circle at 35% 30%, #e6e1ff, #a39fc4 55%, #5c5786); color: #2a2240; transform: rotateY(180deg); }
+  .coin.spin-h { animation: flipH 1.1s cubic-bezier(.2,.7,.3,1) forwards; }
+  .coin.spin-t { animation: flipT 1.1s cubic-bezier(.2,.7,.3,1) forwards; }
+  @keyframes flipH { 0% { transform: translateY(0) rotateY(0); } 45% { transform: translateY(-46px) rotateY(1080deg); } 100% { transform: translateY(0) rotateY(1800deg); } }
+  @keyframes flipT { 0% { transform: translateY(0) rotateY(0); } 45% { transform: translateY(-46px) rotateY(1080deg); } 100% { transform: translateY(0) rotateY(1980deg); } }
+  @keyframes bob { 50% { transform: translateY(-6px); } }
+  .reveal { opacity: 0; animation: pop .35s ease-out 1.05s forwards; }
+  .hands.reveal, .lk .hands.reveal + .big { animation-delay: .05s; }
+  .lk .hands.reveal + .big.reveal { animation-delay: .35s; }
+  @keyframes pop { from { opacity: 0; transform: scale(.8); } to { opacity: 1; transform: scale(1); } }
+  .die { width: 96px; height: 96px; border: 0; background: none; padding: 0; cursor: pointer; margin: 6px 0; }
+  .die:disabled { cursor: default; }
+  .die:not(:disabled) { animation: bob 1.2s ease-in-out infinite; }
+  .die svg { width: 100%; height: 100%; filter: drop-shadow(0 8px 10px rgba(0,0,0,.45)); }
+  .die.rolling { animation: shake .15s linear infinite; }
+  .die.landed { animation: pop .3s ease-out; }
+  @keyframes shake { 0% { transform: rotate(-14deg) translateY(-4px); } 50% { transform: rotate(12deg) translateY(3px); } 100% { transform: rotate(-14deg) translateY(-4px); } }
+  .hands { display: flex; gap: 8px; align-items: center; justify-content: center; margin: 6px 0 2px; }
+  .hand { width: 86px; padding: 8px 4px 6px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--panel-2); color: var(--text);
+    display: grid; justify-items: center; gap: 2px; font-weight: 700; font-size: 13px; cursor: pointer; }
+  .hand span { font-size: 40px; line-height: 1.15; }
+  button.hand:hover, button.hand:focus-visible { border-color: var(--accent); transform: translateY(-3px); }
+  .hand.chosen { border-color: var(--accent); cursor: default; }
+  .hand.hidden-hand { opacity: .6; cursor: default; }
+  .hand.show { cursor: default; border-color: var(--accent); }
+  .hand.hidden-hand span { animation: bob 1s ease-in-out infinite; }
+  .vs { font-family: var(--display); color: var(--accent); font-size: 20px; }
+  .moves.lucky { display: block; }
+  .lg { display: flex; align-items: baseline; gap: 6px; padding: 3px 0; border-bottom: 1px solid rgba(52,48,90,.5); line-height: 1.5; }
+  .lg-c { width: 10px; height: 10px; border-radius: 50%; flex: none; align-self: center; border: 1.5px solid var(--line); }
+  .lg-c.w { background: #fffaf0; } .lg-c.b { background: #231c3d; border-color: #6b62a0; }
+  .lg-h, .lg-t { font-size: 11px; font-weight: 700; border-radius: 5px; padding: 0 5px; flex: none; }
+  .lg-h { background: var(--accent); color: #2a1a00; } .lg-t { background: #3a3566; color: var(--muted); }
+  .lg-m { min-width: 0; overflow-wrap: anywhere; }
+  .lg-m b { font-weight: 500; margin-right: 4px; }
+  .lg-m b.lg-cap { color: var(--ok); font-weight: 700; }
+  .lg-m b.lg-lost { color: var(--danger); font-weight: 700; }
+  .lg-x { color: var(--muted); font-size: 13px; }
+  .lg:last-child .lg-m b:last-child { color: var(--accent); font-weight: 700; }
   .side { width: 100%; max-width: 320px; display: grid; gap: 10px; }
   .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; }
   .status { font-weight: 700; font-size: 15px; line-height: 1.5; }
@@ -174,7 +230,7 @@
   <div class="lobby-wrap">
     <div class="card">
       <h1>럭키 체스 <span class="clover" aria-hidden="true">☘</span></h1>
-      <p class="sub">친구와 온라인으로 한 판! 흑백은 매 판 랜덤이에요</p>
+      <p class="sub">동전 · 주사위 · 가위바위보로 즐기는 운빨 체스! 흑백은 매 판 랜덤</p>
 
       <section id="authBox" aria-label="로그인">
         <div class="tabs" role="tablist">
@@ -240,6 +296,13 @@
       </div>
       <div class="gem-row"><i class="gem-ico" aria-hidden="true"></i><b id="gemCount">-</b><small>보석</small></div>
       <p class="hint">이기면 보석 +100 · 지거나 비겨도 끝까지 두면 +20</p>
+      <div class="link-note rules-note">
+        <b>☘ 럭키 룰</b><br>
+        ① 내 차례가 오면 동전 던지기 — 뒷면이면 상대 차례로 넘어가요<br>
+        ② 앞면이면 주사위! 나온 수(1~6)만큼 기물을 꼭 다 움직여요<br>
+        ③ 상대 기물을 잡을 땐 가위바위보 — 지면 내 기물이 죽어요<br>
+        ④ 체크메이트 대신 <b>킹을 잡으면 승리</b>
+      </div>
       <div class="link-note">
         <b>난투 아레나 계정 그대로!</b><br>
         같은 닉네임·비밀번호로 로그인돼요. 여기서 가입해도 난투 아레나에서 쓸 수 있고, 보석도 같이 쌓여요.<br>
@@ -270,6 +333,7 @@
         <div class="status" id="status" role="status"></div>
         <div class="btns" id="btns"></div>
         <div id="timeBox">
+          <p class="hint" id="ruleHelp" style="margin-top:0">차례마다 동전 → 앞면이면 주사위 수만큼 이동 · 뒷면이면 상대 차례 · 잡을 땐 가위바위보 (지면 내 기물이 죽음) · 킹을 잡으면 승리</p>
           <span class="lbl">한 사람 시간 <small id="timeWho"></small></span>
           <div class="times" id="times"></div>
         </div>

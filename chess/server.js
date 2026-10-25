@@ -31,6 +31,17 @@ const CONFIG = {
   AWAY_MS: 60000,             // 게임 중 연결이 끊기면 이 시간 안에 돌아와야 함 (아니면 패배)
   MIN_PLIES_FOR_GEMS: 4,      // 둘 다 최소 2수씩 둬야 보석 지급 (바로 기권해서 보석 모으기 방지)
 };
+// 럭키 룰 진행 시간 (밀리초)
+const LUCKY = {
+  AUTO_MS: 6000,      // 동전·주사위 버튼을 안 누르면 이 시간 뒤 저절로 던짐
+  SHOW_MS: 1700,      // 동전·주사위 결과를 보여 주는 시간
+  RPS_MS: 15000,      // 가위바위보 고르는 시간 (안 고르면 랜덤)
+  RPS_SHOW_MS: 2400,  // 가위바위보 결과를 보여 주는 시간
+  TIE_SHOW_MS: 1500,  // 비겼을 때 보여 주고 다시 하기까지
+};
+if (process.env.LUCKY_FAST) for (const k of Object.keys(LUCKY)) LUCKY[k] = Math.round(LUCKY[k] / 20);   // 테스트용
+const RPS = ['r', 'p', 's'];   // 바위 · 보 · 가위
+const beats = (a, b) => (a === 'r' && b === 's') || (a === 's' && b === 'p') || (a === 'p' && b === 'r');
 
 // ---------- 공통 ----------
 const hits = new Map();
@@ -146,7 +157,7 @@ let nextId = 1;
 const onlineCount = () => [...rooms.values()].reduce((n, r) => n + r.members.size, 0);
 const REASON = {
   checkmate: '체크메이트', stalemate: '스테일메이트', material: '기물 부족', fifty: '50수 규칙',
-  repetition: '같은 수 3번 반복', resign: '기권', timeout: '시간 초과', abandon: '나감', agreed: '서로 무승부 합의',
+  repetition: '같은 수 3번 반복', kingcap: '킹을 잡음', resign: '기권', timeout: '시간 초과', abandon: '나감', agreed: '서로 무승부 합의',
 };
 
 class ChessRoom {
@@ -159,6 +170,7 @@ class ChessRoom {
     this.seats = [null, null];  // { cid, name, nick, ready, secret, away }
     this.host = null;
     this.time = CONFIG.DEFAULT_TIME;
+    this.lucky = true;          // 럭키 체스는 항상 럭키 룰 (동전·주사위·가위바위보)
     this.phase = 'waiting';
     this.game = null;           // { st, history, moves, last, color: [seat0색, seat1색], clock: {w,b}, turnAt, draw }
     this.result = null;         // 마지막 판 결과
@@ -218,17 +230,159 @@ class ChessRoom {
     this.phase = 'playing';
     this.result = null;
     for (const s of this.seats) s.ready = false;
-    this.event({ k: 'start', w: this.seats[whiteSeat].name, b: this.seats[1 - whiteSeat].name });
+    if (this.lucky) {
+      Object.assign(this.game, { lucky: true, turns: [], stage: null, until: 0, coin: null, dice: null, left: 0, rps: null });
+      this.beginTurn('w');
+    }
+    this.event({ k: 'start', w: this.seats[whiteSeat].name, b: this.seats[1 - whiteSeat].name, lucky: this.lucky });
+  }
+
+  // ================= 럭키 룰 =================
+  //  턴 시작 → 동전 (앞면: 주사위, 뒷면: 상대 턴) → 주사위 수만큼 이동
+  //  잡는 수는 가위바위보: 이기면 잡고, 지면 내 기물이 죽음 · 비기면 다시
+  //  시계는 실제로 기물을 움직이는 동안만 흐름
+  setStage(stage, ms) { const g = this.game; g.stage = stage; g.until = ms ? Date.now() + ms : 0; }
+  curTurn() { const t = this.game.turns; return t[t.length - 1]; }
+  pauseClock() {
+    const g = this.game;
+    if (this.time && g.stage === 'move') { g.clock[g.st.turn] = Math.max(0, g.clock[g.st.turn] - (Date.now() - g.turnAt)); }
+  }
+  beginTurn(c) {
+    const g = this.game;
+    g.st.turn = c; g.coin = null; g.dice = null; g.left = 0; g.rps = null;
+    g.turns.push({ c, coin: null, dice: null, moves: [] });
+    if (g.turns.length > 400) g.turns.shift();
+    this.setStage('coin', LUCKY.AUTO_MS);
+  }
+  isMover(cid) {
+    const i = this.seatOf(cid), g = this.game;
+    return this.phase === 'playing' && g && g.lucky && i >= 0 && g.color[i] === g.st.turn;
+  }
+  throwCoin(cid) {
+    const g = this.game;
+    if (g.stage !== 'coin') return;
+    if (cid && !this.isMover(cid)) return '내 차례에만 동전을 던질 수 있어요.';
+    const heads = crypto.randomInt(2) === 0;
+    g.coin = heads ? 'H' : 'T'; this.curTurn().coin = g.coin;
+    this.setStage('coinShow', LUCKY.SHOW_MS);
+    this.event({ k: 'coin', heads, c: g.st.turn });
+  }
+  rollDice(cid) {
+    const g = this.game;
+    if (g.stage !== 'dice') return;
+    if (cid && !this.isMover(cid)) return '내 차례에만 주사위를 굴릴 수 있어요.';
+    g.dice = crypto.randomInt(1, 7); this.curTurn().dice = g.dice;
+    this.setStage('diceShow', LUCKY.SHOW_MS);
+    this.event({ k: 'dice', n: g.dice, c: g.st.turn });
+  }
+  startMoving() {
+    const g = this.game;
+    g.left = g.dice;
+    this.setStage('move', 0);
+    g.turnAt = Date.now();
+    if (!R.luckyMoves(g.st).length) return this.endTurn();
+  }
+  endTurn() {
+    const g = this.game;
+    this.pauseClock();
+    this.beginTurn(R.other(g.st.turn));
+  }
+  luckyMove(cid, from, to, promo) {
+    const g = this.game, i = this.seatOf(cid);
+    if (g.color[i] !== g.st.turn) return '상대 차례예요.';
+    if (g.stage !== 'move') return g.stage === 'rps' || g.stage === 'rpsShow' ? '가위바위보가 끝나면 움직일 수 있어요.' : '동전과 주사위를 먼저 던져야 해요.';
+    if (![from, to].every((x) => Number.isInteger(x) && x >= 0 && x < 64)) return '잘못된 수예요.';
+    const m = R.findLuckyMove(g.st, from, to, promo);
+    if (!m) return '둘 수 없는 수예요.';
+    if (this.time && g.clock[g.st.turn] - (Date.now() - g.turnAt) <= 0) { this.pauseClock(); g.clock[g.st.turn] = 0; return this.flag(g.st.turn); }
+    if (g.draw && g.draw !== g.st.turn) g.draw = null;
+    const victim = R.victimSq(g.st, m);
+    if (victim >= 0) {
+      // 잡으려면 가위바위보
+      this.pauseClock();
+      g.rps = { from: m.from, to: m.to, promo: m.promo || null, atk: g.st.turn, victim, picks: {}, show: null };
+      this.setStage('rps', LUCKY.RPS_MS);
+      this.event({ k: 'rps' });
+      return;
+    }
+    this.doLuckyMove(m, '');
+  }
+  doLuckyMove(m, note) {
+    const g = this.game;
+    const txt = R.san(g.st, m, true) + note;
+    const cap = R.victimSq(g.st, m) >= 0;
+    g.st = R.applyLucky(g.st, m);
+    g.moves.push(txt); this.curTurn().moves.push(txt);
+    g.last = { from: m.from, to: m.to };
+    g.left -= 1;
+    this.event({ k: 'move', san: txt, cap, chk: false });
+    this.afterLucky();
+  }
+  afterLucky() {
+    const g = this.game;
+    const s = R.luckyStatus(g.st);
+    if (s.over) return this.end(s.winner, s.reason);
+    if (g.left <= 0 || !R.luckyMoves(g.st).length) this.endTurn();
+  }
+  pickRps(cid, pick) {
+    const g = this.game, i = this.seatOf(cid);
+    if (this.phase !== 'playing' || !g.lucky || g.stage !== 'rps' || i < 0) return;
+    if (!RPS.includes(pick)) return '가위·바위·보 중에서 골라 주세요.';
+    const c = g.color[i];
+    if (g.rps.picks[c]) return;
+    g.rps.picks[c] = pick;
+    if (g.rps.picks.w && g.rps.picks.b) this.resolveRps();
+  }
+  resolveRps() {
+    const g = this.game, r = g.rps;
+    for (const c of ['w', 'b']) if (!r.picks[c]) { r.picks[c] = RPS[crypto.randomInt(3)]; r.auto = (r.auto || '') + c; }
+    const a = r.picks[r.atk], d = r.picks[R.other(r.atk)];
+    r.show = { a, d, res: a === d ? 'tie' : beats(a, d) ? 'win' : 'lose', auto: r.auto || '' };
+    this.setStage('rpsShow', r.show.res === 'tie' ? LUCKY.TIE_SHOW_MS : LUCKY.RPS_SHOW_MS);
+    this.event({ k: 'rpsres', res: r.show.res });
+  }
+  finishRps() {
+    const g = this.game, r = g.rps;
+    if (r.show.res === 'tie') { r.picks = {}; r.show = null; r.auto = ''; this.setStage('rps', LUCKY.RPS_MS); this.broadcast(); return; }
+    this.setStage('move', 0);
+    g.turnAt = Date.now();
+    g.rps = null;
+    const m = R.findLuckyMove(g.st, r.from, r.to, r.promo);
+    if (!m) return this.afterLucky();
+    if (r.show.res === 'win') return this.doLuckyMove(m, '');
+    // 졌으면 공격한 내 기물이 죽고, 상대 기물은 그대로
+    const txt = R.san(g.st, m, true) + '✗';
+    g.st = R.removeAt(g.st, r.from);
+    g.moves.push(txt); this.curTurn().moves.push(txt);
+    g.last = { from: r.from, to: r.from };
+    g.left -= 1;
+    this.event({ k: 'rpslost' });
+    this.afterLucky();
+  }
+  luckyTick() {
+    const g = this.game;
+    if (!g.until || Date.now() < g.until) return;
+    if (g.stage === 'coin') this.throwCoin(null);
+    else if (g.stage === 'coinShow') {
+      if (g.coin === 'H') this.setStage('dice', LUCKY.AUTO_MS);
+      else this.beginTurn(R.other(g.st.turn));
+      this.broadcast();
+    } else if (g.stage === 'dice') this.rollDice(null);
+    else if (g.stage === 'diceShow') { this.startMoving(); this.broadcast(); }
+    else if (g.stage === 'rps') this.resolveRps();
+    else if (g.stage === 'rpsShow') this.finishRps();
   }
   // 지금 차례인 사람의 남은 시간
   left(c) {
     const g = this.game;
     if (!g || !this.time) return null;
-    return g.clock[c] - (this.phase === 'playing' && g.st.turn === c ? Date.now() - g.turnAt : 0);
+    const running = this.phase === 'playing' && g.st.turn === c && (!g.lucky || g.stage === 'move');
+    return g.clock[c] - (running ? Date.now() - g.turnAt : 0);
   }
   move(cid, from, to, promo) {
     const g = this.game, i = this.seatOf(cid);
     if (this.phase !== 'playing' || i < 0) return;
+    if (g.lucky) return this.luckyMove(cid, from, to, promo);
     if (g.color[i] !== g.st.turn) return '상대 차례예요.';
     if (![from, to].every((x) => Number.isInteger(x) && x >= 0 && x < 64)) return '잘못된 수예요.';
     const m = R.findMove(g.st, from, to, promo);
@@ -250,8 +404,10 @@ class ChessRoom {
     if (s.over) this.end(s.winner, s.reason);
   }
   flag(c) {
-    // 시간이 끝났는데 상대가 체크메이트를 만들 기물이 없으면 무승부
-    if (R.cannotMate(this.game.st.b, R.other(c))) this.end(null, 'timeout');
+    // 시간이 끝났는데 상대가 체크메이트를 만들 기물이 없으면 무승부 (럭키 룰은 킹만 남았을 때만)
+    const noWin = this.game.lucky ? this.game.st.b.every((p) => !p || R.colorOf(p) === c || p.toLowerCase() === 'k')
+      : R.cannotMate(this.game.st.b, R.other(c));
+    if (noWin) this.end(null, 'timeout');
     else this.end(R.other(c), 'timeout');
   }
   resign(cid) {
@@ -275,6 +431,8 @@ class ChessRoom {
     if (this.phase !== 'playing') return;
     const g = this.game;
     if (this.time && this.left(g.st.turn) <= 0) { g.clock[g.st.turn] = 0; this.flag(g.st.turn); return; }
+    if (g.lucky) this.luckyTick();
+    if (this.phase !== 'playing') return;
     // 연결이 끊긴 채 오래 안 돌아오면 패배
     for (let i = 0; i < 2; i++) {
       const s = this.seats[i];
@@ -286,6 +444,7 @@ class ChessRoom {
     const g = this.game;
     if (this.time) { g.clock[g.st.turn] = Math.max(0, this.left(g.st.turn)); }
     this.phase = 'waiting';
+    if (g.lucky) { g.stage = 'over'; g.until = 0; }
     g.draw = null;
     const enough = g.moves.length >= CONFIG.MIN_PLIES_FOR_GEMS;
     this.result = { winner, reason, text: REASON[reason] || reason, enough };
@@ -312,12 +471,19 @@ class ChessRoom {
   broadcast() {
     const g = this.game;
     const base = {
-      code: this.code, title: this.title, isPublic: this.isPublic, time: this.time, phase: this.phase,
+      code: this.code, title: this.title, isPublic: this.isPublic, time: this.time, phase: this.phase, lucky: this.lucky,
       seats: this.seats.map((s, i) => s && { name: s.name, guest: !s.nick, ready: s.ready, away: !!s.away, color: g ? g.color[i] : null, host: s.cid === this.host }),
       specs: [...this.members.entries()].filter(([cid]) => this.seatOf(cid) < 0).map(([cid, m]) => ({ id: cid, name: m.name, host: cid === this.host })),
       game: g && {
         st: g.st, moves: g.moves, last: g.last, draw: g.draw,
         clock: this.time ? { w: this.left('w'), b: this.left('b') } : null,
+        lucky: !!g.lucky,
+        ...(g.lucky ? {
+          stage: g.stage, wait: g.until ? Math.max(0, g.until - Date.now()) : 0, coin: g.coin, dice: g.dice, left: g.left,
+          turns: g.turns.slice(-60),
+          // 가위바위보: 고른 건 공개될 때까지 숨김 (골랐는지만 보냄)
+          rps: g.rps && { from: g.rps.from, to: g.rps.to, victim: g.rps.victim, atk: g.rps.atk, picked: { w: !!g.rps.picks.w, b: !!g.rps.picks.b }, show: g.rps.show },
+        } : {}),
       },
       result: this.result, ev: this.lastEvent || null,
     };
@@ -361,7 +527,7 @@ class ChessRoom {
     const h = this.members.get(this.host);
     return {
       code: this.code, title: this.title, players: this.seats.filter(Boolean).length, specs: this.members.size - this.seats.filter((s) => s && s.cid).length,
-      phase: this.phase, host: h ? h.name : '', time: this.time, full: this.isFull(),
+      phase: this.phase, host: h ? h.name : '', time: this.time, full: this.isFull(), lucky: this.lucky,
     };
   }
 }
@@ -472,6 +638,9 @@ server.on('upgrade', (req, sock) => {
       else if (m.t === 'sit') err = room.sit(id, false);
       else if (m.t === 'stand') err = room.stand(id);
       else if (m.t === 'time') err = room.setTime(id, Number(m.min));
+      else if (m.t === 'coin' && room.phase === 'playing' && room.game.lucky) err = room.throwCoin(id);
+      else if (m.t === 'dice' && room.phase === 'playing' && room.game.lucky) err = room.rollDice(id);
+      else if (m.t === 'rps') err = room.pickRps(id, String(m.pick || ''));
       else if (m.t === 'resign') room.resign(id);
       else if (m.t === 'draw') err = room.drawAction(id, String(m.act || ''));
       else return;
