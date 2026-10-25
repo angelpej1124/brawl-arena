@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#12101f">
+<title>럭키 체스</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♞</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  /* 난투 아레나와 같은 어두운 아케이드 색 · 글꼴 · 카드 모양. 체스판만 보라 계열 두 톤 + 행운 초록 포인트 */
+  :root {
+    --bg: #12101f; --panel: #1d1a33; --panel-2: #26224a; --line: #34305a;
+    --text: #f3f0ff; --muted: #a39fc4; --accent: #ffcf3f; --accent-deep: #b3471f;
+    --lucky: #6fe39a; --gem: #5ef2ff; --danger: #ff7b7b; --ok: #6fe39a;
+    --sq-light: #e6dffa; --sq-dark: #8a7fd0;
+    --display: 'Black Han Sans', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+    --body: 'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
+    color-scheme: dark;
+  }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--body);
+    -webkit-tap-highlight-color: transparent; }
+  html, body, * { touch-action: manipulation; }
+  button { font-family: inherit; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ---------- 로비 ---------- */
+  #lobby { min-height: 100%; box-sizing: border-box;
+    background: radial-gradient(ellipse at 50% 20%, #2b2350 0%, var(--bg) 70%);
+    padding: max(20px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(20px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+  .lobby-wrap { min-height: calc(100vh - 40px); display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: center; }
+  .card { width: 100%; max-width: 380px; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 18px; padding: 24px 22px; box-shadow: 0 20px 60px rgba(0,0,0,.45); box-sizing: border-box; min-width: 0; }
+  h1 { font-family: var(--display); font-weight: 400; font-size: 44px; letter-spacing: 1px; margin: 0;
+    text-align: center; color: var(--accent); text-shadow: 0 4px 0 var(--accent-deep); line-height: 1.1; }
+  h1 .clover { color: var(--lucky); text-shadow: 0 4px 0 #1f6b45; font-size: .8em; vertical-align: 4px; }
+  h2 { font-family: var(--display); font-weight: 400; font-size: 22px; margin: 0 0 4px; letter-spacing: .5px; }
+  .sub { text-align: center; color: var(--muted); font-size: 14px; margin: 8px 0 14px; }
+  label, .lbl { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 6px; }
+  input { width: 100%; box-sizing: border-box; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line);
+    background: #120f24; color: var(--text); font-size: 16px; font-family: inherit; outline: none; }
+  input:focus-visible { border-color: var(--accent); }
+  .tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; background: #15122a; padding: 4px; border-radius: 12px; }
+  .tabs button { border: 0; border-radius: 9px; padding: 9px 4px; background: transparent; color: var(--muted); font-size: 14px; font-weight: 700; cursor: pointer; }
+  .tabs button[aria-selected="true"] { background: var(--panel-2); color: var(--text); }
+  .sub-btn { width: 100%; margin-top: 14px; padding: 11px; border-radius: 10px; border: 1.5px solid var(--accent); background: transparent;
+    color: var(--accent); font-size: 15px; font-weight: 700; cursor: pointer; }
+  .sub-btn:disabled { opacity: .5; cursor: wait; }
+  .hint { font-size: 12px; color: var(--muted); margin: 8px 0 0; line-height: 1.5; }
+  .hint:empty { display: none; }
+  .me-box { display: flex; justify-content: space-between; align-items: center; gap: 8px; background: #15122a; border-radius: 10px; padding: 10px 12px; font-size: 14px; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); vertical-align: middle; margin-right: 4px; }
+  .dot.ok { background: var(--ok); }
+  .link { background: none; border: 0; color: var(--muted); text-decoration: underline; cursor: pointer; font-size: 13px; padding: 4px; }
+  .rooms { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 220px; overflow-y: auto; }
+  .rooms button { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 8px; text-align: left;
+    background: #15122a; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; color: var(--text); cursor: pointer; font-size: 14px; }
+  .rooms button:hover { border-color: var(--accent); }
+  .rooms button:disabled { opacity: .5; cursor: default; }
+  .rooms small { color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .rooms .rt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .room-pane { margin-top: 10px; }
+  .play { width: 100%; margin-top: 18px; padding: 15px; border: 0; border-radius: 12px; background: var(--accent); color: #2a1a00;
+    font-family: var(--display); font-size: 22px; letter-spacing: 1px; cursor: pointer; box-shadow: 0 5px 0 var(--accent-deep); }
+  .play:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--accent-deep); }
+  .play:disabled { opacity: .6; cursor: wait; }
+  #err { color: var(--danger); font-size: 13px; text-align: center; margin-top: 10px; min-height: 0; line-height: 1.5; }
+  #err:empty { display: none; }
+  .online { text-align: center; color: var(--muted); font-size: 12px; margin-top: 12px; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 12px; }
+  .stat { background: #15122a; border-radius: 10px; padding: 10px 4px; text-align: center; }
+  .stat strong { display: block; font-family: var(--display); font-weight: 400; font-size: 22px; }
+  .stat small { color: var(--muted); font-size: 12px; }
+  .gem-row { display: flex; align-items: center; gap: 8px; background: #15122a; border-radius: 10px; padding: 10px 12px; margin-top: 10px; }
+  .gem-ico { width: 16px; height: 16px; background: var(--gem); transform: rotate(45deg); border-radius: 3px; box-shadow: 0 0 10px rgba(94,242,255,.6); flex: none; }
+  .gem-row b { font-family: var(--display); font-weight: 400; font-size: 22px; color: var(--gem); }
+  .gem-row small { color: var(--muted); }
+  .link-note { background: rgba(111,227,154,.08); border: 1px solid rgba(111,227,154,.3); border-radius: 10px; padding: 10px 12px; font-size: 13px; line-height: 1.55; margin-top: 12px; }
+  .link-note a { color: var(--lucky); font-weight: 700; }
+  .rank { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+  .rank li { display: flex; justify-content: space-between; gap: 8px; background: #15122a; border-radius: 8px; padding: 8px 10px; font-size: 14px; }
+  .rank li span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rank small { color: var(--muted); white-space: nowrap; }
+  .empty { color: var(--muted); font-size: 13px; text-align: center; padding: 10px 0; }
+  .empty:empty { display: none; }
+
+  /* ---------- 게임 화면 ---------- */
+  #play { min-height: 100%; box-sizing: border-box; display: flex; flex-direction: column;
+    background: radial-gradient(ellipse at 50% 0%, #241e44 0%, var(--bg) 60%);
+    padding: max(8px, env(safe-area-inset-top, 0px)) max(10px, env(safe-area-inset-right, 0px)) max(10px, env(safe-area-inset-bottom, 0px)) max(10px, env(safe-area-inset-left, 0px)); }
+  .topbar { display: flex; align-items: center; gap: 8px; padding: 2px 2px 8px; }
+  .topbar .room-name { flex: 1; min-width: 0; font-size: 14px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .topbar .room-name b { color: var(--text); }
+  .pill { border: 1px solid var(--line); background: var(--panel); color: var(--text); border-radius: 999px; padding: 7px 12px; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+  .pill.off { color: var(--muted); text-decoration: line-through; }
+  .stage { flex: 1; display: flex; gap: 16px; align-items: flex-start; justify-content: center; flex-wrap: wrap; }
+  .board-col { width: min(92vw, calc(100vh - 210px), 640px); min-width: 280px; }
+  .strip { display: flex; align-items: center; gap: 8px; padding: 8px 4px; min-height: 36px; }
+  .strip .who { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; }
+  .strip .who .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .strip .tag { font-size: 11px; font-weight: 700; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; white-space: nowrap; }
+  .strip .tag.rdy { color: var(--ok); border-color: var(--ok); }
+  .strip .tag.away { color: var(--danger); border-color: var(--danger); }
+  .colorchip { width: 16px; height: 16px; border-radius: 50%; flex: none; border: 2px solid var(--line); }
+  .colorchip.w { background: #fffaf0; } .colorchip.b { background: #231c3d; border-color: #6b62a0; }
+  .caps { display: flex; flex-wrap: wrap; align-items: center; min-height: 18px; }
+  .caps svg { width: 18px; height: 18px; margin-right: -4px; }
+  .caps .adv { font-size: 12px; color: var(--muted); margin-left: 8px; }
+  .clock { font-family: var(--display); font-size: 22px; letter-spacing: 1px; background: #15122a; border: 1px solid var(--line);
+    border-radius: 8px; padding: 2px 10px; min-width: 68px; text-align: center; font-variant-numeric: tabular-nums; color: var(--muted); }
+  .clock.run { color: #2a1a00; background: var(--accent); border-color: var(--accent); }
+  .clock.low { color: #fff; background: #c43c3c; border-color: #c43c3c; }
+
+  .board { position: relative; width: 100%; aspect-ratio: 1; border-radius: 10px; overflow: hidden;
+    box-shadow: 0 0 0 4px #2b2652, 0 18px 50px rgba(0,0,0,.5); display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); grid-template-rows: repeat(8, minmax(0, 1fr)); touch-action: none; user-select: none; -webkit-user-select: none; }
+  .sq { position: relative; min-width: 0; min-height: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+  .sq.l { background: var(--sq-light); } .sq.d { background: var(--sq-dark); }
+  .sq.last::before { content: ''; position: absolute; inset: 0; background: rgba(255,207,63,.45); }
+  .sq.sel::before { content: ''; position: absolute; inset: 0; background: rgba(111,227,154,.55); }
+  .sq.chk::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle, rgba(255,60,60,.95) 0%, rgba(255,60,60,.5) 45%, transparent 75%); }
+  .sq svg { position: relative; width: 88%; height: 88%; pointer-events: none; filter: drop-shadow(0 2px 1px rgba(0,0,0,.25)); }
+  .sq .co { position: absolute; font-size: clamp(8px, 1.6vw, 11px); font-weight: 700; pointer-events: none; z-index: 1; }
+  .sq .co.f { right: 3px; bottom: 1px; } .sq .co.r { left: 3px; top: 1px; }
+  .sq.l .co { color: var(--sq-dark); } .sq.d .co { color: var(--sq-light); }
+  .sq .tgt { position: absolute; width: 30%; height: 30%; border-radius: 50%; background: rgba(18,16,31,.32); pointer-events: none; z-index: 1; }
+  .sq .tgt.cap { width: 92%; height: 92%; background: transparent; border: 6px solid rgba(18,16,31,.32); box-sizing: border-box; }
+  .sq.drag-from svg { opacity: .35; }
+  .ghost { position: fixed; pointer-events: none; z-index: 50; transform: translate(-50%, -50%); }
+  .ghost svg { width: 100%; height: 100%; filter: drop-shadow(0 8px 6px rgba(0,0,0,.4)); }
+
+  .board-msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 5; pointer-events: none; background: rgba(18,16,31,.35); }
+  .board-msg > div { pointer-events: auto; background: #17142b; border: 1px solid var(--line); border-radius: 16px; padding: 20px 26px; text-align: center; min-width: 58%; max-width: 86%; box-sizing: border-box; box-shadow: 0 20px 50px rgba(0,0,0,.5); }
+  .board-msg .big { font-family: var(--display); font-size: 30px; color: var(--accent); line-height: 1.2; }
+  .board-msg .small { color: var(--muted); font-size: 14px; margin-top: 6px; line-height: 1.5; }
+  .board-msg .gems { color: var(--gem); font-weight: 700; margin-top: 8px; font-size: 15px; }
+  .promo { display: flex; gap: 6px; justify-content: center; margin-top: 10px; }
+  .promo button { width: 64px; height: 64px; border-radius: 12px; border: 1px solid var(--line); background: var(--sq-light); cursor: pointer; padding: 4px; }
+  .promo button svg { width: 100%; height: 100%; }
+
+  .side { width: 100%; max-width: 320px; display: grid; gap: 10px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; }
+  .status { font-weight: 700; font-size: 15px; line-height: 1.5; }
+  .status small { display: block; color: var(--muted); font-weight: 500; font-size: 13px; margin-top: 2px; }
+  .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .btns .wide { grid-column: 1 / -1; }
+  .btn { padding: 11px 8px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--panel-2); color: var(--text); font-weight: 700; font-size: 14px; cursor: pointer; }
+  .btn.main { background: var(--accent); border-color: var(--accent); color: #2a1a00; }
+  .btn.ok { background: var(--ok); border-color: var(--ok); color: #0b2a16; }
+  .btn.warn { border-color: var(--danger); color: var(--danger); background: transparent; }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .times { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; background: #15122a; padding: 4px; border-radius: 10px; margin-top: 6px; }
+  .times button { border: 0; border-radius: 8px; padding: 8px 2px; background: transparent; color: var(--muted); font-weight: 700; font-size: 13px; cursor: pointer; }
+  .times button[aria-pressed="true"] { background: var(--panel-2); color: var(--text); }
+  .times button:disabled { cursor: default; }
+  .moves { max-height: 220px; overflow-y: auto; font-size: 14px; font-variant-numeric: tabular-nums; display: grid; grid-template-columns: 34px 1fr 1fr; gap: 2px 6px; }
+  .moves .n { color: var(--muted); }
+  .moves span:last-child { color: var(--accent); font-weight: 700; }
+  .specs { font-size: 13px; color: var(--muted); line-height: 1.6; }
+  .toast { position: fixed; left: 50%; bottom: max(18px, env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 60;
+    background: var(--panel-2); border: 1px solid var(--line); color: var(--text); padding: 10px 16px; border-radius: 12px; font-size: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.5); max-width: 90vw; text-align: center; }
+  @media (max-width: 760px) {
+    .board-col { width: min(96vw, calc(100vh - 170px)); }
+    .side { max-width: 100%; width: min(96vw, 640px); }
+    .moves { max-height: 120px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="lobby">
+  <div class="lobby-wrap">
+    <div class="card">
+      <h1>럭키 체스 <span class="clover" aria-hidden="true">☘</span></h1>
+      <p class="sub">친구와 온라인으로 한 판! 흑백은 매 판 랜덤이에요</p>
+
+      <section id="authBox" aria-label="로그인">
+        <div class="tabs" role="tablist">
+          <button role="tab" id="tabLogin" aria-selected="true">로그인</button>
+          <button role="tab" id="tabSignup" aria-selected="false">회원가입</button>
+          <button role="tab" id="tabGuest" aria-selected="false">게스트</button>
+        </div>
+        <form id="authForm" novalidate>
+          <label for="aNick">닉네임</label>
+          <input id="aNick" maxlength="12" autocomplete="username" placeholder="2~12자">
+          <label for="aPw">비밀번호</label>
+          <input id="aPw" type="password" maxlength="64" autocomplete="current-password" placeholder="4자 이상">
+          <div id="pw2Wrap" hidden>
+            <label for="aPw2">비밀번호 확인</label>
+            <input id="aPw2" type="password" maxlength="64" autocomplete="new-password">
+          </div>
+          <button class="sub-btn" id="authBtn" type="submit">로그인</button>
+          <p class="hint" id="authMsg" role="status"></p>
+          <p class="hint" id="pwWarn" hidden>이 게임에서만 쓰는 비밀번호를 정해 주세요. 다른 사이트에서 쓰는 비밀번호는 쓰지 마세요.</p>
+        </form>
+        <div id="guestBox" hidden>
+          <label for="gNick">닉네임</label>
+          <input id="gNick" maxlength="12" placeholder="닉네임 입력" autocomplete="off">
+          <p class="hint">게스트는 기록과 보석이 저장되지 않아요.</p>
+        </div>
+      </section>
+      <div id="meBox" class="me-box" hidden>
+        <span><span class="dot ok"></span> <b id="meNick"></b> 님으로 로그인됨</span>
+        <button id="logoutBtn" class="link" type="button">로그아웃</button>
+      </div>
+
+      <span class="lbl" id="roomLbl">방 고르기</span>
+      <div class="tabs" role="tablist" aria-labelledby="roomLbl">
+        <button role="tab" id="rtList" aria-selected="true">공개 방</button>
+        <button role="tab" id="rtCreate" aria-selected="false">방 만들기</button>
+        <button role="tab" id="rtCode" aria-selected="false">초대 코드</button>
+      </div>
+      <div id="rpList" class="room-pane">
+        <ul class="rooms" id="roomList" aria-label="공개 방 목록"></ul>
+        <p class="hint" id="roomEmpty">열린 공개 방이 없어요. 빠른 입장을 누르면 새 방이 만들어지고 상대를 기다려요.</p>
+      </div>
+      <div id="rpCreate" class="room-pane" hidden>
+        <label for="roomTitle">방 제목 (누구나 목록에서 보고 들어올 수 있어요)</label>
+        <input id="roomTitle" maxlength="20" placeholder="예: 초보끼리 한 판" autocomplete="off">
+      </div>
+      <div id="rpCode" class="room-pane" hidden>
+        <label for="roomcode">초대 코드 (같은 코드를 쓴 친구끼리만 · 목록에 안 보여요)</label>
+        <input id="roomcode" maxlength="20" placeholder="예: ourroom" autocomplete="off" autocapitalize="off">
+      </div>
+      <button class="play" id="playBtn">빠른 입장</button>
+      <div id="err" role="status"></div>
+      <div class="online">지금 접속 중: <span id="onlineNow">-</span>명</div>
+    </div>
+
+    <div class="card">
+      <h2>내 기록</h2>
+      <div class="hint" id="acctText">확인 중…</div>
+      <div class="stats">
+        <div class="stat"><strong id="stW">-</strong><small>승</small></div>
+        <div class="stat"><strong id="stL">-</strong><small>패</small></div>
+        <div class="stat"><strong id="stD">-</strong><small>무</small></div>
+        <div class="stat"><strong id="stG">-</strong><small>판수</small></div>
+      </div>
+      <div class="gem-row"><i class="gem-ico" aria-hidden="true"></i><b id="gemCount">-</b><small>보석</small></div>
+      <p class="hint">이기면 보석 +100 · 지거나 비겨도 끝까지 두면 +20</p>
+      <div class="link-note">
+        <b>난투 아레나 계정 그대로!</b><br>
+        같은 닉네임·비밀번호로 로그인돼요. 여기서 가입해도 난투 아레나에서 쓸 수 있고, 보석도 같이 쌓여요.<br>
+        <a id="brawlLink" href="https://brawl-arena-uiea.onrender.com" target="_blank" rel="noopener">난투 아레나 하러 가기 →</a>
+      </div>
+      <span class="lbl">체스 랭킹 (승리 순)</span>
+      <ol class="rank" id="rank"></ol>
+      <div class="empty" id="rankEmpty"></div>
+    </div>
+  </div>
+</div>
+
+<div id="play" hidden>
+  <div class="topbar">
+    <div class="room-name" id="roomName"></div>
+    <button class="pill" id="sndBtn" type="button">소리</button>
+    <button class="pill" id="flipBtn" type="button" title="판 뒤집기">뒤집기</button>
+    <button class="pill" id="exitBtn" type="button">나가기</button>
+  </div>
+  <div class="stage">
+    <div class="board-col">
+      <div class="strip" id="stripTop"></div>
+      <div class="board" id="board" aria-label="체스판"></div>
+      <div class="strip" id="stripBot"></div>
+    </div>
+    <div class="side">
+      <div class="panel">
+        <div class="status" id="status" role="status"></div>
+        <div class="btns" id="btns"></div>
+        <div id="timeBox">
+          <span class="lbl">한 사람 시간 <small id="timeWho"></small></span>
+          <div class="times" id="times"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <span class="lbl" style="margin-top:0">기보</span>
+        <div class="moves" id="moves"></div>
+        <div class="empty" id="movesEmpty">아직 둔 수가 없어요.</div>
+      </div>
+      <div class="panel specs" id="specs"></div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+<div class="ghost" id="ghost" hidden></div>
+
+<script src="rules.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

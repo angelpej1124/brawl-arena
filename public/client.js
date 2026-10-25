@@ -742,6 +742,7 @@ async function loadRooms() {
   try {
     const r = await api('/api/rooms');
     $('onlineNow').textContent = r.online;
+    if (r.chessUrl && /^https?:\/\//.test(r.chessUrl) && $('chessLink')) { $('chessLink').href = r.chessUrl; $('chessLink').hidden = false; }
     const ul = $('roomList');
     ul.textContent = '';
     for (const room of r.rooms || []) {

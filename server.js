@@ -29,7 +29,18 @@ function limited(ip, bucket, max, perMs) {
   return ++h.n > max;
 }
 setInterval(() => { const now = Date.now(); for (const [k, h] of hits) if (h.reset < now) hits.delete(k); }, 60000).unref();
-const clientIp = (req) => String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || '?';
+// ---------- 럭키 체스 서버 연동 ----------
+// 체스 사이트(다른 주소)의 서버가 이 서버의 계정·보석을 같이 씀.
+// 두 서버의 환경 변수 CHESS_SECRET 이 같아야 체스 결과(보석 지급)를 받아 줌.
+const CHESS_SECRET = process.env.CHESS_SECRET || '';
+const fromChess = (req) => {
+  const k = String(req.headers['x-chess-key'] || '');
+  return !!CHESS_SECRET && k.length === CHESS_SECRET.length
+    && require('crypto').timingSafeEqual(Buffer.from(k), Buffer.from(CHESS_SECRET));
+};
+// 체스 서버를 거쳐 온 요청은 체스 서버가 알려준 진짜 사용자 IP로 횟수 제한
+const clientIp = (req) => (fromChess(req) && req.headers['x-client-ip'] ? String(req.headers['x-client-ip']).slice(0, 64) : '')
+  || String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || '?';
 
 function sendJson(res, status, obj) {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
@@ -168,7 +179,28 @@ async function api(req, res, urlPath) {
       return sendJson(res, 404, { error: '없는 주소예요.' });
     }
     if (req.method === 'GET' && urlPath === '/api/rooms') {
-      return sendJson(res, 200, { rooms: publicRooms(), online: onlineCount() });
+      return sendJson(res, 200, { rooms: publicRooms(), online: onlineCount(), chessUrl: process.env.CHESS_URL || '' });
+    }
+    // ----- 럭키 체스 -----
+    if (req.method === 'GET' && urlPath === '/api/chess/ranking') {
+      return sendJson(res, 200, { ranking: accounts.chessRanking(10) });
+    }
+    if (urlPath.startsWith('/api/chess/internal/')) {
+      if (!fromChess(req)) return sendJson(res, 403, { error: '체스 서버만 쓸 수 있어요.' });
+      if (req.method === 'GET' && urlPath === '/api/chess/internal/taken') {
+        const nick = new URL(req.url, 'http://x').searchParams.get('nick') || '';
+        return sendJson(res, 200, { taken: accounts.isTaken(nick) });
+      }
+      if (req.method === 'POST' && urlPath === '/api/chess/internal/result') {
+        const b = await readBody(req);
+        const r = accounts.chessRecord(accounts.keyOf(String(b.nick || '')), String(b.result || ''));
+        if (!r) return sendJson(res, 404, { error: '그런 계정이 없어요.' });
+        // 난투 아레나에 접속해 있으면 보석이 바로 바뀌어 보임
+        const k = accounts.keyOf(r.profile.nick);
+        for (const room of rooms.values()) for (const c of room.clients.values()) if (c.accountKey === k) c.socket.send(JSON.stringify({ t: 'profile', profile: r.profile }));
+        return sendJson(res, 200, r);
+      }
+      return sendJson(res, 404, { error: '없는 주소예요.' });
     }
     if (req.method === 'GET' && urlPath === '/api/ranking') {
       return sendJson(res, 200, { ranking: accounts.ranking(10), online: onlineCount() });

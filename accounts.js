@@ -121,6 +121,8 @@ const GEMS = {
   WIN: 40,            // 사람 2명 이상인 판에서 우승
   KILL: 12,            // 사람을 장외로 보냄
   KILL_BOT: 5,        // 봇을 장외로 보냄
+  CHESS_WIN: 100,     // 럭키 체스에서 이김
+  CHESS_PLAY: 20,     // 럭키 체스 한 판 끝까지 둠 (지거나 비김)
 };
 const GACHA = {
   COST: 150,          // 뽑기 1회 가격
@@ -168,6 +170,7 @@ function publicProfile(a) {
     patchClaimed: patchRewardsFor(a).every((r) => (a.patchClaimed || []).includes(r.id)),   // 받을 수 있는 보상을 다 받았는지
     patchLeft: patchRewardsFor(a).filter((r) => !(a.patchClaimed || []).includes(r.id)).reduce((n, r) => n + r.gems, 0),   // 아직 안 받은 보석
     patchElig: patchRewardsFor(a).map((r) => r.id),   // 이 계정이 받을 수 있는 보상
+    chess: { ...CHESS0, ...(a.chess || {}) },   // 럭키 체스 전적 (판·승·패·무)
   };
 }
 
@@ -265,6 +268,28 @@ function record(key, { counted, win, kills, botKills, gemHits }) {
   a.gems += gems;
   save();
   return { profile: publicProfile(a), gained: gems };
+}
+
+// ---------- 럭키 체스 (다른 사이트의 체스 서버가 판이 끝날 때 호출) ----------
+const CHESS0 = { g: 0, w: 0, l: 0, d: 0 };
+function chessRecord(key, result) {
+  const a = store.accounts[key];
+  if (!a) return null;
+  if (!['win', 'loss', 'draw'].includes(result)) throw new Error('잘못된 결과예요.');
+  a.chess = { ...CHESS0, ...(a.chess || {}) };
+  a.chess.g += 1;
+  a.chess[result === 'win' ? 'w' : result === 'loss' ? 'l' : 'd'] += 1;
+  const gems = result === 'win' ? GEMS.CHESS_WIN : GEMS.CHESS_PLAY;
+  a.gems += gems;
+  save();
+  return { profile: publicProfile(a), gained: gems };
+}
+function chessRanking(limit = 10) {
+  return Object.values(store.accounts)
+    .filter((a) => a.chess && a.chess.g > 0)
+    .sort((x, y) => y.chess.w - x.chess.w || x.chess.l - y.chess.l || y.chess.g - x.chess.g)
+    .slice(0, limit)
+    .map((a) => ({ nick: a.nick, ...CHESS0, ...a.chess }));
 }
 
 // ---------- 스킨 ----------
@@ -517,6 +542,6 @@ setInterval(() => {
 
 module.exports = {
   init, storage: () => storageName, signup, login, logout, fromToken, profileOf, nickOf, isTaken,
-  keyOf, owns, ownedOf, setSkill, record, buySkin, equipSkin, skinsOf, adminWarn, changeNick, ranking, cleanNick, gacha, buySkill, shopInfo, shopDaily, shopBuy, todayShop, patchSeen, patchClaim, isAdmin, adminList, adminUpdate,
+  keyOf, owns, ownedOf, chessRecord, chessRanking, setSkill, record, buySkin, equipSkin, skinsOf, adminWarn, changeNick, ranking, cleanNick, gacha, buySkill, shopInfo, shopDaily, shopBuy, todayShop, patchSeen, patchClaim, isAdmin, adminList, adminUpdate,
   GEMS, GACHA, BASE_SKILLS, ALL_SKILLS,
 };

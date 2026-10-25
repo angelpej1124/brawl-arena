@@ -292,6 +292,8 @@
   .patch-reward small { color: var(--muted); }
   .patch-reward[hidden] { display: none; }
   #patchOk { margin-top: 12px; width: 100%; }
+  .chess-go { display: block; box-sizing: border-box; text-align: center; text-decoration: none; border-color: #6fe39a; color: #6fe39a; }
+  .chess-go small { font-weight: 500; opacity: .85; margin-left: 4px; }
   .link-btn { background: none; border: 0; color: var(--muted); text-decoration: underline; cursor: pointer; padding: 6px 0 0; font-size: 13px; }
   .modal-card { width: min(520px, 100%); max-height: calc(100% - 32px); overflow-y: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px; box-sizing: border-box; }
   .modal-head { display: flex; align-items: center; gap: 10px; }
@@ -415,6 +417,7 @@
         </div>
         <button class="sub-btn shop-open" id="shopBtn" type="button">🛒 상점 <span class="shop-dot" id="shopDot" hidden>일일 보상!</span></button>
         <button class="sub-btn skin-open" id="skinBtn" type="button">스킨 보기</button>
+        <a class="sub-btn chess-go" id="chessLink" href="#" target="_blank" rel="noopener" hidden>♞ 럭키 체스 하러 가기 <small>이기면 보석 +100</small></a>
         <button class="link-btn" id="patchOpen" type="button">패치 내역 보기</button>
         <p class="hint" id="gachaMsg" role="status"></p>
         <div id="gachaRes" class="gacha-res" hidden></div>
