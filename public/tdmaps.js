@@ -116,7 +116,9 @@
   // 입체 모드에서 이미 쓸 수 있는 스킬 (나머지는 '준비 중' — 차례로 늘어남)
   const TD_SKILLS = ['slow', 'blink', 'stealth', 'swap', 'explode', 'freeze', 'rock', 'magnet', 'empower', 'parasite', 'quake', 'giant', 'rubber', 'engine',
     'blackflash', 'lightning', 'undying', 'hulk', 'fire', 'ice', 'error', 'sun', 'time', 'combo', 'reflect', 'invert', 'atom', 'gamble', 'ghost',
-    'portal', 'charge', 'hop', 'gem', 'wave', 'flash'];
+    'portal', 'charge', 'hop', 'gem', 'wave', 'flash',
+    'clone', 'fly', 'sword', 'turret', 'wind', 'mine', 'dash', 'shotgun', 'ninja',
+    'archer', 'starlight', 'shield', 'tentacle', 'dope', 'flood'];
   const api = { TD_MAPS, TD_SKILLS, onFloor, pushOut, inWall, inShape };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.BRAWL_TDMAPS = api;

@@ -609,9 +609,11 @@ class Sim {
     this.potions = this.potions.filter((q) => !q.eaten);
   }
   // ---------------- 홍수 물 ----------------
-  inWater(p) { return !!this.water && p.y - bh(p) * 0.5 > this.water.y; }          // 몸 가운데가 물에 잠김
-  headUnder(p) { return !!this.water && p.y - bh(p) > this.water.y + 4; }         // 머리까지 잠김
-  waterK(y) { return this.water && y > this.water.y ? SKILLS.flood.proj : 1; }    // 물속 투사체 속도
+  // 입체 모드: 물 높이(0~1) — 바닥 전체에 물이 참
+  tdDepth() { return this.water ? clamp((this.stage.height + 40 - this.water.y) / (this.stage.height + 100), 0, 1) : 0; }
+  inWater(p) { if (this.td) return this.tdDepth() >= 0.25 && !(p.z > 30) && !(p.fallT > 0); return !!this.water && p.y - bh(p) * 0.5 > this.water.y; }          // 몸 가운데가 물에 잠김
+  headUnder(p) { if (this.td) return this.tdDepth() >= 0.85 && !(p.z > 30); return !!this.water && p.y - bh(p) > this.water.y + 4; }         // 머리까지 잠김
+  waterK(y) { if (this.td) return this.tdDepth() >= 0.5 ? SKILLS.flood.proj : 1; return this.water && y > this.water.y ? SKILLS.flood.proj : 1; }    // 물속 투사체 속도
   waterTop() { return -60; }   // 최대 수면 = 화면 맨 위까지 꽉 참
   updateWater(dt) {
     const w = this.water; if (!w) return;
@@ -640,6 +642,18 @@ class Sim {
   // 닌자: 안전하게 설 수 있는 랜덤한 땅 위 (지금 자리에서 좀 떨어진 곳)
   randomSafeSpot(p) {
     const st = this.stage;
+    if (this.td) {
+      // 입체 모드: 가장자리에서 조금 떨어진 바닥 위 아무 데나 (지금 자리에서 멀리)
+      let best = null;
+      for (let tries = 0; tries < 80; tries++) {
+        const x = 60 + Math.random() * (st.width - 120), y = 60 + Math.random() * (st.height - 120);
+        if (!TD.onFloor(st, x, y) || TD.pushOut(st, x, y, 24) || ![[30, 0], [-30, 0], [0, 30], [0, -30]].every(([a, c]) => TD.onFloor(st, x + a, y + c))) continue;
+        const far = Math.hypot(x - p.x, y - p.y);
+        if (!best || (far > 260 && best.far <= 260)) best = { x, y, far };
+        if (far > 260) break;
+      }
+      return best || this.respawnSpot(p);
+    }
     const surf = [...st.solids.map((s) => ({ x1: s.x, x2: s.x + s.w, y: () => s.y })), ...st.platforms.map((s) => ({ x1: s.x, x2: s.x + s.w, y: () => s.y })),
       ...(st.slopes || []).map((sl) => ({ x1: sl.x1, x2: sl.x2, y: (x) => slopeY(sl, x) }))].filter((q) => q.x2 - q.x1 >= 70);
     const total = surf.reduce((n, q) => n + (q.x2 - q.x1 - 60), 0);
@@ -1024,6 +1038,8 @@ class Sim {
     const st = this.stage;
     let dx = (inp.r ? 1 : 0) - (inp.l ? 1 : 0), dy = (inp.d ? 1 : 0) - (inp.u ? 1 : 0);
     const dl = Math.hypot(dx, dy); if (dl) { dx /= dl; dy /= dl; }
+    if (wet && has(p, 'flood') && !p.clone) moveMul *= SKILLS.flood.swim;   // 홍수 사용자는 물에서 빠름
+    if (wet && !has(p, 'flood') && p.breath <= 0 && this.phase === 'playing') { p.drownT = (p.drownT || 0) + dt; if (p.drownT >= 0.25) { p.drownT = 0; p.damage = Math.min(999, p.damage + 1); } }   // 숨이 다 떨어지면 %가 계속 오름
     if (p.fallT > 0) {
       // 떨어지는 중: 조작 불가, 바닥 아래로 가라앉음 (fallTime 뒤 장외)
       p.fallT += dt; p.vz -= TDK.grav * dt; p.z += p.vz * dt;
@@ -1064,6 +1080,18 @@ class Sim {
       }
       this.doActions(p, dt, inp, pressed, canFight, attacking, wet);
     }
+    if (p.rushT > 0) {
+      // 돌진 Q: 보는 방향으로 쭉. 다른 방향을 누르면 확 꺾임 (밀던 상대는 그 자리에서 튕겨 나감)
+      const [rx, ry] = p.rushV || [p.fx, p.fy];
+      if (dl && dx * rx + dy * ry < 0.6 && p.hitstun <= 0) {
+        this.rushRelease(p, p.rushDir); p.rushV = [dx, dy]; p.fx = dx; p.fy = dy; if (Math.abs(dx) > 0.01) p.facing = dx > 0 ? 1 : -1;
+        this.ev({ k: 'rushturn', x: r0(p.x), y: r0(p.y - bh(p) / 2), pid: p.id });
+      }
+      p.rushT -= dt;
+      const sp = SKILLS.dash.speed * (p.slow > 0 ? SKILLS.slow.moveMul : 1);
+      p.vx = p.rushV[0] * sp; p.vy = p.rushV[1] * sp; p.rushDir = p.rushV[0] >= 0 ? 1 : -1;
+      if (p.rushT <= 0) this.rushRelease(p, p.rushDir);
+    }
     if (p.fdashT > 0) {
       // 화염 돌진: 보는 방향으로 쭉 (떠 있으면 높이 유지)
       p.fdashT -= dt;
@@ -1073,7 +1101,11 @@ class Sim {
   }
   tdMove(p, dt) {
     const st = this.stage;
-    if (p.z > 0 || p.vz > 0) {
+    if (p.flyT > 0 || p.anchorT > 0) {
+      // 비행: 떠서 낭떠러지 위로도 다님 (맞으면 잠깐 낮게) / 촉수로 땅을 짚음: 살짝 떠서 다님
+      const target = p.anchorT > 0 ? 40 : p.flyDownT > 0 ? 18 : p.input && p.input.jp ? 95 : 70;
+      p.vz = 0; p.z = approach(p.z || 0, target, 260 * dt); if (p.z < 1) p.z = 1;
+    } else if (p.z > 0 || p.vz > 0) {
       p.vz -= TDK.grav * dt; p.z += p.vz * dt;
       if (p.z <= 0) { p.z = 0; p.vz = 0; }
     }
@@ -1226,10 +1258,10 @@ class Sim {
       if (old) this.ev({ k: 'poof', x: r0(old.x), y: r0(old.y - bh(old) / 2) });
       const c = new Player('c-' + p.id + '-' + this.tickCount, p.name, p.color, p.bot, p.skill);
       c.clone = true; c.ownerId = p.id; c.hitsTaken = 0; c.skill2 = p.skill2; c.skins = p.skins;
-      let x = p.x - p.facing * 60;
-      if (this.insideSolid(x, p.y)) x = p.x;
-      c.reset(x, p.y);
-      c.facing = p.facing; c.vx = p.vx; c.vy = p.vy;
+      let x = p.x - (this.td ? p.fx : p.facing) * 60, y = p.y - (this.td ? p.fy * 60 : 0);
+      if (this.td ? !TD.onFloor(this.stage, x, y) || TD.pushOut(this.stage, x, y, 18) : this.insideSolid(x, p.y)) { x = p.x; y = p.y; }
+      c.reset(x, y);
+      c.facing = p.facing; c.vx = p.vx; c.vy = p.vy; c.fx = p.fx; c.fy = p.fy; c.z = p.z || 0;
       c.patrol = -p.facing; c.patrolT = 0;
       this.clones.set(p.id, c);
       p.skillCd = s.cd;
@@ -1324,10 +1356,11 @@ class Sim {
       this.ev({ k: 'engine', x: r0(p.x), y: r0(p.y), f: p.facing, pid: p.id });
     } else if (k === 'sword') {
       const s = SKILLS.sword;
-      const x = p.x + p.facing * (bw(p) / 2 + 10);
-      this.slashes.push({ id: ++this.evSeq, owner: p.id, x, y: cy, vx: p.facing * s.slashSpeed, t: s.slashLife, hit: new Set() });
+      const fx = this.td ? p.fx : p.facing, fy = this.td ? p.fy : 0;
+      const x = p.x + fx * (bw(p) / 2 + 10), y = cy + fy * (bh(p) / 2);
+      this.slashes.push({ id: ++this.evSeq, owner: p.id, x, y, vx: fx * s.slashSpeed, vy: fy * s.slashSpeed, t: s.slashLife, hit: new Set() });
       p.skillCd = s.cd;
-      this.ev({ k: 'slash', x: r0(x), y: r0(cy), f: p.facing, pid: p.id });
+      this.ev({ k: 'slash', x: r0(x), y: r0(y), f: p.facing, pid: p.id });
     } else if (k === 'blackflash') {
       this.useBlackFlash(p);
     } else if (k === 'lightning') {
@@ -1368,9 +1401,9 @@ class Sim {
         this.turrets = this.turrets.filter((t) => t !== old);
         this.ev({ k: 'poof', x: r0(old.x), y: r0(old.y - 20) });
       }
-      let tx = p.x + p.facing * 46;
-      if (this.insideSolid(tx, p.y) || !this.surfaceBelow(tx, p.y)) tx = p.x;
-      const t = { id: ++this.evSeq, owner: p.id, x: tx, y: p.y, vy: 0, hp: s.hp, cd: 0.5, aim: p.facing > 0 ? 0 : Math.PI, color: p.color, hitBy: null };
+      let tx = p.x + (this.td ? p.fx : p.facing) * 46, ty = p.y + (this.td ? p.fy * 46 : 0);
+      if (this.td ? !TD.onFloor(this.stage, tx, ty) || TD.pushOut(this.stage, tx, ty, 20) : this.insideSolid(tx, p.y) || !this.surfaceBelow(tx, p.y)) { tx = p.x; ty = p.y; }
+      const t = { id: ++this.evSeq, owner: p.id, x: tx, y: ty, vy: 0, hp: s.hp, cd: 0.5, aim: p.facing > 0 ? 0 : Math.PI, color: p.color, hitBy: null };
       this.turrets.push(t);
       p.skillCd = s.cd;
       this.ev({ k: 'turret', x: r0(t.x), y: r0(t.y), pid: p.id });
@@ -1389,7 +1422,8 @@ class Sim {
       this.ev({ k: 'sun', x: r0(p.x), y: r0(cy), pid: p.id, b: tintNum(sunTint(p)) });
     } else if (k === 'wind') {
       const s = SKILLS.wind;
-      this.winds.push({ id: ++this.evSeq, owner: p.id, x: p.x + p.facing * 40, y: p.y, vx: p.facing * s.speed, t: s.life, caught: new Set() });
+      const fx = this.td ? p.fx : p.facing, fy = this.td ? p.fy : 0;
+      this.winds.push({ id: ++this.evSeq, owner: p.id, x: p.x + fx * 40, y: p.y + fy * 40, vx: fx * s.speed, vy: fy * s.speed, t: s.life, caught: new Set() });
       p.skillCd = s.cd;
       this.ev({ k: 'wind', x: r0(p.x), y: r0(cy), f: p.facing, pid: p.id });
     } else if (k === 'archer') {
@@ -1439,7 +1473,7 @@ class Sim {
       p.gemT = SKILLS.gem.duration; p.skillCd = SKILLS.gem.cd;
       this.ev({ k: 'gemrush', x: r0(p.x), y: r0(cy), pid: p.id });
     } else if (k === 'dash') {
-      p.rushT = SKILLS.dash.time; p.rushDir = p.facing; p.rushCarry = []; p.rushPrevX = null; p.attack = null; p.skillCd = SKILLS.dash.cd;
+      p.rushT = SKILLS.dash.time; p.rushDir = p.facing; p.rushV = [p.fx, p.fy]; p.rushCarry = []; p.rushPrevX = null; p.rushPrevY = null; p.attack = null; p.skillCd = SKILLS.dash.cd;
       this.ev({ k: 'rush', x: r0(p.x), y: r0(cy), f: p.facing, pid: p.id });
     } else if (k === 'hop') {
       p.hopT = SKILLS.hop.duration; p.skillCd = SKILLS.hop.cd; p.jumpsLeft = Math.max(p.jumpsLeft, maxJumps(p));
@@ -1477,7 +1511,7 @@ class Sim {
       // 아래 촉수 2개(K·L)로 땅을 짚음: 8초간 중력 없이 이동. 가장 낮은 땅 높이 아래로는 못 내려감
       const s = SKILLS.tentacle;
       p.anchorT = s.anchor; p.skillCd = s.cd; p.flyT = 0; p.vy = 0;
-      p.anchorFloor = Math.max(...this.stage.solids.map((q) => q.y), ...(this.stage.slopes || []).map((q) => Math.max(q.y1, q.y2)));
+      p.anchorFloor = this.td ? 0 : Math.max(...this.stage.solids.map((q) => q.y), ...(this.stage.slopes || []).map((q) => Math.max(q.y1, q.y2)));
       this.ev({ k: 'anchor', x: r0(p.x), y: r0(p.y), pid: p.id });
     } else if (k === 'ninja') {
       // 통나무(스노우 스킨: 눈사람)만 남기고 랜덤한 안전한 곳으로 순간이동
@@ -1493,7 +1527,7 @@ class Sim {
       const s = SKILLS.starlight, n = p.starN;
       p.starN = 0; p.starT = 0; p.skillCd = s.cd;
       const count = 6 + n * 6;
-      this.starRain.push({ owner: p.id, team: p.team, n, left: count, every: s.spawnTime / count, timer: 0, dir: p.facing, cx: p.x });
+      this.starRain.push({ owner: p.id, team: p.team, n, left: count, every: s.spawnTime / count, timer: 0, dir: p.facing, cx: p.x, cy: p.y, fx: p.fx, fy: p.fy });
       this.ev({ k: 'starfall', x: r0(p.x), y: r0(cy), n, pid: p.id });
     } else if (k === 'mine') {
       const s = SKILLS.mine;
@@ -1539,6 +1573,7 @@ class Sim {
   reflectShot(o, shot) {
     this.parried(o, shot.x, shot.y);
     shot.owner = o.id; shot.vx = -shot.vx;
+    if (this.td) { if (shot.vy !== undefined) shot.vy = -shot.vy; if (shot.hit) shot.hit = new Set(); if (shot.caught) shot.caught = new Set(); shot.x += Math.sign(shot.vx) * 20; return; }
     // 일반 화살은 왔던 포물선을 거꾸로 (위로 다시 띄움), 나머지는 수평으로 되돌림
     if (shot.c !== undefined && !shot.homing) shot.vy = -Math.abs(shot.vy) - 40;
     else if (shot.vy !== undefined) shot.vy = -shot.vy;
@@ -1596,25 +1631,30 @@ class Sim {
     for (const m of [...this.mines]) {
       if (!this.players.has(m.owner)) { this.mines = this.mines.filter((x) => x !== m); continue; }
       if (m.arm > 0) m.arm -= dt;
-      const prevY = m.y;
-      m.vy = Math.min(m.vy + CONFIG.GRAVITY * dt, CONFIG.MAX_FALL); m.y += m.vy * dt;
-      { const ly = this.landingY(m.x, prevY, m.y); if (ly != null) { m.y = ly; m.vy = 0; } }
-      if (m.y > this.stage.blast.bottom) { this.mines = this.mines.filter((x) => x !== m); continue; }
+      if (!this.td) {
+        const prevY = m.y;
+        m.vy = Math.min(m.vy + CONFIG.GRAVITY * dt, CONFIG.MAX_FALL); m.y += m.vy * dt;
+        { const ly = this.landingY(m.x, prevY, m.y); if (ly != null) { m.y = ly; m.vy = 0; } }
+        if (m.y > this.stage.blast.bottom) { this.mines = this.mines.filter((x) => x !== m); continue; }
+      }
       if (m.arm > 0 || this.phase === 'countdown' || this.phase === 'ended') continue;
-      const stepped = list.some((o) => this.foe(m, o) && o.alive && !o.inside && !(o.frozen > 0) && Math.abs(o.x - m.x) < bw(o) / 2 + 12 && o.y >= m.y - 14 && o.y - bh(o) < m.y);
+      const stepped = list.some((o) => this.foe(m, o) && o.alive && !o.inside && !(o.frozen > 0) && (this.td
+        ? Math.abs(o.x - m.x) < bw(o) / 2 + 12 && Math.abs(o.y - m.y) < 18 && !(o.z > 12) && !(o.fallT > 0)   // 입체 모드: 바닥에서 밟으면 (뛰어넘으면 안 터짐)
+        : Math.abs(o.x - m.x) < bw(o) / 2 + 12 && o.y >= m.y - 14 && o.y - bh(o) < m.y));
       if (!stepped) continue;
       // 펑! 주변을 날려 버림 (주인·팀원은 안 맞음)
       this.mines = this.mines.filter((x) => x !== m);
       const owner = this.players.get(m.owner);
       for (const o of list) {
         if (!this.foe(m, o) || !o.alive || o.inside || o.frozen > 0 || o.invincible > 0) continue;
-        const ox = o.x, oy = o.y - bh(o) / 2, d = Math.hypot(ox - m.x, oy - (m.y - 10));
+        const ox = o.x, oy = this.td ? o.y : o.y - bh(o) / 2, d = Math.hypot(ox - m.x, oy - (this.td ? m.y : m.y - 10));
         if (d > s.radius) continue;
         o.damage = Math.min(o.damage + s.dmg, 999);
         if (o.rockT <= 0) {
           const kb = s.power * (o.buffT > 0 ? SKILLS.empower.kbMul : 1) * (1 - SKILLS.hulk.tough * hulkF(o)) * (0.6 + 0.4 * (1 + o.damage / 150));
           const nx = d < 1 ? 0 : (ox - m.x) / d;
-          o.vx = nx * kb; o.vy = -kb * 0.8; o.grounded = false; o.hitstun = Math.max(o.hitstun, 0.3);
+          if (this.td) { const [ax, ay] = this.tdAway(m, o); this.tdKick(o, ax, ay, kb * 0.9, 0.7); } else { o.vx = nx * kb; o.vy = -kb * 0.8; }
+          o.grounded = false; o.hitstun = Math.max(o.hitstun, 0.3);
         }
         o.attack = null; o.lastHitBy = m.owner; o.lastHitAt = this.tickCount;
         if (o.clone) this.hitClone(o);
@@ -1647,13 +1687,14 @@ class Sim {
     p.drawT = 0;
     const homing = !!p.homingNext; p.homingNext = false;
     const speed = homing ? s.homingSpeed : s.minSpeed + (s.maxSpeed - s.minSpeed) * c;
-    const y = p.y - bh(p) / 2 - 4;
-    const x = p.x + p.facing * (bw(p) / 2 + 6);
-    let vx = p.facing * speed, vy = homing ? 0 : -40;
+    const fx = this.td ? p.fx : p.facing, fy = this.td ? p.fy : 0;
+    const y = p.y - bh(p) / 2 - 4 + fy * bh(p) / 2;
+    const x = p.x + fx * (bw(p) / 2 + 6);
+    let vx = fx * speed, vy = this.td ? fy * speed : homing ? 0 : -40;   // 입체 모드: 보는 방향으로 곧게
     if (homing) {
       // 처음부터 막히지 않는 방향으로 출발
       const tg = this.homingTarget({ owner: p.id, x, y }, [...this.players.values(), ...this.clones.values()]);
-      const want = tg ? Math.atan2(tg.y - bh(tg) / 2 - y, tg.x - x) : (p.facing > 0 ? 0 : Math.PI);
+      const want = tg ? Math.atan2(tg.y - bh(tg) / 2 - y, tg.x - x) : Math.atan2(fy, fx);
       const d = this.clearDir(x, y, want).ang;
       vx = Math.cos(d) * speed; vy = Math.sin(d) * speed;
     }
@@ -1680,6 +1721,7 @@ class Sim {
     return target;
   }
   solidAt(x, y) {
+    if (this.td) return TD.inWall(this.stage, x, y + 30);   // 입체 모드: 날아가는 건 몸 가운데 높이 → 발 높이로 바꿔 기둥 확인
     if ((this.stage.slopes || []).some((sl) => x > sl.x1 && x < sl.x2 && y > slopeY(sl, x) && y < slopeBase(sl))) return true;
     return this.stage.solids.some((sf) => x > sf.x && x < sf.x + sf.w && y > sf.y && y < sf.y + sf.h);
   }
@@ -1689,8 +1731,9 @@ class Sim {
     p.shCharge = 0;
     if (!p.shieldHeld) return;
     p.shieldHeld = false;
-    const y = p.y - bh(p) / 2, x = p.x + p.facing * (bw(p) / 2 + 12);
-    this.shields.push({ id: ++this.evSeq, owner: p.id, team: p.team, x, y, vx: p.facing * (s.minSpeed + (s.maxSpeed - s.minSpeed) * c), vy: -40,
+    const fx = this.td ? p.fx : p.facing, fy = this.td ? p.fy : 0, sp = s.minSpeed + (s.maxSpeed - s.minSpeed) * c;
+    const y = p.y - bh(p) / 2 + fy * bh(p) / 2, x = p.x + fx * (bw(p) / 2 + 12);
+    this.shields.push({ id: ++this.evSeq, owner: p.id, team: p.team, x, y, vx: fx * sp, vy: this.td ? fy * sp : -40,
       fly: s.flyMin + (s.flyMax - s.flyMin) * c, ground: false, bounced: false, age: 0, big: sizeOf(p), c });
     this.ev({ k: 'shthrow', x: r0(x), y: r0(y), pid: p.id, c: Math.round(c * 10) / 10 });
   }
@@ -1703,7 +1746,33 @@ class Sim {
       const owner = this.players.get(sh.owner);
       if (!owner) { sh.dead = true; continue; }
       sh.age += dt;
-      if (!sh.ground) {
+      if (!sh.ground && this.td) {
+        // 입체 모드: 곧게 날아가다 (fly초) 멈춰서 바닥에 떨어짐. 기둥이나 상대에 맞으면 튕겨 돌아옴
+        if (sh.fly > 0) sh.fly -= dt;
+        else { const sp = Math.hypot(sh.vx, sh.vy), k = Math.max(0, sp - 2600 * dt) / (sp || 1); sh.vx *= k; sh.vy *= k; }
+        sh.x += sh.vx * dt; sh.y += sh.vy * dt;
+        const bounce = () => { sh.vx = -sh.vx * s.back; sh.vy = -sh.vy * s.back; sh.fly = 0; sh.bounced = true; };
+        if (this.solidAt(sh.x, sh.y)) { bounce(); sh.x += sh.vx * 0.03; sh.y += sh.vy * 0.03; this.ev({ k: 'shclang', x: r0(sh.x), y: r0(sh.y) }); }
+        if (!sh.bounced && this.phase !== 'countdown' && this.phase !== 'ended') {
+          const def = { damage: s.dmg, baseKB: s.baseKB * (0.7 + 0.5 * sh.c), growthKB: s.growthKB, lift: 0.4 };
+          for (const o of list) {
+            if (!this.foe(sh, o) || !o.alive || o.inside || o.frozen > 0 || o.invincible > 0) continue;
+            if (Math.abs(o.x - sh.x) < bw(o) / 2 + 24 && sh.y > o.y - bh(o) - 22 && sh.y < o.y + 22) {
+              this.applyHit(owner, o, def, sh.c > 0.7 ? 'heavy' : 'light', { dir: Math.sign(sh.vx) || 1, vec: this.tdVel(sh.vx, sh.vy) });
+              this.elementHit(owner, o, 'light', Math.sign(sh.vx) || 1);
+              if (o.clone) this.hitClone(o);
+              bounce(); this.ev({ k: 'shclang', x: r0(sh.x), y: r0(sh.y) });
+              break;
+            }
+          }
+        }
+        if (Math.hypot(sh.vx, sh.vy) < 30) {
+          // 멈춤: 바닥 위면 놓이고, 낭떠러지면 떨어져서 10초 뒤 손에 다시 생김
+          sh.vx = 0; sh.vy = 0;
+          if (TD.onFloor(this.stage, sh.x, sh.y + 30)) { sh.ground = true; sh.y += 20; }
+          else { sh.dead = true; owner.shieldBack = s.respawn; this.ev({ k: 'shlost', pid: owner.id, only: owner.id }); continue; }
+        }
+      } else if (!sh.ground) {
         const prevY = sh.y;
         if (sh.fly > 0) sh.fly -= dt; else sh.vy = Math.min(sh.vy + s.gravity * dt, CONFIG.MAX_FALL);
         { const k = this.waterK(sh.y); sh.x += sh.vx * dt * k; sh.y += sh.vy * dt * k; }
@@ -1734,7 +1803,7 @@ class Sim {
         }
       }
       // 주인만 주울 수 있음 (던지고 잠깐 뒤부터)
-      if (sh.age > 0.3 && owner.alive && !owner.inside && Math.abs(owner.x - sh.x) < s.pickR && owner.y > sh.y - 30 && owner.y - bh(owner) < sh.y + 30) {
+      if (sh.age > 0.3 && owner.alive && !owner.inside && Math.abs(owner.x - sh.x) < s.pickR && (this.td ? Math.abs(owner.y - (sh.y + (sh.ground ? 10 : 30))) < 40 : owner.y > sh.y - 30 && owner.y - bh(owner) < sh.y + 30)) {
         sh.dead = true; owner.shieldHeld = true; owner.shieldBack = 0;
         this.ev({ k: 'shpick', x: r0(sh.x), y: r0(sh.y), pid: owner.id });
       }
@@ -1746,8 +1815,9 @@ class Sim {
     const tc = p.tents[i], s = SKILLS.tentacle;
     if (!tc || tc.cd > 0 || tc.t > 0) return;
     if (p.anchorT > 0 && i >= 2) return;              // 땅을 짚은 아래 촉수(K·L)는 공격 못 함
-    const aim = (p.input.u ? -0.5 : 0) + (p.input.d ? 0.5 : 0);
+    const aim = this.td ? 0 : (p.input.u ? -0.5 : 0) + (p.input.d ? 0.5 : 0);
     tc.t = 0.0001; tc.cd = s.gap; tc.ang = [-0.24, -0.08, 0.08, 0.24][i] + aim; tc.hit = new Set();
+    if (this.td) { const th = Math.atan2(p.fy, p.fx) + tc.ang * 0.5; tc.ang = p.facing > 0 ? th : Math.PI - th; }   // 입체 모드: 보는 방향으로 (그림·판정은 좌우 기준 각도라 바꿔 둠)
     this.ev({ k: 'tentacle', x: r0(p.x), y: r0(p.y - bh(p) / 2), pid: p.id, i });
   }
   // 촉수 끝이 얼마나 뻗었는지 0~1
@@ -1774,7 +1844,7 @@ class Sim {
           const px = ox + dx * R * ext * (k / 6), py = oy + dy * R * ext * (k / 6);
           if (Math.abs(px - o.x) < ow / 2 + 8 && py > o.y - oh - 8 && py < o.y + 8) {
             tc.hit.add(o.id);
-            this.applyHit(p, o, def, 'light', { dir: p.facing });
+            this.applyHit(p, o, def, 'light', { dir: p.facing, vec: this.tdVel(dx, dy) });
             this.elementHit(p, o, 'light', p.facing);
             if (o.clone) this.hitClone(o);
             break;
@@ -1786,11 +1856,12 @@ class Sim {
   // ---------------- 닌자 쿠나이 (화살 목록을 같이 씀: 중력 없이 직선) ----------------
   throwKunai(p) {
     const s = SKILLS.ninja, big = sizeOf(p);
-    const y = p.y - bh(p) / 2 - 2, x = p.x + p.facing * (bw(p) / 2 + 6);
+    const fx = this.td ? p.fx : p.facing, fy = this.td ? p.fy : 0;
+    const y = p.y - bh(p) / 2 - 2 + fy * bh(p) / 2, x = p.x + fx * (bw(p) / 2 + 6);
     // 화염·얼음·바람 등은 화살처럼 쿠나이에도 묻음. 고무·강화·거인 등 사거리 버프만큼 멀리 날아감
     const el = (has(p, 'fire') || p.sunT > 0) ? (has(p, 'fire') ? fireTint(p) : sunTint(p)) : has(p, 'ice') ? (skinOn(p, 'sand') ? 'sand' : 'ice') : skinFx(p) || (has(p, 'wind') ? 'wind' : '');
     const range = this.reachBuff(p) * (p.rubberT > 0 ? 1.3 : 1);
-    this.arrows.push({ id: ++this.evSeq, owner: p.id, x, y, vx: p.facing * s.speed, vy: 0, c: 0.5, ku: 1, t: s.life * clamp(range, 0.3, 2), el, big, sw: skinOn(p, 'snowninja') ? 1 : 0 });
+    this.arrows.push({ id: ++this.evSeq, owner: p.id, x, y, vx: fx * s.speed, vy: fy * s.speed, c: 0.5, ku: 1, t: s.life * clamp(range, 0.3, 2), el, big, sw: skinOn(p, 'snowninja') ? 1 : 0 });
     this.ev({ k: 'kunai', x: r0(x), y: r0(y), pid: p.id, sn: skinOn(p, 'snowninja') ? 1 : 0 });
   }
   // 샷건: 강공격 → 바로 산탄 5발 부채꼴 발사 (탄이 없으면 철컥 소리만)
@@ -1798,15 +1869,16 @@ class Sim {
     const s = SKILLS.shotgun;
     if (!(p.ammo > 0)) { p.hGap = 0.25; this.ev({ k: 'sgempty', x: r0(p.x), y: r0(p.y - bh(p) / 2), pid: p.id }); return; }
     p.ammo--; p.hGap = s.gap;
-    const big = sizeOf(p), y = p.y - bh(p) / 2 - 2, x = p.x + p.facing * (bw(p) / 2 + 18 * big);
+    const fx = this.td ? p.fx : p.facing, fy = this.td ? p.fy : 0, base = Math.atan2(fy, fx);
+    const big = sizeOf(p), y = p.y - bh(p) / 2 - 2 + fy * bh(p) / 2, x = p.x + fx * (bw(p) / 2 + 18 * big);
     const el = (has(p, 'fire') || p.sunT > 0) ? (has(p, 'fire') ? fireTint(p) : sunTint(p)) : has(p, 'ice') ? (skinOn(p, 'sand') ? 'sand' : 'ice') : skinFx(p) || (has(p, 'wind') ? 'wind' : '');
     const range = this.reachBuff(p) * (p.rubberT > 0 ? 1.3 : 1);
     for (let i = 0; i < s.pellets; i++) {
       const a = (i / (s.pellets - 1) - 0.5) * 2 * s.spread + (Math.random() - 0.5) * 0.05;
-      const vx = Math.cos(a) * s.speed * p.facing, vy = Math.sin(a) * s.speed;
+      const vx = this.td ? Math.cos(base + a) * s.speed : Math.cos(a) * s.speed * p.facing, vy = this.td ? Math.sin(base + a) * s.speed : Math.sin(a) * s.speed;
       this.arrows.push({ id: ++this.evSeq, owner: p.id, x, y, vx, vy, c: 0.3, ku: 1, sg: 1, t: s.life * clamp(range, 0.5, 2), el, big });
     }
-    p.vx -= p.facing * 160;   // 반동
+    p.vx -= fx * 160; if (this.td) p.vy -= fy * 160;   // 반동
     this.ev({ k: 'shotgun', x: r0(x), y: r0(y), f: p.facing, pid: p.id, n: p.ammo });
   }
   // 통나무: 중력으로 떨어져 땅에 놓였다가 사라짐
@@ -1814,6 +1886,7 @@ class Sim {
     if (!this.logs.length) return;
     for (const l of this.logs) {
       l.t -= dt;
+      if (this.td) { if (l.t <= 0) this.ev({ k: 'logpoof', x: r0(l.x), y: r0(l.y - 25), sn: l.sn }); continue; }
       const prevY = l.y;
       l.vy = Math.min(l.vy + CONFIG.GRAVITY * dt, CONFIG.MAX_FALL); l.y += l.vy * dt;
       const ly = this.landingY(l.x, prevY, l.y); if (ly != null) { l.y = ly; l.vy = 0; }
@@ -1830,6 +1903,13 @@ class Sim {
       while (r.timer <= 0 && r.left > 0) {
         r.timer += r.every; r.left--;
         const span = 260 + r.n * 70, size = 9 + r.n * 2.6;
+        if (this.td) {
+          // 입체 모드: 시전자 앞쪽 바닥(gy)으로 하늘에서 비스듬히 떨어짐. 바닥에 닿는 순간 근처를 맞힘
+          const gx = r.cx + r.fx * 220 + (Math.random() * 2 - 1) * span * 0.4, gy = r.cy + r.fy * 220 + (Math.random() * 2 - 1) * span * 0.3, T = 0.55 + Math.random() * 0.2;
+          const vx = r.dir * s.fallVX * 0.6, vy = 900;
+          this.starBits.push({ id: ++this.evSeq, owner: r.owner, team: r.team, x: gx - vx * T, y: gy - vy * T, gy, vx, vy, r: size * (0.8 + Math.random() * 0.4), n: r.n, hit: new Set(), t: T + 0.05, fx: r.fx, fy: r.fy });
+          continue;
+        }
         // 떨어지는 동안 옆으로 흘러가는 만큼 뒤쪽에서 시작해서, 시전자 앞쪽 넓게 쏟아짐
         const x = r.cx - r.dir * 260 + (Math.random() * 2 - 1) * span + r.dir * 150;
         this.starBits.push({ id: ++this.evSeq, owner: r.owner, team: r.team, x, y: this.stage.blast.top * 0.35 - Math.random() * 160, vx: r.dir * s.fallVX * (0.85 + Math.random() * 0.3), vy: s.fallVY * (0.9 + Math.random() * 0.25), r: size * (0.8 + Math.random() * 0.4), n: r.n, hit: new Set(), t: 3 });
@@ -1838,6 +1918,23 @@ class Sim {
     this.starRain = this.starRain.filter((r) => r.left > 0 && this.players.has(r.owner));
     if (!this.starBits.length) return;
     for (const b of this.starBits) {
+      if (this.td) {
+        b.t -= dt; b.x += b.vx * dt; b.y += b.vy * dt;
+        if (b.y < b.gy) continue;
+        // 바닥에 닿음: 둘레의 적을 맞히고 펑
+        b.t = 0; this.ev({ k: 'starpop', x: r0(b.x), y: r0(b.gy) });
+        const owner = this.players.get(b.owner);
+        if (!owner || this.phase === 'countdown' || this.phase === 'ended') continue;
+        const def = { damage: 3 + Math.round(b.n * 0.8), baseKB: 170 + b.n * 75, growthKB: 4 + b.n * 1.4, lift: 0.25 };
+        for (const o of list) {
+          if (!this.foe(b, o) || !o.alive || o.inside || o.frozen > 0 || o.invincible > 0 || o.z > 40) continue;
+          if (Math.hypot(o.x - b.x, o.y - b.gy) < bw(o) / 2 + b.r + 18) {
+            this.applyHit(owner, o, def, b.n >= 4 ? 'heavy' : 'light', { dir: Math.sign(b.vx) || 1, vec: this.tdAway({ x: b.x, y: b.gy, fx: b.fx, fy: b.fy }, o) });
+            if (o.clone) this.hitClone(o);
+          }
+        }
+        continue;
+      }
       { const k = this.waterK(b.y); b.t -= dt; b.x += b.vx * dt * k; b.y += b.vy * dt * k; }
       if (this.solidAt(b.x, b.y + b.r * 0.5) || b.y > this.stage.blast.bottom) { b.t = 0; this.ev({ k: 'starpop', x: r0(b.x), y: r0(b.y) }); continue; }
       if (this.phase === 'countdown' || this.phase === 'ended') continue;
@@ -1879,7 +1976,7 @@ class Sim {
         diff = clamp(diff, -turn * dt, turn * dt);
         ang += diff;
         a.vx = Math.cos(ang) * s.homingSpeed; a.vy = Math.sin(ang) * s.homingSpeed;
-      } else if (!a.ku) {
+      } else if (!a.ku && !this.td) {
         a.vy += s.gravity * dt;
       }
       { const k = this.waterK(a.y); a.x += a.vx * dt * k; a.y += a.vy * dt * k; }
@@ -1893,7 +1990,7 @@ class Sim {
         if (a.x > o.x - ow / 2 - 8 && a.x < o.x + ow / 2 + 8 && a.y > o.y - oh - 6 && a.y < o.y + 6) {
           const dir = Math.sign(a.vx) || 1;
           if (this.parrying(o)) { this.reflectShot(o, a); a.t = Math.max(a.t, 1.5); break; }   // 유도 화살은 유도 그대로
-          this.applyHit(owner, o, def, a.c > 0.8 || a.homing ? 'heavy' : 'light', { dir });
+          this.applyHit(owner, o, def, a.c > 0.8 || a.homing ? 'heavy' : 'light', { dir, vec: this.tdVel(a.vx, a.vy) });
           this.elementHit(owner, o, 'light', dir);
           if (o.clone) this.hitClone(o);
           a.t = 0; break;
@@ -1911,10 +2008,11 @@ class Sim {
     if (!this.winds.length) return;
     const s = SKILLS.wind;
     for (const w of this.winds) {
-      w.t -= dt; w.x += w.vx * dt;
+      w.t -= dt; w.x += w.vx * dt; if (this.td) w.y += (w.vy || 0) * dt;
       const owner = this.players.get(w.owner);
-      if (!owner || this.solidAt(w.x + Math.sign(w.vx) * s.w, w.y - 40)) w.t = Math.min(w.t, 0);
-      const inside = (o) => Math.abs(o.x - w.x) < s.w + bw(o) / 2 && o.y > w.y - s.h && o.y - bh(o) < w.y + 20;
+      if (!owner || (this.td ? TD.inWall(this.stage, w.x, w.y) : this.solidAt(w.x + Math.sign(w.vx) * s.w, w.y - 40))) w.t = Math.min(w.t, 0);
+      // 입체 모드: 바닥 위 동그란 범위 / 옆 모드: 세로로 긴 범위
+      const inside = (o) => (this.td ? Math.hypot(o.x - w.x, o.y - w.y) < s.w + bw(o) / 2 : Math.abs(o.x - w.x) < s.w + bw(o) / 2 && o.y > w.y - s.h && o.y - bh(o) < w.y + 20);
       if (w.t > 0 && owner && this.phase !== 'countdown' && this.phase !== 'ended') {
         for (const o of list) {
           if (!this.foe(w, o) || !o.alive || o.inside || o.frozen > 0 || o.invincible > 0 || o.rockT > 0) continue;
@@ -1927,11 +2025,13 @@ class Sim {
           }
           // 휩쓸려 감: 소용돌이 가운데로 끌려와서 같이 이동, 위로 빙글빙글
           // (예전보다 약하게 끌어서, 반대로 움직이거나 점프하면 빠져나갈 수 있음)
-          o.x += (w.x - o.x) * 0.06; o.vx += (w.vx - o.vx) * 0.22; o.vy = approach(o.vy, -200, 2200 * dt);
+          if (this.td) { o.x += (w.x - o.x) * 0.06; o.y += (w.y - o.y) * 0.06; o.vx += (w.vx - o.vx) * 0.22; o.vy += ((w.vy || 0) - o.vy) * 0.22; o.z = Math.max(o.z || 0, 1); o.vz = Math.max(o.vz || 0, 140); }
+          else { o.x += (w.x - o.x) * 0.06; o.vx += (w.vx - o.vx) * 0.22; o.vy = approach(o.vy, -200, 2200 * dt); }
           o.grounded = false; o.attack = null; o.drawT = 0;
           o.lastHitBy = owner.id; o.lastHitAt = this.tickCount;
         }
         for (const t of this.turrets) {
+          if (this.td) { if (this.foe(w, t) && Math.hypot(t.x - w.x, t.y - w.y) < s.w + 20) { t.x += w.vx * dt; t.y += (w.vy || 0) * dt; } continue; }
           if (!this.foe(w, t) || Math.abs(t.x - w.x) > s.w + 20 || t.y < w.y - s.h || t.y - 44 > w.y + 20) continue;
           t.x += w.vx * dt; t.vy = Math.min(t.vy, -120); t.y -= 2;
         }
@@ -1941,7 +2041,8 @@ class Sim {
         for (const o of list) {
           if (!w.caught.has(o.id) || !o.alive || o.inside || !inside(o)) continue;
           const kb = s.throwKB * (o.buffT > 0 ? SKILLS.empower.kbMul : 1) * (1 - SKILLS.hulk.tough * hulkF(o));
-          o.vx = Math.sign(w.vx) * kb; o.vy = -kb * 0.75; o.hitstun = Math.max(o.hitstun, 0.35);
+          if (this.td) { const d = Math.hypot(w.vx, w.vy || 0) || 1; this.tdKick(o, w.vx / d, (w.vy || 0) / d, kb, 0.5); } else { o.vx = Math.sign(w.vx) * kb; o.vy = -kb * 0.75; }
+          o.hitstun = Math.max(o.hitstun, 0.35);
         }
         this.ev({ k: 'windend', x: r0(w.x), y: r0(w.y - 60) });
       }
@@ -2047,6 +2148,7 @@ class Sim {
   }
 
   insideSolid(x, y) {
+    if (this.td) return TD.inWall(this.stage, x, y);
     const hw = CONFIG.PLAYER_W / 2, h = CONFIG.PLAYER_H;
     if ((this.stage.slopes || []).some((sl) => x >= sl.x1 && x <= sl.x2 && y > slopeY(sl, x) + 2 && y - h < slopeBase(sl))) return true;
     return this.stage.solids.some((s) => x + hw > s.x && x - hw < s.x + s.w && y > s.y + 1 && y - h < s.y + s.h);
@@ -2262,6 +2364,27 @@ class Sim {
   rushHits(p, list) {
     p.rushCarry = (p.rushCarry || []).filter((o) => o.alive && !o.inside && !(o.invincible > 0) && (o.clone ? this.clones.get(o.ownerId) === o : this.players.has(o.id)));
     if (!(p.rushT > 0)) { this.rushRelease(p, p.rushDir); return; }
+    if (this.td) {
+      // 입체 모드: 돌진 방향 앞에 닿은 상대를 앞에 붙여서 밀고 감
+      const [vx, vy] = p.rushV;
+      for (const o of [...list, ...this.clones.values()]) {
+        if (!this.foe(p, o) || !o.alive || o.inside || o.frozen > 0 || o.invincible > 0 || p.rushCarry.includes(o) || o === p || o.fallT > 0) continue;
+        const reach = bw(p) / 2 + bw(o) / 2, fx = p.x + vx * reach, fy = p.y + vy * reach;
+        if (Math.hypot(o.x - fx, o.y - fy) < bw(o) / 2 + 18) {
+          if (this.parrying(o)) { this.reflectHit(p, o, { damage: SKILLS.dash.dmg, baseKB: SKILLS.dash.baseKB, growthKB: SKILLS.dash.growthKB, lift: SKILLS.dash.lift }, 'heavy', p.rushDir); p.rushT = 0; return; }
+          p.rushCarry.push(o); this.ev({ k: 'rushgrab', x: r0(o.x), y: r0(o.y - bh(o) / 2), pid: p.id });
+        }
+      }
+      let off = bw(p) / 2;
+      for (const o of p.rushCarry) {
+        off += bw(o) / 2 + 2;
+        o.x = p.x + vx * off; o.y = p.y + vy * off; o.vx = p.vx; o.vy = p.vy; o.z = Math.max(0, p.z || 0); o.vz = 0; o.hitstun = Math.max(o.hitstun, 0.12); o.attack = null;
+        off += bw(o) / 2;
+      }
+      if (p.rushPrevX != null && Math.hypot(p.x - p.rushPrevX, p.y - p.rushPrevY) < 2 && p.rushT < SKILLS.dash.time - 0.1) { p.rushT = 0; this.rushRelease(p, p.rushDir); }
+      p.rushPrevX = p.x; p.rushPrevY = p.y;
+      return;
+    }
     const d = p.rushDir;
     for (const o of [...list, ...this.clones.values()]) {
       if (!this.foe(p, o) || !o.alive || o.inside || o.frozen > 0 || o.invincible > 0 || p.rushCarry.includes(o) || o === p) continue;
@@ -2285,10 +2408,10 @@ class Sim {
     const s = SKILLS.dash, def = { damage: s.dmg, baseKB: s.baseKB, growthKB: s.growthKB, lift: s.lift };
     for (const o of p.rushCarry || []) {
       if (!o.alive) continue;
-      this.applyHit(p, o, def, 'heavy', { dir });
+      this.applyHit(p, o, def, 'heavy', { dir, vec: this.td ? p.rushV : undefined });
       if (o.clone) this.hitClone(o);
     }
-    if ((p.rushCarry || []).length) this.ev({ k: 'rushhit', x: r0(p.x + dir * 40), y: r0(p.y - bh(p) / 2), pid: p.id });
+    if ((p.rushCarry || []).length) this.ev({ k: 'rushhit', x: r0(p.x + (this.td ? p.rushV[0] : dir) * 40), y: r0(p.y - bh(p) / 2 + (this.td ? p.rushV[1] * 40 : 0)), pid: p.id });
     p.rushCarry = [];
   }
   hitTurret(t, by) {
@@ -2309,10 +2432,16 @@ class Sim {
       // 홍수 물에 잠기면 고장
       if (this.water && t.y - 20 > this.water.y) { this.turrets = this.turrets.filter((x) => x !== t); this.ev({ k: 'tbreak', x: r0(t.x), y: r0(t.y - 30) }); continue; }
       // 중력 (땅이나 발판 위에 멈춤)
-      const prevY = t.y;
-      t.vy = Math.min(t.vy + CONFIG.GRAVITY * dt, CONFIG.MAX_FALL); t.y += t.vy * dt;
-      { const ly = this.landingY(t.x, prevY, t.y); if (ly != null) { t.y = ly; t.vy = 0; } }
-      if (t.y > this.stage.blast.bottom) { this.turrets = this.turrets.filter((x) => x !== t); continue; }
+      if (this.td) {
+        // 입체 모드: 중력 없음. 바닥 밖으로 밀리면 떨어져서 사라짐
+        if (t.vx || t.vy) { t.x += (t.vx || 0) * dt; t.y += (t.vy || 0) * dt; t.vx = approach(t.vx || 0, 0, 900 * dt); t.vy = approach(t.vy || 0, 0, 900 * dt); }
+        if (!TD.onFloor(this.stage, t.x, t.y)) { this.turrets = this.turrets.filter((x) => x !== t); this.ev({ k: 'tbreak', x: r0(t.x), y: r0(t.y - 30) }); continue; }
+      } else {
+        const prevY = t.y;
+        t.vy = Math.min(t.vy + CONFIG.GRAVITY * dt, CONFIG.MAX_FALL); t.y += t.vy * dt;
+        { const ly = this.landingY(t.x, prevY, t.y); if (ly != null) { t.y = ly; t.vy = 0; } }
+        if (t.y > this.stage.blast.bottom) { this.turrets = this.turrets.filter((x) => x !== t); continue; }
+      }
       t.cd -= dt;
       const mx = t.x, my = t.y - 30;
       let target = null, best = s.range;
@@ -2357,12 +2486,12 @@ class Sim {
             // 혀 끝에 맞음 → 혀는 되돌아감 (반사하면 그냥 되돌아감)
             b.ext = false;
             if (this.parrying(o)) { this.parried(o, b.x, b.y); break; }
-            this.applyHit(owner, o, def, 'light', { dir: Math.sign(b.dx) || 1, small: true });
+            this.applyHit(owner, o, def, 'light', { dir: Math.sign(b.dx) || 1, small: true, vec: this.tdVel(b.dx, b.dy) });
             if (o.clone) this.hitClone(o);
             break;
           }
           if (this.parrying(o)) { this.reflectShot(o, b); break; }
-          this.applyHit(owner, o, def, 'light', { dir: Math.sign(b.vx) || 1, small: true });
+          this.applyHit(owner, o, def, 'light', { dir: Math.sign(b.vx) || 1, small: true, vec: this.tdVel(b.vx, b.vy) });
           if (o.clone) this.hitClone(o);
           b.t = 0; break;
         }
@@ -2421,9 +2550,11 @@ class Sim {
     // 방패 막기: 앞에서 들어온 공격은 막고 살짝만 밀림
     if (t.blockT > 0 && has(t, 'shield') && t.shieldHeld && !t.clone) {
       const dir = opt.dir || a.facing || 1;
-      if (dir === -t.facing) {
-        t.vx = dir * 160; t.attack = null;
-        this.ev({ k: 'block', x: r0(t.x + t.facing * bw(t) / 2), y: r0(t.y - bh(t) / 2), pid: t.id });
+      const front = this.td ? ((opt.vec ? -opt.vec[0] : a.x - t.x) * t.fx + (opt.vec ? -opt.vec[1] : a.y - t.y) * t.fy) > 0 : dir === -t.facing;   // 입체 모드: 보는 쪽에서 온 공격
+      if (front) {
+        if (this.td) { t.vx = -t.fx * 160; t.vy = -t.fy * 160; } else t.vx = dir * 160;
+        t.attack = null;
+        this.ev({ k: 'block', x: r0(t.x + (this.td ? t.fx : t.facing) * bw(t) / 2), y: r0(t.y - bh(t) / 2 + (this.td ? t.fy * 20 : 0)), pid: t.id });
         return;
       }
     }
@@ -2451,7 +2582,7 @@ class Sim {
     if (has(a, 'combo') && !a.clone && !opt.smash) a.combo = Math.min(SKILLS.combo.maxStack, (a.combo || 0) + 1);
     if (!t.clone && has(a, 'parasite') && !a.clone) a.parHits[t.id] = (a.parHits[t.id] || 0) + 1;
     // 비행 중 올라가다 맞으면 잠시 내려감
-    if (t.flyT > 0 && t.vy < 0) t.flyDownT = SKILLS.fly.hitDrop;
+    if (t.flyT > 0 && (this.td || t.vy < 0)) t.flyDownT = SKILLS.fly.hitDrop;
     this.launch(a, t, def, type, opt);
   }
   // 입체 모드 방향 도우미: a → t 바닥 방향 (겹쳐 있으면 a가 보는 방향)
@@ -2460,6 +2591,8 @@ class Sim {
     if (d > 4) return [dx / d, dy / d];
     return [a.fx != null ? a.fx : a.facing || 1, a.fy || 0];
   }
+  // 날아가는 것의 방향 (입체 모드에서만)
+  tdVel(vx, vy) { if (!this.td) return undefined; const d = Math.hypot(vx, vy); return d > 1 ? [vx / d, vy / d] : undefined; }
   // 근접 공격: 보는 방향 60% + 맞은 사람 쪽 40%
   tdMix(a, t) {
     const [ax, ay] = this.tdAway(a, t), fx = a.fx != null ? a.fx : a.facing || 1, fy = a.fy || 0;
@@ -2529,7 +2662,7 @@ class Sim {
     const s = SKILLS.sword;
     const def = { damage: s.slashDmg, baseKB: s.slashKB, growthKB: s.slashGrowth, lift: 0.42 };
     for (const sl of this.slashes) {
-      sl.t -= dt; sl.x += sl.vx * dt * this.waterK(sl.y);
+      sl.t -= dt; sl.x += sl.vx * dt * this.waterK(sl.y); if (sl.vy) sl.y += sl.vy * dt;
       const owner = this.players.get(sl.owner);
       if (!owner || this.insideSolid(sl.x, sl.y + 30)) { sl.t = 0; continue; }
       if (this.phase === 'countdown' || this.phase === 'ended') continue;
@@ -2543,7 +2676,7 @@ class Sim {
         if (Math.abs(o.x - sl.x) < ow / 2 + 26 && sl.y > o.y - oh - 30 && sl.y < o.y + 30) {
           if (this.parrying(o)) { this.reflectShot(o, sl); sl.hit.add(o.id); break; }
           sl.hit.add(o.id);
-          this.applyHit(owner, o, def, 'light', { dir: Math.sign(sl.vx) });
+          this.applyHit(owner, o, def, 'light', { dir: Math.sign(sl.vx) || 1, vec: this.tdVel(sl.vx, sl.vy || 0) });
           if (o.clone) this.hitClone(o);
         }
       }
@@ -2639,7 +2772,7 @@ class Sim {
       scn: has(p, 'starlight') ? [p.starN || 0, Math.round(p.starT || 0)] : 0,
       shd: has(p, 'shield') && !p.clone ? [p.shieldHeld ? 1 : 0, p.blockT > 0 ? 1 : 0, Math.round((p.shCharge || 0) * 100) / 100, Math.ceil(p.shieldBack || 0)] : 0,
       tc: has(p, 'tentacle') && !p.clone ? p.tents.flatMap((tc) => [Math.round(this.tentExt(tc) * 100) / 100, Math.round(tc.ang * 100) / 100]) : 0,
-      an: p.anchorT > 0 ? [Math.round(p.anchorT * 10) / 10, (() => { const g = this.groundBelow(p.x, p.y); return g == null ? 260 : Math.min(600, r0(g - p.y)); })()] : 0,
+      an: p.anchorT > 0 ? [Math.round(p.anchorT * 10) / 10, this.td ? Math.max(20, r0(p.z || 0)) : (() => { const g = this.groundBelow(p.x, p.y); return g == null ? 260 : Math.min(600, r0(g - p.y)); })()] : 0,
       bd: p.bot && !p.dummy ? ['easy', 'mid', 'hard'].indexOf(p.diff) : undefined,
       rs: p.randS1 || p.randS2 ? [p.randS1 ? 1 : 0, p.randS2 ? 1 : 0] : 0,
       br: this.headUnder(p) && !has(p, 'flood') ? Math.ceil(p.breath) : undefined, bl: p.blindT > 0 ? Math.round(p.blindT * 10) / 10 : undefined,
@@ -2664,7 +2797,7 @@ class Sim {
       po: this.potions.map((q) => [r0(q.x), r0(q.y), DOPE_KINDS.indexOf(q.kind), q.owner]),
       shw: this.shields.map((q) => ({ x: r0(q.x), y: r0(q.y), vx: q.ground ? 0 : r0(q.vx), vy: q.ground ? 0 : r0(q.vy), g: q.ground ? 1 : 0, o: q.owner, s: q.big !== 1 ? Math.round(q.big * 10) / 10 : undefined })),
       sb: this.starBits.map((b) => { const o = this.players.get(b.owner); return { x: r0(b.x), y: r0(b.y), vx: r0(b.vx), vy: r0(b.vy), r: Math.round(b.r), m: o && skinOn(o, 'meteor') ? 1 : undefined }; }),
-      wd: this.winds.map((w) => { const o = this.players.get(w.owner); return { i: w.id, x: r0(w.x), y: r0(w.y), vx: w.vx, r: o && skinOn(o, 'firetornado') ? 1 : 0 }; }),
+      wd: this.winds.map((w) => { const o = this.players.get(w.owner); return { i: w.id, x: r0(w.x), y: r0(w.y), vx: w.vx, vy: w.vy ? r0(w.vy) : undefined, r: o && skinOn(o, 'firetornado') ? 1 : 0 }; }),
       mn: this.mines.map((m) => { const o = this.players.get(m.owner); return { x: r0(m.x), y: r0(m.y), c: m.color, a: m.arm > 0 ? 0 : 1, sk: o && skinOn(o, 'ginkgo') ? 'g' : o && skinOn(o, 'blocks') ? 'b' : undefined }; }),
       tr: this.turrets.map((t) => { const o = this.players.get(t.owner); return { i: t.id, x: r0(t.x), y: r0(t.y), a: Math.round(t.aim * 100) / 100, hp: t.hp, c: t.color, o: t.owner, fg: o && skinOn(o, 'frog') ? 1 : o && skinOn(o, 'llama') ? 2 : 0 }; }),
       bl: this.bullets.map((b) => { const o = this.players.get(b.owner), c = o ? o.color : '#fff'; return b.tg ? { tg: 1, ox: r0(b.ox), oy: r0(b.oy), x: r0(b.x), y: r0(b.y), vx: 0, vy: 0, c } : { x: r0(b.x), y: r0(b.y), vx: r0(b.vx), vy: r0(b.vy), c, sp: o && skinOn(o, 'llama') ? 1 : undefined }; }),
@@ -2672,7 +2805,7 @@ class Sim {
       bzs: this.blizzards.some((b) => b.sand) ? 1 : 0,
       bza: this.blizzards.some((b) => b.skin === 'aurora') ? 1 : 0,
       bzd: this.blizzards.some((b) => b.skin === 'shadow') ? 1 : 0,
-      pj: this.slashes.map((sl) => { const o = this.players.get(sl.owner); return { i: sl.id, x: r0(sl.x), y: r0(sl.y), vx: sl.vx, o: sl.owner, d: o && skinOn(o, 'darkness') ? 1 : 0, ho: o && skinOn(o, 'holyknight') ? 1 : 0, lc: o ? (activeSkins(o).map((id) => SKIN_DB[id] && SKIN_DB[id].blade).find(Boolean) || undefined) : undefined }; }),
+      pj: this.slashes.map((sl) => { const o = this.players.get(sl.owner); return { i: sl.id, x: r0(sl.x), y: r0(sl.y), vx: sl.vx, vy: sl.vy ? r0(sl.vy) : undefined, o: sl.owner, d: o && skinOn(o, 'darkness') ? 1 : 0, ho: o && skinOn(o, 'holyknight') ? 1 : 0, lc: o ? (activeSkins(o).map((id) => SKIN_DB[id] && SKIN_DB[id].blade).find(Boolean) || undefined) : undefined }; }),
       sm: this.smokes.map((s) => ({ x: r0(s.x), y: r0(s.y), r: s.r, a: Math.round((s.t / s.max) * 100) / 100, nk: s.nuke ? 1 : undefined })),
       p: this.list().map((p) => ({
         id: p.id, n: p.name, c: p.color, x: r0(p.x), y: r0(p.y), f: p.facing, ...this.tdSnap(p),
@@ -3170,8 +3303,10 @@ function tdBotThink(sim, b) {
   const overVoid = !tdSafe(sim, b.x, b.y);
   // 틈을 건너뛰는 중: 뛴 방향 그대로
   if (b.jumpT > 0) { b.jumpT--; if (b.z > 0 || b.vz > 0) { tdKeys(inp, b.jumpTo[0], b.jumpTo[1]); return inp; } }
+  if (b.rushT > 0 && b.rushV) { tdKeys(inp, b.rushV[0], b.rushV[1]); return inp; }   // 돌진 중엔 방향 유지
   if (b.z > 0 && overVoid) {
     const [hx, hy] = tdHome(sim, b.x, b.y); tdKeys(inp, hx, hy);
+    { const sl = slotsOf(b); for (const key of ['s', 'e', 'x']) if (sl[key] === 'fly' && !b.prevInput[key] && tdBotSkill(sim, b, 'fly', null, 1e9, key)) inp[key] = 1; }
     if (b.vz < 0 && b.z < 30 && !b.prevInput.jp && (b.jumpsLeft > 0 || b.hopT > 0)) inp.jp = 1;
     return inp;
   }
@@ -3256,6 +3391,7 @@ function tdBotThink(sim, b) {
   if (inp.s && b.prevInput.s) inp.s = 0;
   if (inp.e && b.prevInput.e) inp.e = 0;
   if (inp.x && b.prevInput.x) inp.x = 0;
+  if (b.shHold > 0) { b.shHold--; const sl = slotsOf(b), key = ['s', 'e', 'x'].find((q) => sl[q] === 'shield'); if (key) inp[key] = 1; }   // 방패: 꾹 눌렀다 놓아서 던짐
   return inp;
 }
 // ---- 길 찾기: 20px 칸 격자 (맵마다 한 번 만듦). 좁은 틈(60px 이하)은 점프로 건너는 길 ----
@@ -3345,6 +3481,8 @@ function tdBotSkill(sim, b, k, tg, d, key) {
   if (k === 'magnet2') return b.skillCd2 <= 0 && tg && d < 200 && R() < 0.05;
   if (b.tdOff && b.tdOff[k]) return false;
   const near = (r, p = 0.05) => tg && d < r && R() < p;
+  const aimed = (r) => tg && d < r && d > 1 && ((tg.x - b.x) * b.fx + (tg.y - b.y) * b.fy) / d > 0.85;   // 보는 방향에 상대가 있음
+  const clearAhead = (len) => { for (let t = 40; t <= len; t += 40) if (!tdSafe(sim, b.x + b.fx * t, b.y + b.fy * t)) return false; return true; };
   switch (k) {
     case 'empower': return b.charged && near(300, 0.1);
     case 'parasite': return Object.values(b.parHits).some((n) => n >= SKILLS.parasite.hitsNeeded) && R() < 0.02;
@@ -3374,6 +3512,20 @@ function tdBotSkill(sim, b, k, tg, d, key) {
     case 'lightning': return near(SKILLS.lightning.radius, 0.05);
     case 'flash': case 'wave': return near(210, 0.06);
     case 'reflect': return !!tg && d < 120 && !!tg.attack && R() < 0.3;
+    case 'sword': return aimed(520) && R() < 0.1;
+    case 'wind': return aimed(420) && R() < 0.06;
+    case 'turret': return near(500, 0.02);
+    case 'mine': return near(260, 0.03) || R() < 0.004;
+    case 'clone': return near(300, 0.03);
+    case 'shotgun': return !(b.ammo > 0) || (b.ammo < 2 && R() < 0.02);
+    case 'ninja': return !!tg && d < 140 && b.damage > 60 && R() < 0.05;
+    case 'dash': return aimed(300) && clearAhead(SKILLS.dash.speed * SKILLS.dash.time + 120) && R() < 0.08;
+    case 'fly': return b.z > 0 && !tdSafe(sim, b.x, b.y) && b.vz < 0;   // 떨어질 것 같으면 날아서 버팀
+    case 'archer': return !b.homingNext && near(600, 0.02);
+    case 'starlight': return (b.starN || 0) >= 3 && aimed(450) && R() < 0.1;
+    case 'shield': if (b.shieldHeld && aimed(500) && R() < 0.05) { b.shHold = 15 + Math.floor(R() * 30); return true; } return false;
+    case 'tentacle': return near(260, 0.01);
+    case 'flood': return near(500, 0.015);
     case 'stealth': case 'swap': case 'gamble': case 'hop': return R() < 0.004;
     case 'time': return sim.timeSaves.has(b.id) ? (b.damage > (b.tsDmg || 0) + 40 && R() < 0.05) : (R() < 0.004 && ((b.tsDmg = b.damage), true));
     default: return near(360, 0.02);   // 지진·에러·반전·얼음·태양·거인·고무·엔진·보석·원자 등

@@ -1691,6 +1691,19 @@ function drawTramps(time) {
 function drawWater(state, time) {
   if (!state.wa) return;
   const [wy, lava] = state.wa, W2 = STAGE.width + 800, H2 = STAGE.height + 800;
+  if (isTD()) {
+    // 입체 모드: 무대 전체에 물(용암)이 참 — 깊을수록 진하게, 물결이 흘러감
+    const dep = Math.max(0, Math.min(1, (STAGE.height + 40 - wy) / (STAGE.height + 100)));
+    ctx.fillStyle = lava ? `rgba(230,90,20,${0.12 + dep * 0.4})` : `rgba(60,150,235,${0.1 + dep * 0.4})`;
+    ctx.fillRect(-400, -400, W2, H2);
+    ctx.strokeStyle = lava ? `rgba(255,220,120,${0.2 + dep * 0.4})` : `rgba(220,245,255,${0.15 + dep * 0.4})`; ctx.lineWidth = 2;
+    for (let y = 20; y < STAGE.height; y += 60) {
+      ctx.beginPath();
+      for (let x = 0; x <= STAGE.width; x += 30) ctx.lineTo(x, y + Math.sin(x / 70 + time / 500 + y) * 6);
+      ctx.stroke();
+    }
+    return;
+  }
   const g = ctx.createLinearGradient(0, wy, 0, STAGE.height + 200);
   if (lava) { g.addColorStop(0, 'rgba(255,150,40,0.5)'); g.addColorStop(1, 'rgba(200,40,10,0.68)'); }
   else { g.addColorStop(0, 'rgba(80,170,240,0.38)'); g.addColorStop(1, 'rgba(20,60,150,0.6)'); }
@@ -3122,7 +3135,7 @@ function drawArrowsWinds(state, now) {
     ctx.restore();
   }
   for (const w of state.wd || []) {
-    const x = w.x + w.vx * age, y = w.y;
+    const x = w.x + w.vx * age, y = w.y + (w.vy || 0) * age;
     // 아래는 좁고 위는 넓은 소용돌이 (가로 줄이 빙글빙글)
     for (let i = 0; i < 9; i++) {
       const t = i / 8, yy = y - t * 170, rx = 18 + t * 62, ph = now / 70 + i * 0.9;
@@ -3383,8 +3396,9 @@ function drawBlizzard(state, dt, now) {
 function drawSlashes(state, now) {
   const age = (now - state.time - INTERP_DELAY) / 1000;
   for (const s of state.pj || []) {
-    const x = s.x + s.vx * Math.max(-0.07, age), y = s.y, f = s.vx > 0 ? 1 : -1;
-    ctx.save(); ctx.translate(x, y); ctx.scale(f, 1);
+    const k = Math.max(-0.07, age), x = s.x + s.vx * k, y = s.y + (s.vy || 0) * k, f = s.vx >= 0 ? 1 : -1;
+    ctx.save(); ctx.translate(x, y);
+    if (s.vy) ctx.rotate(Math.atan2(s.vy, s.vx)); else ctx.scale(f, 1);   // 입체 모드: 날아가는 방향으로 돌림
     const g = ctx.createLinearGradient(-60, 0, 30, 0);
     if (s.lc) { g.addColorStop(0, hexA(s.lc, 0)); g.addColorStop(1, hexA(s.lc, 0.95)); ctx.shadowColor = s.lc; }
     else if (s.ho) { g.addColorStop(0, 'rgba(255,240,170,0)'); g.addColorStop(1, 'rgba(255,248,210,0.98)'); }
@@ -3576,7 +3590,7 @@ function updateRoomPanel(m) {
   const sl = slotsOf(me);
   $('keysNote').hidden = !md[1] && !md[2];
   let kn = !md[1] ? '' : sl.x ? `자석 당기기 Q · 밀기 E · ${SKILLS[validSkill(sl.x)].name} R` : `${SKILLS[validSkill(me.sk)].name} Q · ${me.sk2 ? SKILLS[validSkill(me.sk2)].name : '?'} E`;
-  if (md[2]) kn += (kn ? ' · ' : '') + `입체: 이동 ${isTouch ? '조이스틱' : 'WASD·방향키'} · 점프 ${isTouch ? '점프 버튼' : '스페이스'} · 준비 중인 스킬 ${SKILL_IDS.filter(tdNotReady).length}개 (곧 추가)`;
+  if (md[2]) { const wip = SKILL_IDS.filter(tdNotReady).length; kn += (kn ? ' · ' : '') + `입체: 이동 ${isTouch ? '조이스틱' : 'WASD·방향키'} · 점프 ${isTouch ? '점프 버튼' : '스페이스'}` + (wip ? ` · 준비 중인 스킬 ${wip}개` : ''); }
   $('keysNote').textContent = kn;
   // 스킨 (내 스킬의 가진 스킨 중에서 바로 바꾸기)
   const mySkills = [me.sk, md[1] ? me.sk2 : null].filter(Boolean);
