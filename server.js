@@ -214,9 +214,17 @@ async function api(req, res, urlPath) {
 }
 
 // ---------- 웹사이트 ----------
+let simJs = null;   // /sim.js (game.js를 브라우저용으로 감싼 것)
 const server = http.createServer((req, res) => {
   const urlPath = decodeURIComponent(req.url.split('?')[0]);
   if (urlPath === '/health') { res.writeHead(200); return res.end('ok'); }
+  // 스킬 상세 창의 영상: 브라우저에서 진짜 게임 규칙(game.js)을 그대로 돌려 보여줌
+  if (urlPath === '/sim.js') {
+    if (!simJs) simJs = '(function(){var module={exports:{}};var require=function(p){return p.indexOf("tdmaps")>=0?window.BRAWL_TDMAPS:p.indexOf("skins")>=0?window.BRAWL_SKINS:window.BRAWL_MAPS;};\n'
+      + fs.readFileSync(path.join(__dirname, 'game.js'), 'utf8') + '\nwindow.BRAWL_SIM=module.exports;})();';
+    res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8', 'Cache-Control': 'no-cache' });
+    return res.end(simJs);
+  }
   if (urlPath.startsWith('/api/')) return api(req, res, urlPath);
   const file = path.normalize(path.join(PUBLIC_DIR, urlPath === '/' ? 'index.html' : urlPath));
   if (!file.startsWith(PUBLIC_DIR)) { res.writeHead(403); return res.end(); }

@@ -318,6 +318,23 @@
   #skinGems { font-weight: 700; color: #5ef2ff; font-size: 14px; }
   .modal-x { border: 0; background: #2f2a55; color: var(--text); width: 32px; height: 32px; border-radius: 8px; cursor: pointer; font-size: 15px; }
   .skin-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+  #detailModal { z-index: 25; }
+  .det-card { width: min(680px, 100%); }
+  .det-tabs { display: flex; gap: 6px; margin: 10px 0 8px; }
+  .det-tabs button { flex: 1; border: 1.5px solid var(--line); border-radius: 10px; background: #15122a; color: var(--muted); font: 700 14px inherit; font-family: inherit; padding: 7px; cursor: pointer; }
+  .det-tabs button[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: #2a1a00; }
+  .det-video { position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: 12px; overflow: hidden; background: #0b0a16; border: 1px solid var(--line); }
+  .det-video canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .det-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 14px; }
+  .det-loading[hidden] { display: none; }
+  .det-desc { margin: 12px 0 6px; font-size: 15px; line-height: 1.5; }
+  .det-more { margin: 0 0 10px; padding-left: 18px; font-size: 13.5px; line-height: 1.55; color: #d6d1f0; }
+  .det-more li { margin: 3px 0; }
+  .det-more b { color: var(--accent); }
+  .det-actions { display: flex; flex-direction: column; gap: 6px; }
+  .det-buy.ghost { opacity: .6; }
+  .skin-card[data-info] { cursor: pointer; }
+  .skin-card[data-info]:hover { border-color: #5a4f9a; }
   .skin-card { display: flex; align-items: center; gap: 12px; background: #15122a; border: 1.5px solid var(--line); border-radius: 12px; padding: 10px 12px; }
   .skin-card.on { border-color: var(--accent); background: #2a2348; }
   .skin-sw { width: 36px; height: 36px; border-radius: 10px; flex: none; border: 2px solid rgba(255,255,255,.25); }
@@ -434,6 +451,7 @@
         </div>
         <button class="sub-btn shop-open" id="shopBtn" type="button">🛒 상점 <span class="shop-dot" id="shopDot" hidden>일일 보상!</span></button>
         <button class="sub-btn skin-open" id="skinBtn" type="button">스킨 보기</button>
+        <button class="sub-btn skin-open" id="detBtn" type="button">▶ 고른 스킬 설명·영상</button>
         <a class="sub-btn chess-go" id="chessLink" href="#" target="_blank" rel="noopener" hidden>♞ 럭키 체스 하러 가기 <small>이기면 보석 +100</small></a>
         <button class="link-btn" id="patchOpen" type="button">패치 내역 보기</button>
         <p class="hint" id="gachaMsg" role="status"></p>
@@ -571,6 +589,19 @@
     <p class="hint" id="shopMsg" role="status"></p>
   </div>
 </div>
+<div id="detailModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="detTitle">
+  <div class="modal-card det-card">
+    <div class="modal-head"><b id="detTitle">스킬</b><span id="detTag" class="hint"></span><button class="modal-x" id="detClose" type="button" aria-label="닫기">✕</button></div>
+    <div class="det-tabs" role="tablist" aria-label="영상 모드">
+      <button type="button" role="tab" id="detTabSide" aria-selected="true">일반 모드</button>
+      <button type="button" role="tab" id="detTabTd" aria-selected="false">입체 모드</button>
+    </div>
+    <div class="det-video"><canvas id="detCanvas" aria-label="스킬 사용 예시 영상"></canvas><div class="det-loading" id="detLoading">영상 불러오는 중…</div></div>
+    <p class="det-desc" id="detDesc"></p>
+    <ul class="det-more" id="detMore"></ul>
+    <div class="det-actions"><button type="button" class="rp-btn det-buy" id="detBuy">사기</button><p class="hint" id="detMsg" role="status"></p></div>
+  </div>
+</div>
 <div id="skinModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="skinTitle">
   <div class="modal-card">
     <div class="modal-head"><b id="skinTitle">스킨</b><span id="skinGems"></span><button class="modal-x" id="skinClose" type="button" aria-label="닫기">✕</button></div>
@@ -583,6 +614,7 @@
 
 <script src="maps.js"></script>
 <script src="tdmaps.js"></script>
+<script src="skilldocs.js"></script>
 <script src="skins.js"></script>
 <script src="patch.js"></script>
 <script src="sound.js"></script>

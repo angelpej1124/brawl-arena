@@ -294,9 +294,9 @@ function renderAccount() {
   document.querySelectorAll('.skill').forEach((b) => {
     const locked = !owned.includes(b.dataset.skill);
     b.classList.toggle('locked', locked);
-    b.disabled = locked && !p;                       // 로그인했으면 잠긴 스킬을 눌러 살 수 있음
+    b.disabled = false;                              // 잠긴 스킬도 눌러서 설명·영상을 볼 수 있음
     b.classList.toggle('buyable', locked && !!p);
-    b.title = locked ? (p ? `뽑기로 얻거나, 눌러서 보석 ${SKILL_BUY}개로 사기` : '가입하고 뽑기로 얻을 수 있어요') : '';
+    b.title = locked ? '눌러서 설명·영상 보기 (뽑기로 얻거나 보석으로 사기)' : '';
   });
   if (!owned.includes(account.skill)) account.skill = 'slow';
   selectSkill(account.skill, false);
@@ -315,7 +315,7 @@ function renderSkins() {
   const list = Object.entries(SKIN_INFO.SKINS).filter(([, s]) => s.skill === skill);
   $('skinTitle').textContent = `${SKILLS[skill].name} 스킨`;
   $('skinGems').textContent = p ? `보석 ${p.gems}` : '';
-  $('skinSub').textContent = '스킨은 보이는 모습만 바뀌고 능력은 그대로예요. 기본 스킨은 모두 가지고 있어요.';
+  $('skinSub').textContent = '스킨은 보이는 모습만 바뀌고 능력은 그대로예요. 기본 스킨은 모두 가지고 있어요. 카드를 누르면 영상으로 볼 수 있어요.';
   const box = $('skinList'); box.textContent = '';
   const equipped = p && p.skinSel ? p.skinSel[skill] || null : null;
   const card = (id, name, desc, color, owned) => {
@@ -329,6 +329,9 @@ function renderSkins() {
     else if (owned) { btn.textContent = '장착'; btn.onclick = () => skinAction('/api/skin/equip', { skill, skin: id }); }
     else { btn.textContent = `구매 · 보석 ${SKIN_INFO.PRICE}`; btn.disabled = p.gems < SKIN_INFO.PRICE; btn.onclick = () => skinAction('/api/skin/buy', { skin: id }); }
     c.append(sw, t, btn); box.append(c);
+    // 카드를 누르면 스킨 영상 (버튼은 그대로)
+    c.dataset.info = '1'; c.title = '눌러서 영상 보기';
+    c.addEventListener('click', (e) => { if (e.target.closest('button')) return; openDetail({ skill, skin: id }); });
   };
   card(null, '기본', `${SKILLS[skill].name} 기본 모습`, SKILL_COLOR[skill], true);
   for (const [id, s] of list) card(id, s.name, s.desc, s.color, !!(p && p.skins && p.skins.includes(id)));
@@ -595,7 +598,7 @@ function selectSkill(skill, save) {
   if (save) { try { localStorage.setItem('brawl_skill', skill); } catch (e) {} }
 }
 document.querySelectorAll('.skill').forEach((b) => b.addEventListener('click', () => {
-  if (b.classList.contains('locked')) return buySkillAsk(b.dataset.skill);
+  if (b.classList.contains('locked')) return openDetail({ skill: b.dataset.skill });   // 안 가진 스킬: 상세 창(설명·영상·사기)
   selectSkill(b.dataset.skill, true);
 }));
 // ---------------- 상점 ----------------
@@ -606,7 +609,7 @@ async function loadShop() {
   $('shopDot').hidden = !(account.profile && shopData && !shopData.dailyDone);
   if (!$('shopModal').hidden) renderShop();
 }
-function shopCard(box, sw, name, desc, priceHtml, owned, onBuy, extra) {
+function shopCard(box, sw, name, desc, priceHtml, owned, onBuy, extra, onInfo) {
   const p = account.profile;
   const c = document.createElement('div'); c.className = 'skin-card';
   const s = document.createElement('div'); s.className = 'skin-sw'; s.style.background = sw;
@@ -618,6 +621,7 @@ function shopCard(box, sw, name, desc, priceHtml, owned, onBuy, extra) {
   else if (!p) { btn.textContent = '로그인 필요'; btn.disabled = true; }
   else { btn.innerHTML = priceHtml; btn.onclick = onBuy; }
   c.append(s, t, btn); box.append(c);
+  if (onInfo) { c.dataset.info = '1'; c.title = '눌러서 설명·영상 보기'; c.addEventListener('click', (e) => { if (!e.target.closest('button')) onInfo(); }); }
 }
 function renderShop() {
   const d = shopData, p = account.profile;
@@ -639,12 +643,12 @@ function renderShop() {
   const ss = $('shopSkins'); ss.textContent = '';
   for (const it of d.skins) {
     const sk = SKIN_INFO.SKINS[it.id]; if (!sk) continue;
-    shopCard(ss, sk.color, `${sk.name} (${SKILLS[validSkill(sk.skill)].name} 스킨)`, sk.desc, `<span class="old-price">${it.normal}</span>보석 ${it.price}`, it.owned, () => shopBuy('skin', it.id, sk.name, it.price));
+    shopCard(ss, sk.color, `${sk.name} (${SKILLS[validSkill(sk.skill)].name} 스킨)`, sk.desc, `<span class="old-price">${it.normal}</span>보석 ${it.price}`, it.owned, () => shopBuy('skin', it.id, sk.name, it.price), null, () => openDetail({ skill: validSkill(sk.skill), skin: it.id }));
   }
   const sl = $('shopSkills'); sl.textContent = '';
   for (const it of d.skills) {
     const k = validSkill(it.id);
-    shopCard(sl, SKILL_COLOR[k], `${SKILLS[k].name} (스킬)`, SKILLS[k].desc, `보석 ${it.price}`, it.owned, () => shopBuy('skill', it.id, SKILLS[k].name, it.price));
+    shopCard(sl, SKILL_COLOR[k], `${SKILLS[k].name} (스킬)`, SKILLS[k].desc, `보석 ${it.price}`, it.owned, () => shopBuy('skill', it.id, SKILLS[k].name, it.price), null, () => openDetail({ skill: k }));
   }
 }
 async function shopBuy(kind, id, name, price) {
@@ -974,8 +978,8 @@ function syncTouchMode() {
 // =====================================================================
 //  화면 그리기
 // =====================================================================
-const canvas = $('game');
-const ctx = canvas.getContext('2d');
+let canvas = $('game');
+let ctx = canvas.getContext('2d');   // 스킬 상세 영상을 그릴 땐 잠깐 다른 캔버스로 바뀜
 const W = 1280, H = 720, PW = 40, PH = 60, INTERP_DELAY = 70;
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 let particles = [], shake = 0, banners = [];
@@ -3678,6 +3682,359 @@ function updateRoomPanel(m) {
 }
 
 // ---------------- 메인 루프 ----------------
+// =====================================================================
+//  스킬·스킨 상세 영상 — 브라우저에서 진짜 게임 규칙(sim.js)으로 짧은 장면을 돌려서 그림
+//  (나 vs 상대 한 명, 약공격 → 강공격 → 스킬 → 다시 공격, 7초마다 처음부터)
+// =====================================================================
+let simLoad = null;
+function loadSim() {
+  if (window.BRAWL_SIM) return Promise.resolve(window.BRAWL_SIM);
+  if (!simLoad) simLoad = new Promise((ok, bad) => {
+    const sc = document.createElement('script'); sc.src = 'sim.js';
+    sc.onload = () => (window.BRAWL_SIM ? ok(window.BRAWL_SIM) : bad(new Error('sim')));
+    sc.onerror = () => { simLoad = null; bad(new Error('sim')); };
+    document.head.append(sc);
+  });
+  return simLoad;
+}
+// 그릴 때 잠깐 바꿔 끼우는 화면 상태 (게임 화면과 섞이지 않게)
+function pvSwap(v) {
+  let t;
+  t = canvas; canvas = v.canvas; v.canvas = t;
+  t = ctx; ctx = v.ctx; v.ctx = t;
+  t = scale; scale = v.scale; v.scale = t;
+  t = offX; offX = v.offX; v.offX = t;
+  t = offY; offY = v.offY; v.offY = t;
+  t = STAGE; STAGE = v.STAGE; v.STAGE = t;
+  t = latest; latest = v.latest; v.latest = t;
+  t = snapshots; snapshots = v.snapshots; v.snapshots = t;
+  t = particles; particles = v.particles; v.particles = t;
+  t = shake; shake = v.shake; v.shake = t;
+  t = banners; banners = v.banners; v.banners = t;
+  t = myId; myId = v.myId; v.myId = t;
+  t = hakiFlash; hakiFlash = v.hakiFlash; v.hakiFlash = t;
+  t = freezeFlash; freezeFlash = v.freezeFlash; v.freezeFlash = t;
+  t = lightFlash; lightFlash = v.lightFlash; v.lightFlash = t;
+  t = lightBlue; lightBlue = v.lightBlue; v.lightBlue = t;
+  t = rewindT; rewindT = v.rewindT; v.rewindT = t;
+  t = rewindG; rewindG = v.rewindG; v.rewindG = t;
+  t = quakeT; quakeT = v.quakeT; v.quakeT = t;
+  t = snow; snow = v.snow; v.snow = t;
+}
+const PV_LOOP = 420;
+const pvKey = (k) => ({ a: isTouch ? '약' : 'J', h: isTouch ? '강' : 'K', s: 'Q', e: 'E', jp: isTouch ? '점프' : 'Space', u: isTouch ? '점프' : 'W' }[k] || k);
+const P = (t, key, label, hold = 1) => ({ t, key, label, hold });
+// 기본 장면: 다가가서 약·약·강 → Q → 약·약·강
+function pvBase(name) {
+  return [P(42, 'a', '약공격'), P(64, 'a', '약공격'), P(90, 'h', '강공격'), P(150, 's', name.replace(/^Q /, '')), P(200, 'a', '약공격'), P(222, 'a', '약공격'), P(248, 'h', '강공격')];
+}
+const pvNoQ = (pl) => pl.filter((x) => x.key !== 's');
+const pvSetQ = (pl, ...qs) => pvNoQ(pl).concat(qs);
+// 스킬마다 다른 장면 (plan: 누르는 키, dplan: 상대가 누르는 키, setup: 시작 상태, at: 매 틱, cap: 아래 설명)
+const PV_SPEC = {
+  blink: { plan: (b) => pvSetQ(b, P(150, 's', '방향키 + Q 점멸'), P(146, 'r', '', 6)) },
+  fly: { plan: (b) => pvSetQ(b.filter((x) => x.t < 150), P(150, 's', 'Q 비행'), P(160, 'jump', '점프 키를 누르고 있으면 위로', 60), P(240, 'r', '', 50)), noMove: [150, 330] },
+  rock: { dplan: [P(196, 'l', '', 4), P(200, 'a'), P(232, 'h')], cap: '바위 중엔 맞아도 안 날아가요' },
+  magnet: { plan: (b) => pvSetQ(b.filter((x) => x.t < 150), P(150, 's', 'Q 당기기'), P(250, 'e', 'E 밀기')), noMove: [150, 250] },
+  empower: { setup: (sim, me) => { me.charged = true; }, cap: '가만히 8초 서 있으면 충전돼요 (영상에선 충전된 상태)' },
+  parasite: { setup: (sim, me, du) => { me.parHits[du.id] = 3; }, plan: (b) => pvSetQ(b.filter((x) => x.t < 150), P(150, 's', 'Q 기생 → 상대를 조종'), P(165, 'l', '내 키로 상대가 움직여요', 80), P(280, 's', 'Q 나오기')), noMove: [150, 290] },
+  sword: { plan: (b) => b.map((x) => (x.key === 'a' ? { ...x, label: '약공격 = 돌진 베기' } : x.key === 'h' ? { ...x, label: '강공격 = 부채꼴 베기' } : x.key === 's' ? { ...x, label: 'Q 참격' } : x)) },
+  blackflash: { plan: () => [P(50, 'a', '약공격'), P(53, 's', '맞는 순간 Q = 흑섬!'), P(100, 'h', '강공격'), P(112, 's', '맞는 순간 Q = 흑섬!'), P(200, 'a', '약공격'), P(222, 'h', '강공격')] },
+  undying: { plan: pvNoQ, cap: '패시브: 목숨이 5개' },
+  hulk: { plan: pvNoQ, at: (t, sim, me) => { if (t < 300) me.damage = Math.min(110, t * 0.6); }, cap: '패시브: 퍼센트가 오를수록 커지고 세져요' },
+  archer: { plan: () => [P(20, 's', 'Q 유도 화살 준비'), P(70, 'h', '강공격 꾹 → 놓으면 발사', 45), P(200, 'h', '오래 당길수록 세게', 60)], keep: 220 },
+  time: { plan: (b) => [P(30, 's', 'Q 시간 저장')].concat(b.filter((x) => x.key !== 's'), [P(300, 's', 'Q 되돌리기!')]), dplan: [P(176, 'a'), P(198, 'h')], at: (t, sim, me) => { if (t === 260) me.damage = Math.max(me.damage, 70); } },
+  combo: { setup: (sim, me) => { me.combo = 9; }, plan: (b) => pvSetQ(b, P(150, 's', 'Q 콤보 스매시')), cap: '때릴 때마다 콤보가 쌓여요' },
+  reflect: { plan: (b) => pvSetQ(b, P(150, 's', '공격이 들어오는 순간 Q = 반사!')), dplan: [P(138, 'h')] },
+  invert: { dplan: [P(170, 'r', '', 90)], cap: '상대가 오른쪽을 눌러도 왼쪽으로!' },
+  error: { dplan: [P(170, 'r', '', 90)], cap: '상대 조작이 제멋대로' },
+  quake: { cap: '상대 화면이 3초 동안 흔들려요' },
+  mine: { plan: () => [P(40, 's', 'Q 지뢰 놓기'), P(100, 'a', '약공격'), P(120, 'h', '강공격'), P(250, 's', 'Q 지뢰 놓기')], noMove: [40, 100], dplan: [P(60, 'l', '', 60)] },
+  charge: { plan: (b) => [P(22, 's', 'Q 충전 모드 (넉백 없이 스택만)')].concat(b.filter((x) => x.key !== 's'), [P(150, 's', 'Q 공격 모드 (스택만큼 세게)')]) },
+  starlight: { setup: (sim, me) => { me.starN = 5; }, plan: (b) => pvSetQ(b, P(150, 's', 'Q 별빛 (별 5개)')) },
+  portal: { plan: (b) => [P(22, 's', 'Q 포탈')].concat(b.filter((x) => x.key !== 's' && x.t < 150), [P(150, 's', 'Q 순간이동 + 두 번째 포탈'), P(170, 'l', '포탈에 들어가면 반대쪽으로', 12), P(186, 'r', '', 14)]), noMove: [150, 210] },
+  shield: { plan: () => [P(40, 'a', '약공격 = 방패 막기'), P(88, 'h', '강공격 = 방패 휘두르기'), P(140, 's', 'Q 꾹 → 놓으면 방패 던지기', 30), P(230, 'a', '방패 막기')], dplan: [P(42, 'a'), P(228, 'h')], keep: 200, cap: '던진 방패는 가까이 가면 주워요' },
+  tentacle: { plan: (b) => pvSetQ(b.map((x) => (x.key === 'a' ? { ...x, label: '약공격 = 위 촉수' } : x.key === 'h' ? { ...x, label: '강공격 = 아래 촉수' } : x)), P(150, 's', 'Q 땅을 짚고 떠다니기'), P(165, 'u', '', 25)) },
+  hop: { plan: (b) => pvSetQ(b.filter((x) => x.t < 150), P(150, 's', 'Q 무한 점프'), ...[160, 178, 196, 214, 232].map((t) => P(t, 'jump', '점프 연타'))), noMove: [150, 330], cap: '기본으로 3단 점프' },
+  dash: { plan: (b) => pvSetQ(b.map((x) => (x.key === 'a' || x.key === 'h' ? { ...x, label: x.label + ' (앞으로 튀어 나감)' } : x)), P(150, 's', 'Q 돌진! 밀고 가기')), keepAt: [130, 150, 150] },
+  ninja: { plan: (b) => b.map((x) => (x.key === 'h' ? { ...x, label: '강공격 = 쿠나이 던지기' } : x.key === 's' ? { ...x, label: 'Q 통나무 순간이동' } : x)) },
+  shotgun: { plan: () => [P(40, 'a', '약공격 = 총으로 때리기'), P(88, 'h', '강공격 = 산탄'), P(120, 'h', '강공격 = 산탄'), P(150, 's', 'Q 장전'), P(210, 'h', '강공격 = 산탄'), P(242, 'h', '강공격 = 산탄')] },
+  ghost: { plan: () => [P(40, 'a', '약공격'), P(160, 'a', '귀신으로 3번 때리면 장외!'), P(190, 'a', '귀신으로 3번 때리면 장외!'), P(220, 'a', '귀신으로 3번 때리면 장외!')],
+    at: (t, sim, me) => { if (t === 140) { me.ghostT = 5; me.gMarks = {}; sim.ev({ k: 'ghost', x: Math.round(me.x), y: Math.round(me.y), n: me.name, pid: me.id }); } }, cap: '패시브: 목숨을 다 잃으면 5초 동안 귀신' },
+  dope: { setup: (sim, me) => { me.dopeSpawn = 6.6; }, plan: (b) => pvNoQ(b).filter((x) => x.t > 150), goPotion: true, cap: '패시브: 물약이 떨어지면 주워 먹어요' },
+  flood: { plan: (b) => pvSetQ(b, P(150, 's', 'Q 홍수'), P(190, 's', 'Q 더 차오름'), P(230, 's', 'Q 더 차오름')), setup: (sim, me) => { me.skillCd = 0; }, at: (t, sim, me) => { if (t === 189 || t === 229) me.skillCd = 0; } },
+  gem: { cap: '판 중에 때릴 때마다 진짜 보석이 쌓여요' },
+  gamble: { cap: '능력치가 0.0~2.0배로 랜덤' },
+};
+function pvMakeSim(v) {
+  const S = window.BRAWL_SIM, sim = new S.Sim();
+  if (v.td) sim.setMode(false, false, true);
+  sim.stage = v.td ? TDM.TD_MAPS.find((m) => m.id === 'td_round') : MAPS.find((m) => m.id === 'field');
+  sim.mapVote = null; sim.onEvent = () => {};
+  const me = sim.addPlayer('me', '나', false, v.skill), du = sim.addPlayer('du', '상대', false, 'slow');
+  me.skins = v.skin ? { [v.skill]: v.skin } : {};
+  const [mx, my, dx, dy] = v.td ? [700, 470, 820, 470] : [500, 520, 650, 520];
+  me.reset(mx, my); du.reset(dx, dy);
+  sim.phase = 'playing';
+  for (const p of [me, du]) { p.inMatch = true; p.stocks = 99; p.invincible = 0; p.rawInput = S.EMPTY_INPUT(); }
+  const spec = PV_SPEC[v.skill] || {};
+  if (spec.setup) spec.setup(sim, me, du);
+  v.sim = sim; v.me = me; v.du = du; v.tick = 0; v.lastEv = 0; v.cap = null;
+  v.plan = (spec.plan ? spec.plan(pvBase(`Q ${SKILLS[v.skill].name}`)) : pvBase(`Q ${SKILLS[v.skill].name}`));
+  v.dplan = spec.dplan || [];
+  v.spec = spec;
+}
+function pvInputs(v) {
+  const { sim, me, du, tick: t, spec } = v, S = window.BRAWL_SIM;
+  const mi = {}, di = {};
+  // 상대 쪽으로 다가감 (무대 밖으로는 안 따라감)
+  const inWin = (t >= 20 && t < 140) || (t >= 160 && t < 330);
+  const blocked = spec.noMove && t >= spec.noMove[0] && t < spec.noMove[1];
+  let tx = du.x, ty = du.y;
+  if (spec.goPotion && sim.potions.length) { const q = sim.potions.find((o) => o.owner === me.id && o.landed); if (q) { tx = q.x; ty = q.y; } }
+  const safe = sim.td ? TDM.onFloor(sim.stage, tx, ty) : tx > 220 && tx < 1060 && ty < 600;
+  if (inWin && !blocked && safe && !me.inside && du.alive) {
+    const dist = spec.goPotion && tx !== du.x ? 4 : 62;
+    if (sim.td) {
+      const dx = tx - me.x, dy = ty - me.y, d = Math.hypot(dx, dy);
+      if (d > dist) { const c = dx / d, sn = dy / d; if (c > 0.38) mi.r = 1; else if (c < -0.38) mi.l = 1; if (sn > 0.38) mi.d = 1; else if (sn < -0.38) mi.u = 1; }
+    } else if (Math.abs(tx - me.x) > dist) mi[tx > me.x ? 'r' : 'l'] = 1;
+  }
+  const keyOf = (k) => (k === 'jump' ? (sim.td ? 'jp' : 'u') : k === 'u' && sim.td ? 'u' : k);
+  for (const x of v.plan) {
+    if (t >= x.t && t < x.t + x.hold) mi[keyOf(x.key)] = 1;
+    if (t === x.t && x.label) {
+      const kn = pvKey(x.key);
+      v.cap = { text: ['jump', 'r', 'l', 'u'].includes(x.key) || x.label.startsWith(kn + ' ') ? x.label : `${kn} · ${x.label}`, life: 60 };
+    }
+    // 공격·스킬 직전엔 상대 쪽을 보게 (방향키를 살짝)
+    if (['a', 'h', 's'].includes(x.key) && t >= x.t - 3 && t < x.t && !blocked && du.alive && !me.inside) {
+      if (sim.td) { const ex = du.x - me.x, ey = du.y - me.y, d = Math.hypot(ex, ey) || 1; if (ex / d > 0.38) mi.r = 1; else if (ex / d < -0.38) mi.l = 1; if (ey / d > 0.38) mi.d = 1; else if (ey / d < -0.38) mi.u = 1; }
+      else if (Math.abs(du.x - me.x) > 4 && Math.sign(du.x - me.x) !== me.facing) mi[du.x > me.x ? 'r' : 'l'] = 1;
+    }
+  }
+  for (const x of v.dplan) if (t >= x.t && t < x.t + (x.hold || 1)) di[keyOf(x.key)] = 1;
+  me.rawInput = { ...S.EMPTY_INPUT(), ...mi }; du.rawInput = { ...S.EMPTY_INPUT(), ...di };
+  if (du.damage > 55) du.damage = 55;   // 영상에선 상대가 너무 멀리 날아가지 않게
+  if (spec.at) spec.at(t, sim, me, du);
+}
+function pvStep(v) {
+  pvInputs(v);
+  v.sim.tick(1 / 60); v.tick++;
+  if (v.tick % 2 === 0) {
+    const m = JSON.parse(JSON.stringify(v.sim.snapshot()));
+    m.p = m.p.map((q) => (q.ins ? { ...q, x: 0, y: 0, vx: 0, vy: 0, at: 0, ap: 0, hid: 1 } : q));
+    m.time = performance.now();
+    snapshots.push(m); if (snapshots.length > 30) snapshots.shift();
+    latest = m;
+    for (const e of m.ev || []) if (e.i > v.lastEv) { v.lastEv = e.i; if (!e.only || e.only === 'me') onEvent(e); }
+  }
+}
+let pv = null;   // 지금 보여 주는 영상
+function pvStart(cv, skill, skin, td) {
+  pvStop();
+  const st = td ? TDM.TD_MAPS.find((m) => m.id === 'td_round') : MAPS.find((m) => m.id === 'field');
+  const v = { canvas: cv, ctx: cv.getContext('2d'), skill, skin, td, scale: 1, offX: 0, offY: 0, STAGE: { ...st, zoom: 1, camX: 0 },
+    latest: null, snapshots: [], particles: [], shake: 0, banners: [], myId: 'me', hakiFlash: 0, freezeFlash: 0, lightFlash: 0, lightBlue: false,
+    rewindT: 0, rewindG: false, quakeT: 0, snow: [], acc: 0, last: performance.now(), on: true, x0: td ? 400 : 240, y0: td ? 235 : 150, RW: 800 };
+  pv = v;
+  loadSim().then(() => {
+    if (pv !== v) return;
+    pvSwap(v); try { pvMakeSim(v); } finally { pvSwap(v); }
+    $('detLoading').hidden = true;
+    requestAnimationFrame((t) => pvFrame(v, t));
+  }).catch(() => { $('detLoading').textContent = '영상을 불러오지 못했어요.'; });
+}
+function pvStop() { if (pv) pv.on = false; pv = null; }
+function pvFrame(v, now) {
+  if (!v.on || pv !== v) return;
+  const cv = v.canvas, dpr = Math.min(devicePixelRatio || 1, 2), w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
+  if (w > 0 && (cv.width !== w || cv.height !== h)) { cv.width = w; cv.height = h; }
+  const dt = Math.min(0.05, (now - v.last) / 1000); v.last = now;
+  // 카메라: 나와 상대 사이를 부드럽게 따라감
+  if (v.latest) {
+    const me = v.latest.p.find((q) => q.id === 'me'), du = v.latest.p.find((q) => q.id === 'du');
+    if (me && !me.hid) {
+      let fx = me.x, fy = me.y - (me.z || 0);
+      if (du && !du.hid && Math.hypot(du.x - me.x, du.y - me.y) < 560) { fx = (fx + du.x) / 2; fy = (fy + du.y - (du.z || 0)) / 2; }
+      const st = v.STAGE, RH = v.RW * 9 / 16;
+      const tx = v.td ? clamp(fx - v.RW / 2, -60, st.width - v.RW + 60) : clamp(fx - v.RW / 2, 0, st.width - v.RW), ty = v.td ? clamp(fy - RH / 2, -40, st.height - RH + 40) : clamp(Math.min(150, fy - RH * 0.72), -200, 150);
+      const k = Math.min(1, dt * 3);
+      v.x0 += (tx - v.x0) * k; v.y0 += (ty - v.y0) * k;
+    }
+  }
+  v.scale = cv.width / v.RW; v.offX = -v.x0 * v.scale; v.offY = -v.y0 * v.scale;
+  pvSwap(v);
+  try {
+    v.acc = Math.min(v.acc + dt, 0.1);
+    while (v.acc >= 1 / 60) {
+      v.acc -= 1 / 60;
+      // pvSwap 상태에서는 v 안의 값과 전역이 서로 바뀌어 있으므로 sim 등은 v에서 그대로 씀
+      pvStep(v);
+      if (v.tick >= PV_LOOP) { pvMakeSim(v); snapshots = []; latest = null; particles = []; shake = 0; }
+    }
+    if (isTD()) tdBackground(now); else drawBackground(now);
+    if (latest) drawWorld(now, dt, interpolatedPlayers(), interpolatedPlayers('cl'));
+    // 위: 지금 누른 키 / 아래: 설명 / 오른쪽 위: 상대 퍼센트
+    const k = Math.max(canvas.width / 640, Math.min(devicePixelRatio || 1, 2) * 0.85);   // 작은 화면에서도 글씨가 읽히게
+    ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    if (v.cap && v.cap.life > 0) {
+      v.cap.life -= dt * 60;
+      ctx.globalAlpha = Math.min(1, v.cap.life / 12);
+      ctx.font = `700 ${Math.round(17 * k)}px Pretendard, system-ui, sans-serif`;
+      const tw = ctx.measureText(v.cap.text).width + 28 * k;
+      ctx.fillStyle = 'rgba(14,12,30,0.82)'; roundRect(canvas.width / 2 - tw / 2, 12 * k, tw, 32 * k, 16 * k); ctx.fill();
+      ctx.strokeStyle = SKILL_COLOR[v.skill] || '#ffcf3f'; ctx.lineWidth = 2 * k; ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.fillText(v.cap.text, canvas.width / 2, 28 * k);
+      ctx.globalAlpha = 1;
+    }
+    if (v.spec.cap) {
+      ctx.font = `600 ${Math.round(13 * k)}px Pretendard, system-ui, sans-serif`;
+      const tw = ctx.measureText(v.spec.cap).width + 20 * k;
+      ctx.fillStyle = 'rgba(14,12,30,0.7)'; roundRect(canvas.width / 2 - tw / 2, canvas.height - 34 * k, tw, 24 * k, 12 * k); ctx.fill();
+      ctx.fillStyle = '#e8e4ff'; ctx.fillText(v.spec.cap, canvas.width / 2, canvas.height - 22 * k);
+    }
+    const dq = latest && latest.p.find((q) => q.id === 'du');
+    if (dq) {
+      ctx.textAlign = 'right'; ctx.font = `800 ${Math.round(16 * k)}px Pretendard, system-ui, sans-serif`;
+      ctx.fillStyle = 'rgba(14,12,30,0.6)'; roundRect(canvas.width - 112 * k, 10 * k, 102 * k, 28 * k, 8 * k); ctx.fill();
+      ctx.fillStyle = dmgColor(dq.dmg || 0); ctx.fillText(`상대 ${dq.dmg || 0}%`, canvas.width - 18 * k, 25 * k);
+    }
+    ctx.restore();
+  } catch (e) { console.error(e); }
+  finally { pvSwap(v); }
+  requestAnimationFrame((t) => pvFrame(v, t));
+}
+// ---------------- 스킬·스킨 상세 창 ----------------
+const DOCS = (window.BRAWL_DOCS || {}).DOCS || {};
+let det = null;   // { skill, skin, td }
+function openDetail(o) {
+  det = { skin: null, td: false, ...o };
+  $('detMsg').textContent = '';
+  $('detailModal').hidden = false;
+  renderDetail(true);
+  $('detClose').focus();
+}
+function closeDetail() { pvStop(); det = null; $('detailModal').hidden = true; }
+function renderDetail(restart) {
+  if (!det) return;
+  const { skill, skin } = det, sk = SKILLS[skill], sd = skin && SKIN_INFO.SKINS[skin];
+  $('detTitle').textContent = sd ? sd.name : sk.name;
+  $('detTitle').style.color = sd ? sd.color : SKILL_COLOR[skill];
+  $('detTag').textContent = sd ? `${sk.name} 스킨` : sk.cd;
+  $('detTabSide').setAttribute('aria-selected', String(!det.td));
+  $('detTabTd').setAttribute('aria-selected', String(det.td));
+  $('detDesc').textContent = sd ? `${sd.desc} — 보이는 모습만 바뀌고 능력은 그대로예요.` : sk.desc;
+  const ul = $('detMore'); ul.textContent = '';
+  const li = (label, text) => { if (!text) return; const e = document.createElement('li'); if (label) { const b = document.createElement('b'); b.textContent = label + ' '; e.append(b); } e.append(text); ul.append(e); };
+  const d = DOCS[skill] || {};
+  if (sd) li('스킬', sk.desc);
+  else {
+    for (const h of d.how || []) li('', h);
+    li('기본 공격', d.atk);
+    li('입체 모드', d.td);
+    li('팁', d.tip);
+  }
+  detActions();
+  if (restart) { $('detLoading').hidden = false; $('detLoading').textContent = '영상 불러오는 중…'; pvStart($('detCanvas'), skill, skin, det.td); }
+}
+function detActions() {
+  const { skill, skin } = det, p = account.profile, btn = $('detBuy'), msg = $('detMsg');
+  btn.onclick = null; btn.disabled = false; btn.classList.remove('ghost');
+  if (skin) {
+    const owned = !!(p && p.skins && p.skins.includes(skin)), on = !!(p && p.skinSel && p.skinSel[skill] === skin);
+    if (!p) { btn.textContent = '로그인하면 살 수 있어요'; btn.disabled = true; }
+    else if (on) { btn.textContent = '장착 중'; btn.disabled = true; btn.classList.add('ghost'); }
+    else if (owned) { btn.textContent = '장착'; btn.onclick = async () => { await skinAction('/api/skin/equip', { skill, skin }); msg.textContent = $('skinMsg').textContent; detActions(); }; }
+    else {
+      btn.textContent = `구매 · 보석 ${SKIN_INFO.PRICE}`; btn.disabled = p.gems < SKIN_INFO.PRICE;
+      btn.onclick = async () => { await skinAction('/api/skin/buy', { skin }); msg.textContent = $('skinMsg').textContent; detActions(); };
+    }
+    if (!msg.textContent) msg.textContent = p && !owned && p.gems < SKIN_INFO.PRICE ? `보석이 ${SKIN_INFO.PRICE - p.gems}개 모자라요.` : '';
+    return;
+  }
+  const owned = (p ? p.owned : BASE_SKILLS).includes(skill);
+  if (owned) { btn.textContent = '이 스킬 고르기'; btn.onclick = () => { selectSkill(skill, true); closeDetail(); }; }
+  else if (!p) { btn.textContent = '가입하면 뽑기로 얻을 수 있어요'; btn.disabled = true; }
+  else {
+    btn.textContent = `보석 ${SKILL_BUY}개로 사기`;
+    btn.onclick = async () => {
+      await buySkillAsk(skill);
+      const ok = account.profile && account.profile.owned.includes(skill);
+      msg.textContent = ok ? `${SKILLS[skill].name} 구매 완료!` : $('gachaMsg').textContent;
+      detActions();
+    };
+    if (!msg.textContent) msg.textContent = p.gems < SKILL_BUY ? `보석 ${SKILL_BUY - p.gems}개 더 모으거나, 뽑기(보석 ${GACHA_COST})로 얻을 수 있어요.` : `뽑기(보석 ${GACHA_COST})로도 얻을 수 있어요.`;
+  }
+}
+$('detClose').addEventListener('click', closeDetail);
+$('detailModal').addEventListener('click', (e) => { if (e.target === $('detailModal')) closeDetail(); });
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && det) closeDetail(); });
+$('detTabSide').addEventListener('click', () => { if (det && det.td) { det.td = false; renderDetail(true); } });
+$('detTabTd').addEventListener('click', () => { if (det && !det.td) { det.td = true; renderDetail(true); } });
+$('detBtn').addEventListener('click', () => openDetail({ skill: validSkill(account.skill) }));
+// 게임 장면(배경 빼고): 무대 · 사람 · 효과. 스킬 상세 영상도 이걸로 그림
+function drawWorld(now, dt, players, clonesI) {
+  ctx.save();
+  shake *= Math.pow(0.002, dt);
+  let sx = (Math.random() - 0.5) * shake * scale, sy = (Math.random() - 0.5) * shake * scale;
+  let rot = 0;
+  // 지진: 서버가 알려 주는 내 흔들림 상태를 따름 (시간 되돌리기에도 맞게)
+  const meQ = latest.p.find((q) => q.id === myId);
+  quakeT = meQ && meQ.qk ? Math.max(quakeT, 0.4) : Math.max(0, quakeT - dt * 3);
+  if (quakeT > 0) {
+    quakeT -= dt;
+    const q = reduceMotion ? 6 : 34 * Math.min(1, quakeT + 0.3);
+    sx += (Math.random() - 0.5) * q * 2 * scale; sy += (Math.random() - 0.5) * q * 2 * scale;
+    rot = reduceMotion ? 0 : (Math.random() - 0.5) * 0.05;
+  }
+  ctx.translate(offX + sx, offY + sy);
+  if (rot) { ctx.translate(canvas.width / 2, canvas.height / 2); ctx.rotate(rot); ctx.translate(-canvas.width / 2, -canvas.height / 2); }
+  ctx.translate((STAGE.camX || 0) * scale, 0); ctx.scale(scale * STAGE.zoom, scale * STAGE.zoom);
+  if (isTD()) { tdDrawFalling(players, clonesI, now); tdDrawStage(); } else drawStage();
+  drawTramps(now);
+  drawPotions(latest, now);
+  drawPortals(latest, now);
+  drawSlashes(latest, now);
+  drawTurrets(latest, now);
+  for (const q of latest.p) if (q.ts) {
+    // 시간 저장 위치: 반투명 시계
+    const [tx, ty] = q.ts, cy3 = ty - 34;
+    ctx.globalAlpha = 0.55 + Math.sin(now / 250) * 0.15;
+    ctx.strokeStyle = skinOn(q, 'timestone') ? '#3cf08a' : '#9fb3ff'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(tx, cy3, 22, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(tx, cy3); ctx.lineTo(tx, cy3 - 15); ctx.moveTo(tx, cy3); ctx.lineTo(tx + 10 * Math.cos(now / 400), cy3 + 10 * Math.sin(now / 400)); ctx.stroke();
+    ctx.fillStyle = q.c; ctx.beginPath(); ctx.arc(tx, cy3 + 32, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  drawArrowsWinds(latest, now);
+  drawLogsStars(latest, now);
+  drawThrownShields(latest, now);
+  if (isTD()) tdDrawActors(players, clonesI, now);
+  else {
+    clonesI.forEach((c) => drawPlayer(c, now));
+    players.filter((p) => p.id !== myId).forEach((p) => drawPlayer(p, now));
+    players.filter((p) => p.id === myId).forEach((p) => drawPlayer(p, now));
+  }
+  drawWater(latest, now);
+  drawFlashZones(latest, now);
+  drawParticles(dt);
+  drawSmoke(latest.sm || [], now);
+  drawBlizzard(latest, dt, now);
+  if (hakiFlash > 0) { ctx.fillStyle = `rgba(90,0,14,${Math.min(0.4, hakiFlash)})`; ctx.fillRect(-400, -400, STAGE.width + 800, STAGE.height + 800); hakiFlash -= dt; }
+  if (freezeFlash > 0) { ctx.fillStyle = `rgba(210,236,255,${Math.min(0.35, freezeFlash)})`; ctx.fillRect(-400, -400, STAGE.width + 800, STAGE.height + 800); freezeFlash -= dt; }
+  if (rewindT > 0) {
+    // 시간 되돌리기: 푸른 화면 + 거꾸로 도는 시계
+    const k = rewindT / 0.9;
+    ctx.fillStyle = rewindG ? `rgba(40,210,110,${0.33 * k})` : `rgba(90,120,255,${0.35 * k})`; ctx.fillRect(-400, -400, STAGE.width + 800, STAGE.height + 800);
+    ctx.save(); ctx.translate(STAGE.width / 2, STAGE.height / 2 - 60); ctx.globalAlpha = k;
+    ctx.strokeStyle = rewindG ? '#c8ffdc' : '#dfe6ff'; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(0, 0, 90, 0, Math.PI * 2); ctx.stroke();
+    ctx.rotate(-(1 - k) * Math.PI * 6); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -70); ctx.moveTo(0, 0); ctx.lineTo(45, 0); ctx.stroke();
+    ctx.restore(); rewindT -= dt;
+  }
+  if (lightFlash > 0) { ctx.fillStyle = lightBlue ? `rgba(150,195,255,${Math.min(0.3, lightFlash)})` : `rgba(255,250,200,${Math.min(0.3, lightFlash)})`; ctx.fillRect(-400, -400, STAGE.width + 800, STAGE.height + 800); lightFlash -= dt; }
+  ctx.restore();
+}
 let last = performance.now(), barCounter = 0;
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
@@ -3728,65 +4085,7 @@ function frame(now) {
   if (latest) {
     const players = interpolatedPlayers();
     const clonesI = interpolatedPlayers('cl');
-    ctx.save();
-    shake *= Math.pow(0.002, dt);
-    let sx = (Math.random() - 0.5) * shake * scale, sy = (Math.random() - 0.5) * shake * scale;
-    let rot = 0;
-    // 지진: 서버가 알려 주는 내 흔들림 상태를 따름 (시간 되돌리기에도 맞게)
-    const meQ = latest.p.find((q) => q.id === myId);
-    quakeT = meQ && meQ.qk ? Math.max(quakeT, 0.4) : Math.max(0, quakeT - dt * 3);
-    if (quakeT > 0) {
-      quakeT -= dt;
-      const q = reduceMotion ? 6 : 34 * Math.min(1, quakeT + 0.3);
-      sx += (Math.random() - 0.5) * q * 2 * scale; sy += (Math.random() - 0.5) * q * 2 * scale;
-      rot = reduceMotion ? 0 : (Math.random() - 0.5) * 0.05;
-    }
-    ctx.translate(offX + sx, offY + sy);
-    if (rot) { ctx.translate(canvas.width / 2, canvas.height / 2); ctx.rotate(rot); ctx.translate(-canvas.width / 2, -canvas.height / 2); }
-    ctx.translate((STAGE.camX || 0) * scale, 0); ctx.scale(scale * STAGE.zoom, scale * STAGE.zoom);
-    if (isTD()) { tdDrawFalling(players, clonesI, now); tdDrawStage(); } else drawStage();
-    drawTramps(now);
-    drawPotions(latest, now);
-    drawPortals(latest, now);
-    drawSlashes(latest, now);
-    drawTurrets(latest, now);
-    for (const q of latest.p) if (q.ts) {
-      // 시간 저장 위치: 반투명 시계
-      const [tx, ty] = q.ts, cy3 = ty - 34;
-      ctx.globalAlpha = 0.55 + Math.sin(now / 250) * 0.15;
-      ctx.strokeStyle = skinOn(q, 'timestone') ? '#3cf08a' : '#9fb3ff'; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(tx, cy3, 22, 0, Math.PI * 2); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(tx, cy3); ctx.lineTo(tx, cy3 - 15); ctx.moveTo(tx, cy3); ctx.lineTo(tx + 10 * Math.cos(now / 400), cy3 + 10 * Math.sin(now / 400)); ctx.stroke();
-      ctx.fillStyle = q.c; ctx.beginPath(); ctx.arc(tx, cy3 + 32, 5, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 1;
-    }
-    drawArrowsWinds(latest, now);
-    drawLogsStars(latest, now);
-    drawThrownShields(latest, now);
-    if (isTD()) tdDrawActors(players, clonesI, now);
-    else {
-      clonesI.forEach((c) => drawPlayer(c, now));
-      players.filter((p) => p.id !== myId).forEach((p) => drawPlayer(p, now));
-      players.filter((p) => p.id === myId).forEach((p) => drawPlayer(p, now));
-    }
-    drawWater(latest, now);
-    drawFlashZones(latest, now);
-    drawParticles(dt);
-    drawSmoke(latest.sm || [], now);
-    drawBlizzard(latest, dt, now);
-    if (hakiFlash > 0) { ctx.fillStyle = `rgba(90,0,14,${Math.min(0.4, hakiFlash)})`; ctx.fillRect(-400, -400, STAGE.width + 800, STAGE.height + 800); hakiFlash -= dt; }
-    if (freezeFlash > 0) { ctx.fillStyle = `rgba(210,236,255,${Math.min(0.35, freezeFlash)})`; ctx.fillRect(-400, -400, STAGE.width + 800, STAGE.height + 800); freezeFlash -= dt; }
-    if (rewindT > 0) {
-      // 시간 되돌리기: 푸른 화면 + 거꾸로 도는 시계
-      const k = rewindT / 0.9;
-      ctx.fillStyle = rewindG ? `rgba(40,210,110,${0.33 * k})` : `rgba(90,120,255,${0.35 * k})`; ctx.fillRect(-400, -400, STAGE.width + 800, STAGE.height + 800);
-      ctx.save(); ctx.translate(STAGE.width / 2, STAGE.height / 2 - 60); ctx.globalAlpha = k;
-      ctx.strokeStyle = rewindG ? '#c8ffdc' : '#dfe6ff'; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(0, 0, 90, 0, Math.PI * 2); ctx.stroke();
-      ctx.rotate(-(1 - k) * Math.PI * 6); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -70); ctx.moveTo(0, 0); ctx.lineTo(45, 0); ctx.stroke();
-      ctx.restore(); rewindT -= dt;
-    }
-    if (lightFlash > 0) { ctx.fillStyle = lightBlue ? `rgba(150,195,255,${Math.min(0.3, lightFlash)})` : `rgba(255,250,200,${Math.min(0.3, lightFlash)})`; ctx.fillRect(-400, -400, STAGE.width + 800, STAGE.height + 800); lightFlash -= dt; }
-    ctx.restore();
+    drawWorld(now, dt, players, clonesI);
     ctx.save(); ctx.translate(offX, offY); ctx.scale(scale, scale);
     if (meE && meE.er) drawGlitch(meE.er === 2);
     const meB = latest.p.find((q) => q.id === myId);
