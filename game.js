@@ -1966,7 +1966,8 @@ class Sim {
       else if (wasGrounded && p.vy >= 0 && p.y < sy && sy - p.y <= tol + 4) { p.y = sy; p.vy = 0; p.grounded = true; }
       else if (p.vy < 0 && prevY - h >= slopeBase(sl) && p.y - h < slopeBase(sl)) { p.y = slopeBase(sl) + h; p.vy = 0; }
     }
-    if (p.dropThrough <= 0 && p.hitstun <= 0.05) {
+    // 발판 위에 서 있던 사람은 맞아서 경직돼도 (충전 모드 움찔 등) 발판 위에 그대로 섬
+    if (p.dropThrough <= 0 && (p.hitstun <= 0.05 || wasGrounded)) {
       for (const pl of this.stage.platforms) {
         if (p.x + hw * 0.5 <= pl.x || p.x - hw * 0.5 >= pl.x + pl.w) continue;
         if (p.vy >= 0 && prevY <= pl.y && p.y >= pl.y) { p.y = pl.y; p.vy = 0; p.grounded = true; }
