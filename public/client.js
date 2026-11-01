@@ -84,12 +84,7 @@ const SKILL_ORDER = ['slow', 'blink', 'stealth', 'clone', 'swap', 'fly', 'explod
   'ninja', 'gamble', 'starlight', 'shield', 'tentacle', 'ghost', 'flash', 'flood', 'wave', 'dope', 'portal', 'charge', 'dash', 'hop', 'gem', 'shotgun'];
 const SKILL_IDS = [...SKILL_ORDER.filter((k) => SKILLS[k]), ...Object.keys(SKILLS).filter((k) => !SKILL_ORDER.includes(k))];
 const MAPS = window.BRAWL_MAPS;   // maps.js (서버와 같은 맵 정보)
-const TDM = window.BRAWL_TDMAPS || { TD_MAPS: [], TD_SKILLS: [] };   // tdmaps.js (입체 모드 맵)
-const ALL_MAPS = [...MAPS, ...TDM.TD_MAPS];
 let STAGE = MAPS[0];               // 지금 판의 맵
-const isTD = () => !!STAGE.td;
-// 입체 모드에서 아직 준비 중인 스킬인지
-const tdNotReady = (k) => !TDM.TD_SKILLS.includes(k === 'magnet2' ? 'magnet' : k);
 const COLORS = ['#ff5a5f', '#3fa7ff', '#ffc93c', '#4cd97b', '#c77dff', '#ff8c42'];
 const BOT_NAMES = ['봇 철수', '봇 영희', '봇 바둑이', '봇 민수', '봇 지수'];
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -888,7 +883,7 @@ function onMessage(m) {
     snapshots.push(m);
     if (snapshots.length > 30) snapshots.shift();
     latest = m;
-    if (m.mp && m.mp !== STAGE.id) STAGE = ALL_MAPS.find((x) => x.id === m.mp) || STAGE;
+    if (m.mp && m.mp !== STAGE.id) STAGE = MAPS.find((x) => x.id === m.mp) || STAGE;
     updateRoomPanel(m);
     // 방장만 봇 추가/빼기 버튼이 보임
     if (m.host !== hostLive || isHost !== (m.host === myId)) {
@@ -946,8 +941,7 @@ const keyHeld = {};   // 누른 키가 어떤 입력으로 들어갔는지 (뗄 
 function iHaveTentacle() { const me = latest && latest.p.find((q) => q.id === myId); return !!me && (me.sk === 'tentacle' || me.sk2 === 'tentacle'); }
 addEventListener('keydown', (e) => {
   if (!$('lobby').hidden) return;
-  let k = KEYMAP[e.code];   // 촉수도 J(위 촉수)·K(아래 촉수) 두 개로
-  if (e.code === 'Space' && isTD()) k = 'jp';   // 입체 모드: 스페이스 = 점프, W/↑ = 위로 이동
+  const k = KEYMAP[e.code];   // 촉수도 J(위 촉수)·K(아래 촉수) 두 개로
   if (k) { e.preventDefault(); keyHeld[e.code] = k; setKey(k, 1); }
 });
 addEventListener('keyup', (e) => { const k = keyHeld[e.code] || KEYMAP[e.code]; delete keyHeld[e.code]; if (k) setKey(k, 0); });
@@ -961,18 +955,13 @@ function keyAt(x, y) {
   return b ? b.dataset.k : null;
 }
 function refreshTouch() {
-  // 버튼 하나가 키 여러 개일 수 있음 (입체 모드 대각선: 'l+u')
-  const vals = new Set(touchMap.values()), held = new Set();
-  for (const v of vals) for (const k of v.split('+')) held.add(k);
-  const keys = new Set();
+  const held = new Set(touchMap.values());
   document.querySelectorAll('.tbtn').forEach((b) => {
-    if (b.hidden || (b.parentElement && b.parentElement.hidden)) return;   // 지금 안 보이는 버튼(모드에 따라)은 무시
-    b.classList.toggle('on', vals.has(b.dataset.k));
-    for (const k of b.dataset.k.split('+')) keys.add(k);
+    const on = held.has(b.dataset.k);
+    b.classList.toggle('on', on);
+    setKey(b.dataset.k, on ? 1 : 0);
   });
-  keys.forEach((k) => setKey(k, held.has(k) ? 1 : 0));
 }
-const isMoveKey = (v) => /^[lrdu](\+[lrdu])?$/.test(v || '');
 const touchEl = $('touch');
 touchEl.addEventListener('pointerdown', (e) => {
   const k = keyAt(e.clientX, e.clientY);
@@ -986,24 +975,12 @@ addEventListener('pointermove', (e) => {
   const prev = touchMap.get(e.pointerId);
   // 이동 버튼끼리, 그리고 공격(약·강) → 스킬로 미끄러지는 것만 됨 (공격 연타 방지)
   //  약을 누른 엄지를 그대로 스킬 버튼으로 쓱 올리면 흑섬 타이밍 맞추기가 쉬움
-  if (k && k !== prev && ((isMoveKey(k) && isMoveKey(prev) && (isTD() || 'lrd'.includes(k) && 'lrd'.includes(prev))) || ('ah'.includes(prev) && 'sex'.includes(k)))) { touchMap.set(e.pointerId, k); refreshTouch(); }
+  if (k && k !== prev && (('lrd'.includes(k) && 'lrd'.includes(prev)) || ('ah'.includes(prev) && 'sex'.includes(k)))) { touchMap.set(e.pointerId, k); refreshTouch(); }
 });
 const endTouch = (e) => { if (touchMap.delete(e.pointerId)) refreshTouch(); };
 addEventListener('pointerup', endTouch);
 addEventListener('pointercancel', endTouch);
 touchEl.addEventListener('contextmenu', (e) => e.preventDefault());
-// 모드에 맞게 터치 버튼 바꾸기 (입체: 8방향 버튼 + 점프 버튼은 jp)
-let touchTD = null;
-function syncTouchMode() {
-  const td = isTD();
-  if (td === touchTD) return;
-  touchTD = td;
-  $('tDpad').hidden = !td;
-  for (const c of ['.tb-l', '.tb-r', '.tb-d']) touchEl.querySelector(c).hidden = td;
-  touchEl.querySelector('.tb-u').dataset.k = td ? 'jp' : 'u';
-  touchMap.clear(); document.querySelectorAll('.tbtn.on').forEach((b) => b.classList.remove('on'));
-  for (const k of ['l', 'r', 'u', 'd', 'jp']) setKey(k, 0);
-}
 
 // =====================================================================
 //  화면 그리기
@@ -1421,7 +1398,7 @@ function interpolatedPlayers(key = 'p') {
   return (b[key] || []).map((p) => {
     const q = prev.get(p.id);
     if (!q || Math.abs(q.x - p.x) > 120 || Math.abs(q.y - p.y) > 120) return p;
-    return { ...p, x: q.x + (p.x - q.x) * k, y: q.y + (p.y - q.y) * k, ...(p.z != null && q.z != null ? { z: q.z + (p.z - q.z) * k } : {}) };
+    return { ...p, x: q.x + (p.x - q.x) * k, y: q.y + (p.y - q.y) * k };
   });
 }
 
@@ -1454,7 +1431,7 @@ function roundRect(x, y, w, h, r) {
 function drawBackground(time) {
   const th = STAGE.theme;
   ctx.fillStyle = '#0b0a16'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.save(); ctx.translate(offX, offY); ctx.translate((STAGE.camX || 0) * scale, 0); ctx.scale(scale * STAGE.zoom, scale * STAGE.zoom);
+  ctx.save(); ctx.translate(offX, offY); ctx.scale(scale * STAGE.zoom, scale * STAGE.zoom);
   const W = STAGE.width, H = STAGE.height, sx0 = W / 1280;
   const g = ctx.createLinearGradient(0, 0, 0, H);
   g.addColorStop(0, th.sky[0]); g.addColorStop(0.6, th.sky[1]); g.addColorStop(1, th.sky[2]);
@@ -1528,132 +1505,6 @@ function drawStage() {
   }
 }
 
-// =====================================================================
-//  입체 모드 그리기 (위에서 내려다보기: 바닥은 위에서, 사람·기둥은 서 있는 모습)
-// =====================================================================
-const TD_CLIFF = 30, TD_WALL_H = 58;
-function tdShapePath(c, sh, dx = 0, dy = 0) {
-  if (sh.r != null) { c.moveTo(sh.cx + sh.r + dx, sh.cy + dy); c.arc(sh.cx + dx, sh.cy + dy, sh.r, 0, Math.PI * 2); return; }
-  const x = sh.x + dx, y = sh.y + dy, w = sh.w, h = sh.h, r = Math.min(10, w / 2, h / 2);
-  c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath();
-}
-function tdFill(c, list, color, dx = 0, dy = 0) { c.fillStyle = color; c.beginPath(); for (const sh of list) tdShapePath(c, sh, dx, dy); c.fill(); }
-function tdBackground(time) {
-  const th = STAGE.theme;
-  ctx.fillStyle = th.void; ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.save(); ctx.translate(offX, offY); ctx.translate((STAGE.camX || 0) * scale, 0); ctx.scale(scale * STAGE.zoom, scale * STAGE.zoom);
-  if (th.water) {
-    // 물결
-    ctx.strokeStyle = 'rgba(160,220,255,0.12)'; ctx.lineWidth = 3;
-    for (let y = -40; y < STAGE.height + 60; y += 46) {
-      ctx.beginPath();
-      for (let x = -60; x <= STAGE.width + 60; x += 30) ctx.lineTo(x, y + Math.sin(x * 0.02 + time / 600 + y) * 6);
-      ctx.stroke();
-    }
-  } else {
-    // 깊은 낭떠러지: 반짝이는 점
-    for (const st of stars) {
-      ctx.globalAlpha = reduceMotion ? 0.35 : 0.2 + 0.25 * Math.sin(time / 800 + st.x);
-      ctx.fillStyle = '#fff'; ctx.fillRect((st.x * 1.3) % STAGE.width, (st.y * 2.1) % STAGE.height, st.r, st.r);
-    }
-    ctx.globalAlpha = 1;
-  }
-  ctx.restore();
-}
-function tdPattern(list, th) {
-  ctx.save(); ctx.beginPath(); for (const sh of list) tdShapePath(ctx, sh); ctx.clip();
-  ctx.fillStyle = th.top2;
-  for (let y = 0; y < STAGE.height; y += 80) for (let x = ((y / 80) % 2) * 80; x < STAGE.width; x += 160) ctx.fillRect(x, y, 80, 80);
-  ctx.restore();
-}
-function tdDrawStage() {
-  const th = STAGE.theme, F = STAGE.floors, Ho = STAGE.holes || [], T = STAGE.tops || [];
-  // 바닥 옆면(절벽) → 윗면 → 무늬
-  tdFill(ctx, F, shadeHex(th.side, -0.25), 0, TD_CLIFF + 6);
-  tdFill(ctx, F, th.side, 0, TD_CLIFF);
-  // 가장자리 선: 굵게 그린 뒤 윗면으로 덮어서 바깥 테두리만 남김 (겹친 섬 사이엔 선이 안 보임)
-  ctx.strokeStyle = th.line; ctx.lineWidth = 6;
-  ctx.beginPath(); for (const sh of F) tdShapePath(ctx, sh); ctx.stroke();
-  tdFill(ctx, F, th.top);
-  tdPattern(F, th);
-  // 구멍: 안쪽 절벽이 보이게
-  for (const h of Ho) {
-    ctx.save(); ctx.beginPath(); tdShapePath(ctx, h); ctx.clip();
-    tdFill(ctx, [h], th.side); tdFill(ctx, [h], th.void, 0, TD_CLIFF);
-    ctx.restore();
-  }
-  // 구멍 위 섬·다리
-  if (T.length) {
-    tdFill(ctx, T, th.side, 0, TD_CLIFF);
-    ctx.strokeStyle = th.line; ctx.lineWidth = 6; ctx.beginPath(); for (const sh of T) tdShapePath(ctx, sh); ctx.stroke();
-    tdFill(ctx, T, th.top); tdPattern(T, th);
-  }
-  ctx.strokeStyle = th.line; ctx.lineWidth = 3; ctx.beginPath(); for (const sh of Ho) tdShapePath(ctx, sh); ctx.stroke();
-  // 기둥 그림자
-  ctx.fillStyle = 'rgba(0,0,0,0.25)';
-  for (const w of STAGE.walls || []) { ctx.beginPath(); tdShapePath(ctx, w, 8, 6); ctx.fill(); }
-}
-function tdWall(w) {
-  const th = STAGE.theme, H = TD_WALL_H, dark = shadeHex(th.wall, -0.3);
-  if (w.r != null) {
-    ctx.fillStyle = dark; ctx.beginPath(); ctx.arc(w.cx, w.cy, w.r, 0, Math.PI); ctx.lineTo(w.cx - w.r, w.cy - H); ctx.lineTo(w.cx + w.r, w.cy - H); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = th.wall; ctx.beginPath(); ctx.arc(w.cx, w.cy - H, w.r, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 2; ctx.stroke();
-  } else {
-    ctx.fillStyle = dark; ctx.fillRect(w.x, w.y + w.h - H, w.w, H);
-    ctx.fillStyle = th.wall; ctx.fillRect(w.x, w.y - H, w.w, w.h);
-    ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 2; ctx.strokeRect(w.x, w.y - H, w.w, w.h);
-  }
-}
-// 떨어지는 사람: 바닥보다 먼저 그려서 절벽 뒤로 사라지게
-function tdDrawFalling(players, clones, now) {
-  for (const p of [...clones, ...players]) {
-    if (!p.al || !p.fl || p.hid) continue;
-    const k = 1 - p.fl * 0.55;
-    ctx.save(); ctx.translate(p.x, p.y); ctx.scale(k, k); ctx.translate(-p.x, -p.y);
-    drawPlayer({ ...p, y: p.y - (p.z || 0), tdy: p.y, g: 0 }, now);
-    ctx.restore(); ctx.globalAlpha = 1;
-  }
-}
-function tdActor(p, now) {
-  const z = Math.max(0, p.z || 0), G = p.sz || (p.gt ? 2 : 1);
-  if (!p.hid) {
-    // 바닥 그림자 (높이 뜰수록 작아짐) + 보는 방향 표시
-    const k = Math.max(0.45, 1 - z / 150);
-    ctx.fillStyle = `rgba(0,0,0,${0.32 * k})`; ctx.beginPath(); ctx.ellipse(p.x, p.y + 2, 22 * G * k, 8 * G * k, 0, 0, Math.PI * 2); ctx.fill();
-    if (p.fv && !p.stl) {
-      const [fx, fy] = p.fv, ax = p.x + fx * 30 * G, ay = p.y + 2 + fy * 18 * G, a = Math.atan2(fy * 18, fx * 30);
-      ctx.fillStyle = p.id === myId ? 'rgba(255,207,63,0.85)' : hexA(p.c, 0.6);
-      ctx.beginPath(); ctx.moveTo(ax + Math.cos(a) * 9, ay + Math.sin(a) * 9); ctx.lineTo(ax + Math.cos(a + 2.4) * 7, ay + Math.sin(a + 2.4) * 7); ctx.lineTo(ax + Math.cos(a - 2.4) * 7, ay + Math.sin(a - 2.4) * 7); ctx.closePath(); ctx.fill();
-    }
-  }
-  drawPlayer({ ...p, y: p.y - z, tdy: p.y, g: z <= 0.5 ? 1 : 0, vy: z > 0.5 ? -1 : 0 }, now);
-  ctx.globalAlpha = 1;
-  // 공격이 맞는 순간: 보는 방향으로 휘두르는 호
-  if (!p.hid && p.at && p.ap === 2 && p.fv) {
-    const [fx, fy] = p.fv, a = Math.atan2(fy, fx), cy = p.y - z - 30 * G, R = (p.at === 2 ? 62 : 52) * G;
-    ctx.strokeStyle = p.at === 2 ? 'rgba(255,207,63,0.75)' : 'rgba(255,255,255,0.7)'; ctx.lineWidth = p.at === 2 ? 7 : 5; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.arc(p.x, cy, R, a - 0.75, a + 0.75); ctx.stroke(); ctx.lineCap = 'butt';
-  }
-}
-// 사람·분신·기둥을 앞뒤(발 위치 y) 순서로
-function tdDrawActors(players, clones, now) {
-  const items = [];
-  for (const c of clones) if (c.al && !c.fl) items.push([c.y, () => tdActor(c, now)]);
-  for (const p of players) if (p.al && !p.fl) items.push([p.y + (p.id === myId ? 0.01 : 0), () => tdActor(p, now)]);
-  for (const w of STAGE.walls || []) items.push([w.r != null ? w.cy : w.y + w.h, () => tdWall(w)]);
-  items.sort((a, b) => a[0] - b[0]).forEach((it) => it[1]());
-}
-function tdThumb(c2, map, w, h) {
-  const th = map.theme, sx = w / map.width, sy = h / map.height;
-  c2.fillStyle = th.void; c2.fillRect(0, 0, w, h);
-  c2.save(); c2.scale(sx, sy);
-  tdFill(c2, map.floors, th.side, 0, TD_CLIFF); tdFill(c2, map.floors, th.top);
-  tdFill(c2, map.holes || [], th.void);
-  tdFill(c2, map.tops || [], th.side, 0, TD_CLIFF); tdFill(c2, map.tops || [], th.top);
-  tdFill(c2, map.walls || [], th.wall);
-  c2.restore();
-}
 // 지그재그 전기 줄기 (x1,y1)→(x2,y2)
 function zap(x1, y1, x2, y2, jag, col, w) {
   const n = Math.max(3, Math.round(Math.hypot(x2 - x1, y2 - y1) / 12));
@@ -1732,19 +1583,6 @@ function drawTramps(time) {
 function drawWater(state, time) {
   if (!state.wa) return;
   const [wy, lava] = state.wa, W2 = STAGE.width + 800, H2 = STAGE.height + 800;
-  if (isTD()) {
-    // 입체 모드: 무대 전체에 물(용암)이 참 — 깊을수록 진하게, 물결이 흘러감
-    const dep = Math.max(0, Math.min(1, (STAGE.height + 40 - wy) / (STAGE.height + 100)));
-    ctx.fillStyle = lava ? `rgba(230,90,20,${0.12 + dep * 0.4})` : `rgba(60,150,235,${0.1 + dep * 0.4})`;
-    ctx.fillRect(-400, -400, W2, H2);
-    ctx.strokeStyle = lava ? `rgba(255,220,120,${0.2 + dep * 0.4})` : `rgba(220,245,255,${0.15 + dep * 0.4})`; ctx.lineWidth = 2;
-    for (let y = 20; y < STAGE.height; y += 60) {
-      ctx.beginPath();
-      for (let x = 0; x <= STAGE.width; x += 30) ctx.lineTo(x, y + Math.sin(x / 70 + time / 500 + y) * 6);
-      ctx.stroke();
-    }
-    return;
-  }
   const g = ctx.createLinearGradient(0, wy, 0, STAGE.height + 200);
   if (lava) { g.addColorStop(0, 'rgba(255,150,40,0.5)'); g.addColorStop(1, 'rgba(200,40,10,0.68)'); }
   else { g.addColorStop(0, 'rgba(80,170,240,0.38)'); g.addColorStop(1, 'rgba(20,60,150,0.6)'); }
@@ -1793,8 +1631,8 @@ function drawPlayer(p, time) {
   const x = p.x, y = p.y, f = p.f || 1;
   const G = p.sz || (p.gt ? 2 : 1);
   if (p.gh) { drawGhost(p, x, y, performance.now(), G); finishPlayer(p, x, y, G, light, ownerId, baseAlpha, isClone, time); return; }
-  const gy = p.tdy != null ? p.tdy : y;   // 입체 모드: 그림자·고리는 바닥(발 위치)에
-  if (p.tdy == null) { ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(x, y + 2, 22 * G, 5 * G, 0, 0, Math.PI * 2); ctx.fill(); }
+  const gy = y;
+  ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(x, y + 2, 22 * G, 5 * G, 0, 0, Math.PI * 2); ctx.fill();
   if (latest && latest.md && latest.md[0] && !isClone && TEAMS[p.tm]) {
     // 팀 모드: 발밑에 팀 색 고리
     ctx.strokeStyle = TEAMS[p.tm].color; ctx.lineWidth = 3;
@@ -2968,7 +2806,6 @@ function dmgColor(d) {
 }
 function skillStatus(p) {
   const k = validSkill(p.sk);
-  if (isTD() && tdNotReady(k)) return { ready: false, text: '입체: 준비 중' };
   const t = (v) => (v > 0 ? v.toFixed(1) + 's' : '준비');
   if (k === 'magnet') return { ready: !(p.cd > 0) || !(p.cd2 > 0), text: `Q ${t(p.cd)} E ${t(p.cd2)}` };
   if (k === 'empower') return p.bf ? { ready: true, text: `강화 중 ${p.bt}s` } : { ready: p.chg >= 100, text: p.chg >= 100 ? '충전 완료!' : `충전 ${p.chg || 0}%` };
@@ -3439,7 +3276,7 @@ function drawSlashes(state, now) {
   for (const s of state.pj || []) {
     const k = Math.max(-0.07, age), x = s.x + s.vx * k, y = s.y + (s.vy || 0) * k, f = s.vx >= 0 ? 1 : -1;
     ctx.save(); ctx.translate(x, y);
-    if (s.vy) ctx.rotate(Math.atan2(s.vy, s.vx)); else ctx.scale(f, 1);   // 입체 모드: 날아가는 방향으로 돌림
+    ctx.scale(f, 1);
     const g = ctx.createLinearGradient(-60, 0, 30, 0);
     if (s.lc) { g.addColorStop(0, hexA(s.lc, 0)); g.addColorStop(1, hexA(s.lc, 0.95)); ctx.shadowColor = s.lc; }
     else if (s.ho) { g.addColorStop(0, 'rgba(255,240,170,0)'); g.addColorStop(1, 'rgba(255,248,210,0.98)'); }
@@ -3476,13 +3313,13 @@ let myReady = false;
     if (isHost) send({ t: 'start' });
     else { myReady = !myReady; send({ t: 'ready', on: myReady }); }
   });
-  // 모드: 팀 · 더블 · 입체를 각각 눌러서 켜고 끔
+  // 모드: 팀 · 더블을 각각 눌러서 켜고 끔
   $('modeTgls').querySelectorAll('button').forEach((b) => b.addEventListener('click', (e) => {
     e.currentTarget.blur();
     if (!latest || !latest.md) return;
-    const md = [latest.md[0] || 0, latest.md[1] || 0, latest.md[2] || 0], f = +b.dataset.f;
+    const md = [latest.md[0] || 0, latest.md[1] || 0], f = +b.dataset.f;
     md[f] = md[f] ? 0 : 1;
-    send({ t: 'mode', team: !!md[0], dbl: !!md[1], td: !!md[2] });
+    send({ t: 'mode', team: !!md[0], dbl: !!md[1] });
   }));
   $('rpFold').addEventListener('click', (e) => {
     const folded = $('roomPanel').classList.toggle('folded');
@@ -3509,11 +3346,6 @@ function renderSkillChips(current, boxId = 'skillChips', msg = 'skill', other = 
     b.append(dot, SKILLS[k].name);
     b.title = `${SKILLS[k].desc}. ${SKILLS[k].cd}` + (k === other ? ' (다른 칸에서 쓰는 중 · 누르면 서로 바뀜)' : '');
     if (k === other) b.style.opacity = '.5';
-    if (latest && latest.md && latest.md[2] && tdNotReady(k)) {
-      // 입체 모드에서 아직 준비 중인 스킬
-      const sm = document.createElement('small'); sm.className = 'tdwip'; sm.textContent = '준비 중'; b.append(sm);
-      b.title += ' · 입체 모드에선 아직 준비 중 (효과 없음)';
-    }
     // 더블 모드: 검사와 궁수는 같이 못 씀
     if (other && conflictsK(k, other)) { b.disabled = true; b.style.opacity = '.35'; b.title = '같이 쓸 수 없는 조합이에요 (검사·궁수·닌자·방패·촉수끼리, 촉수와 비행)'; }
     b.addEventListener('click', (e) => { e.currentTarget.blur(); send({ t: msg, skill: k }); });
@@ -3524,7 +3356,6 @@ function renderSkillChips(current, boxId = 'skillChips', msg = 'skill', other = 
 // 맵 미리보기 (작은 그림): 하늘 · 땅 · 발판 · 빗면 · 트램펄린
 function drawMapThumb(cv, map) {
   const c2 = cv.getContext('2d'), w = cv.width, h = cv.height, th = map.theme || {};
-  if (map.td) return tdThumb(c2, map, w, h);
   const sx = w / map.width, sy = h / map.height;
   const g = c2.createLinearGradient(0, 0, 0, h); const sky = th.sky || ['#222', '#444', '#666'];
   g.addColorStop(0, sky[0]); g.addColorStop(0.6, sky[1]); g.addColorStop(1, sky[2]);
@@ -3551,7 +3382,7 @@ function renderVote(m) {
   if (k !== voteKey) {
     voteKey = k; box.textContent = '';
     cands.forEach((id, i) => {
-      const map = ALL_MAPS.find((x) => x.id === id); if (!map) return;
+      const map = MAPS.find((x) => x.id === id); if (!map) return;
       const b = document.createElement('button'); b.type = 'button'; b.className = 'vote-card'; b.dataset.i = i;
       const cv = document.createElement('canvas'); cv.width = 160; cv.height = 90; drawMapThumb(cv, map);
       const nm = document.createElement('b'); nm.textContent = map.name;
@@ -3606,7 +3437,6 @@ function updateRoomPanel(m) {
   // 모드 (방장만 바꿀 수 있음)
   $('modeTgls').querySelectorAll('button').forEach((b) => { const on = !!md[+b.dataset.f]; b.classList.toggle('on', on); b.disabled = !host; b.setAttribute('aria-pressed', String(on)); });
   $('modeNote').textContent = host ? '' : '방장이 정해요';
-  $('modeNote').title = md[2] ? `입체 모드: 이동 WASD·방향키, 점프 스페이스. 준비 중인 스킬 ${SKILL_IDS.filter(tdNotReady).length}개` : '';
   // 팀 나누기 (팀 모드)
   $('teamRow').hidden = !md[0];
   const tl = $('teamList'); tl.textContent = '';
@@ -3629,9 +3459,8 @@ function updateRoomPanel(m) {
   $('chip2Row').hidden = !md[1];
   if (md[1]) renderSkillChips(me.sk2, 'skillChips2', 'skill2', me.sk, !!(me.rs && me.rs[1]));
   const sl = slotsOf(me);
-  $('keysNote').hidden = !md[1] && !md[2];
+  $('keysNote').hidden = !md[1];
   let kn = !md[1] ? '' : sl.x ? `자석 당기기 Q · 밀기 E · ${SKILLS[validSkill(sl.x)].name} R` : `${SKILLS[validSkill(me.sk)].name} Q · ${me.sk2 ? SKILLS[validSkill(me.sk2)].name : '?'} E`;
-  if (md[2]) { const wip = SKILL_IDS.filter(tdNotReady).length; kn += (kn ? ' · ' : '') + `입체: 이동 ${isTouch ? '방향 버튼 8개' : 'WASD·방향키'} · 점프 ${isTouch ? '점프 버튼' : '스페이스'}` + (wip ? ` · 준비 중인 스킬 ${wip}개` : ''); }
   $('keysNote').textContent = kn;
   // 스킨 (내 스킬의 가진 스킨 중에서 바로 바꾸기)
   const mySkills = [me.sk, md[1] ? me.sk2 : null].filter(Boolean);
@@ -3752,7 +3581,7 @@ function pvSwap(v) {
   t = snow; snow = v.snow; v.snow = t;
 }
 const PV_LOOP = 420;
-const pvKey = (k) => ({ a: isTouch ? '약' : 'J', h: isTouch ? '강' : 'K', s: 'Q', e: 'E', jp: isTouch ? '점프' : 'Space', u: isTouch ? '점프' : 'W' }[k] || k);
+const pvKey = (k) => ({ a: isTouch ? '약' : 'J', h: isTouch ? '강' : 'K', s: 'Q', e: 'E', u: isTouch ? '점프' : 'W' }[k] || k);
 const P = (t, key, label, hold = 1) => ({ t, key, label, hold });
 // 기본 장면: 다가가서 약·약·강 → Q → 약·약·강
 function pvBase(name) {
@@ -3798,12 +3627,11 @@ const PV_SPEC = {
 };
 function pvMakeSim(v) {
   const S = window.BRAWL_SIM, sim = new S.Sim();
-  if (v.td) sim.setMode(false, false, true);
-  sim.stage = v.td ? TDM.TD_MAPS.find((m) => m.id === 'td_round') : MAPS.find((m) => m.id === 'field');
+  sim.stage = MAPS.find((m) => m.id === 'field');
   sim.mapVote = null; sim.onEvent = () => {};
   const me = sim.addPlayer('me', '나', false, v.skill), du = sim.addPlayer('du', '상대', false, 'slow');
   me.skins = v.skin ? { [v.skill]: v.skin } : {};
-  const [mx, my, dx, dy] = v.td ? [700, 470, 820, 470] : [500, 520, 650, 520];
+  const [mx, my, dx, dy] = [500, 520, 650, 520];
   me.reset(mx, my); du.reset(dx, dy);
   sim.phase = 'playing';
   for (const p of [me, du]) { p.inMatch = true; p.stocks = 99; p.invincible = 0; p.rawInput = S.EMPTY_INPUT(); }
@@ -3822,15 +3650,12 @@ function pvInputs(v) {
   const blocked = spec.noMove && t >= spec.noMove[0] && t < spec.noMove[1];
   let tx = du.x, ty = du.y;
   if (spec.goPotion && sim.potions.length) { const q = sim.potions.find((o) => o.owner === me.id && o.landed); if (q) { tx = q.x; ty = q.y; } }
-  const safe = sim.td ? TDM.onFloor(sim.stage, tx, ty) : tx > 220 && tx < 1060 && ty < 600;
+  const safe = tx > 220 && tx < 1060 && ty < 600;
   if (inWin && !blocked && safe && !me.inside && du.alive) {
     const dist = spec.goPotion && tx !== du.x ? 4 : 62;
-    if (sim.td) {
-      const dx = tx - me.x, dy = ty - me.y, d = Math.hypot(dx, dy);
-      if (d > dist) { const c = dx / d, sn = dy / d; if (c > 0.38) mi.r = 1; else if (c < -0.38) mi.l = 1; if (sn > 0.38) mi.d = 1; else if (sn < -0.38) mi.u = 1; }
-    } else if (Math.abs(tx - me.x) > dist) mi[tx > me.x ? 'r' : 'l'] = 1;
+    if (Math.abs(tx - me.x) > dist) mi[tx > me.x ? 'r' : 'l'] = 1;
   }
-  const keyOf = (k) => (k === 'jump' ? (sim.td ? 'jp' : 'u') : k === 'u' && sim.td ? 'u' : k);
+  const keyOf = (k) => (k === 'jump' ? 'u' : k);
   for (const x of v.plan) {
     if (t >= x.t && t < x.t + x.hold) mi[keyOf(x.key)] = 1;
     if (t === x.t && x.label) {
@@ -3839,8 +3664,7 @@ function pvInputs(v) {
     }
     // 공격·스킬 직전엔 상대 쪽을 보게 (방향키를 살짝)
     if (['a', 'h', 's'].includes(x.key) && t >= x.t - 3 && t < x.t && !blocked && du.alive && !me.inside) {
-      if (sim.td) { const ex = du.x - me.x, ey = du.y - me.y, d = Math.hypot(ex, ey) || 1; if (ex / d > 0.38) mi.r = 1; else if (ex / d < -0.38) mi.l = 1; if (ey / d > 0.38) mi.d = 1; else if (ey / d < -0.38) mi.u = 1; }
-      else if (Math.abs(du.x - me.x) > 4 && Math.sign(du.x - me.x) !== me.facing) mi[du.x > me.x ? 'r' : 'l'] = 1;
+      if (Math.abs(du.x - me.x) > 4 && Math.sign(du.x - me.x) !== me.facing) mi[du.x > me.x ? 'r' : 'l'] = 1;
     }
   }
   for (const x of v.dplan) if (t >= x.t && t < x.t + (x.hold || 1)) di[keyOf(x.key)] = 1;
@@ -3861,12 +3685,12 @@ function pvStep(v) {
   }
 }
 let pv = null;   // 지금 보여 주는 영상
-function pvStart(cv, skill, skin, td) {
+function pvStart(cv, skill, skin) {
   pvStop();
-  const st = td ? TDM.TD_MAPS.find((m) => m.id === 'td_round') : MAPS.find((m) => m.id === 'field');
-  const v = { canvas: cv, ctx: cv.getContext('2d'), skill, skin, td, scale: 1, offX: 0, offY: 0, STAGE: { ...st, zoom: 1, camX: 0 },
+  const st = MAPS.find((m) => m.id === 'field');
+  const v = { canvas: cv, ctx: cv.getContext('2d'), skill, skin, scale: 1, offX: 0, offY: 0, STAGE: { ...st, zoom: 1 },
     latest: null, snapshots: [], particles: [], shake: 0, banners: [], myId: 'me', hakiFlash: 0, freezeFlash: 0, lightFlash: 0, lightBlue: false,
-    rewindT: 0, rewindG: false, quakeT: 0, snow: [], acc: 0, last: performance.now(), on: true, x0: td ? 400 : 240, y0: td ? 235 : 150, RW: 800 };
+    rewindT: 0, rewindG: false, quakeT: 0, snow: [], acc: 0, last: performance.now(), on: true, x0: 240, y0: 150, RW: 800 };
   pv = v;
   loadSim().then(() => {
     if (pv !== v) return;
@@ -3885,10 +3709,10 @@ function pvFrame(v, now) {
   if (v.latest) {
     const me = v.latest.p.find((q) => q.id === 'me'), du = v.latest.p.find((q) => q.id === 'du');
     if (me && !me.hid) {
-      let fx = me.x, fy = me.y - (me.z || 0);
-      if (du && !du.hid && Math.hypot(du.x - me.x, du.y - me.y) < 560) { fx = (fx + du.x) / 2; fy = (fy + du.y - (du.z || 0)) / 2; }
+      let fx = me.x, fy = me.y;
+      if (du && !du.hid && Math.hypot(du.x - me.x, du.y - me.y) < 560) { fx = (fx + du.x) / 2; fy = (fy + du.y) / 2; }
       const st = v.STAGE, RH = v.RW * 9 / 16;
-      const tx = v.td ? clamp(fx - v.RW / 2, -60, st.width - v.RW + 60) : clamp(fx - v.RW / 2, 0, st.width - v.RW), ty = v.td ? clamp(fy - RH / 2, -40, st.height - RH + 40) : clamp(Math.min(150, fy - RH * 0.72), -200, 150);
+      const tx = clamp(fx - v.RW / 2, 0, st.width - v.RW), ty = clamp(Math.min(150, fy - RH * 0.72), -200, 150);
       const k = Math.min(1, dt * 3);
       v.x0 += (tx - v.x0) * k; v.y0 += (ty - v.y0) * k;
     }
@@ -3903,7 +3727,7 @@ function pvFrame(v, now) {
       pvStep(v);
       if (v.tick >= PV_LOOP) { pvMakeSim(v); snapshots = []; latest = null; particles = []; shake = 0; }
     }
-    if (isTD()) tdBackground(now); else drawBackground(now);
+    drawBackground(now);
     if (latest) drawWorld(now, dt, interpolatedPlayers(), interpolatedPlayers('cl'));
     // 위: 지금 누른 키 / 아래: 설명 / 오른쪽 위: 상대 퍼센트
     const k = Math.max(canvas.width / 640, Math.min(devicePixelRatio || 1, 2) * 0.85);   // 작은 화면에서도 글씨가 읽히게
@@ -3939,7 +3763,7 @@ function pvFrame(v, now) {
 const DOCS = (window.BRAWL_DOCS || {}).DOCS || {};
 let det = null;   // { skill, skin, td }
 function openDetail(o) {
-  det = { skin: null, td: false, ...o };
+  det = { skin: null, ...o };
   $('detMsg').textContent = '';
   $('detailModal').hidden = false;
   renderDetail(true);
@@ -3952,8 +3776,6 @@ function renderDetail(restart) {
   $('detTitle').textContent = sd ? sd.name : sk.name;
   $('detTitle').style.color = sd ? sd.color : SKILL_COLOR[skill];
   $('detTag').textContent = sd ? `${sk.name} 스킨` : sk.cd;
-  $('detTabSide').setAttribute('aria-selected', String(!det.td));
-  $('detTabTd').setAttribute('aria-selected', String(det.td));
   $('detDesc').textContent = sd ? `${sd.desc} — 보이는 모습만 바뀌고 능력은 그대로예요.` : sk.desc;
   const ul = $('detMore'); ul.textContent = '';
   const li = (label, text) => { if (!text) return; const e = document.createElement('li'); if (label) { const b = document.createElement('b'); b.textContent = label + ' '; e.append(b); } e.append(text); ul.append(e); };
@@ -3965,7 +3787,7 @@ function renderDetail(restart) {
     li('팁', d.tip);
   }
   detActions();
-  if (restart) { $('detLoading').hidden = false; $('detLoading').textContent = '영상 불러오는 중…'; pvStart($('detCanvas'), skill, skin, det.td); }
+  if (restart) { $('detLoading').hidden = false; $('detLoading').textContent = '영상 불러오는 중…'; pvStart($('detCanvas'), skill, skin); }
 }
 function detActions() {
   const { skill, skin } = det, p = account.profile, btn = $('detBuy'), msg = $('detMsg');
@@ -3999,8 +3821,6 @@ function detActions() {
 $('detClose').addEventListener('click', closeDetail);
 $('detailModal').addEventListener('click', (e) => { if (e.target === $('detailModal')) closeDetail(); });
 addEventListener('keydown', (e) => { if (e.key === 'Escape' && det) closeDetail(); });
-$('detTabSide').addEventListener('click', () => { if (det && det.td) { det.td = false; renderDetail(true); } });
-$('detTabTd').addEventListener('click', () => { if (det && !det.td) { det.td = true; renderDetail(true); } });
 $('detBtn').addEventListener('click', () => openDetail({ skill: validSkill(account.skill) }));
 // 게임 장면(배경 빼고): 무대 · 사람 · 효과. 스킬 상세 영상도 이걸로 그림
 function drawWorld(now, dt, players, clonesI) {
@@ -4019,8 +3839,8 @@ function drawWorld(now, dt, players, clonesI) {
   }
   ctx.translate(offX + sx, offY + sy);
   if (rot) { ctx.translate(canvas.width / 2, canvas.height / 2); ctx.rotate(rot); ctx.translate(-canvas.width / 2, -canvas.height / 2); }
-  ctx.translate((STAGE.camX || 0) * scale, 0); ctx.scale(scale * STAGE.zoom, scale * STAGE.zoom);
-  if (isTD()) { tdDrawFalling(players, clonesI, now); tdDrawStage(); } else drawStage();
+  ctx.scale(scale * STAGE.zoom, scale * STAGE.zoom);
+  drawStage();
   drawTramps(now);
   drawPotions(latest, now);
   drawPortals(latest, now);
@@ -4039,12 +3859,9 @@ function drawWorld(now, dt, players, clonesI) {
   drawArrowsWinds(latest, now);
   drawLogsStars(latest, now);
   drawThrownShields(latest, now);
-  if (isTD()) tdDrawActors(players, clonesI, now);
-  else {
-    clonesI.forEach((c) => drawPlayer(c, now));
-    players.filter((p) => p.id !== myId).forEach((p) => drawPlayer(p, now));
-    players.filter((p) => p.id === myId).forEach((p) => drawPlayer(p, now));
-  }
+  clonesI.forEach((c) => drawPlayer(c, now));
+  players.filter((p) => p.id !== myId).forEach((p) => drawPlayer(p, now));
+  players.filter((p) => p.id === myId).forEach((p) => drawPlayer(p, now));
   drawWater(latest, now);
   drawFlashZones(latest, now);
   drawParticles(dt);
@@ -4081,7 +3898,6 @@ function frame(now) {
         if (kk === 'parasite') { ready = meS.pr > 0 || meS.ins; txt = meS.ins ? '나가기' : `${meS.pr || 0}명`; }
         if (kk === 'undying' || kk === 'hulk' || kk === 'ghost' || kk === 'dope') { ready = true; txt = '패시브'; }
         if (kk === 'combo') { ready = meS.cb > 0; txt = `${meS.cb || 0}콤보`; }
-        if (isTD() && tdNotReady(kk)) { ready = false; txt = '준비 중'; }
         const nm = k === 'magnet2' ? '밀기' : sl.e === 'magnet2' && k === 'magnet' ? '당기기' : SKILLS[kk].name;
         if (nameEl.textContent !== nm) nameEl.textContent = nm;
         el.style.borderColor = SKILL_COLOR[kk];
@@ -4109,8 +3925,7 @@ function frame(now) {
     if (errHold > 0) { errHold -= dt; requestAnimationFrame(frame); return; }
     if (Math.random() < 0.06) errHold = 0.08 + Math.random() * 0.35;
   } else errHold = 0;
-  syncTouchMode();
-  if (isTD()) tdBackground(now); else drawBackground(now);
+  drawBackground(now);
   if (latest) {
     const players = interpolatedPlayers();
     const clonesI = interpolatedPlayers('cl');
@@ -4123,8 +3938,8 @@ function frame(now) {
     drawPhase(latest, players, dt);
     ctx.restore();
   } else if ($('lobby').hidden) {
-    ctx.save(); ctx.translate(offX, offY); ctx.translate((STAGE.camX || 0) * scale, 0); ctx.scale(scale * STAGE.zoom, scale * STAGE.zoom);
-    if (isTD()) tdDrawStage(); else drawStage(); ctx.restore(); ctx.save(); ctx.translate(offX, offY); ctx.scale(scale, scale); smallText('방에 연결하는 중…', 200); ctx.restore();
+    ctx.save(); ctx.translate(offX, offY); ctx.scale(scale * STAGE.zoom, scale * STAGE.zoom);
+    drawStage(); ctx.restore(); ctx.save(); ctx.translate(offX, offY); ctx.scale(scale, scale); smallText('방에 연결하는 중…', 200); ctx.restore();
   }
   requestAnimationFrame(frame);
 }

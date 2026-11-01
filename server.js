@@ -189,14 +189,13 @@ async function api(req, res, urlPath) {
 }
 
 // ---------- 웹사이트 ----------
-let simJs = null;
-const TD_ENABLED = false;   // 입체 모드 켜기/끄기 (true로 바꾸면 다시 생김)   // /sim.js (game.js를 브라우저용으로 감싼 것)
+let simJs = null;   // /sim.js (game.js를 브라우저용으로 감싼 것)
 const server = http.createServer((req, res) => {
   const urlPath = decodeURIComponent(req.url.split('?')[0]);
   if (urlPath === '/health') { res.writeHead(200); return res.end('ok'); }
   // 스킬 상세 창의 영상: 브라우저에서 진짜 게임 규칙(game.js)을 그대로 돌려 보여줌
   if (urlPath === '/sim.js') {
-    if (!simJs) simJs = '(function(){var module={exports:{}};var require=function(p){return p.indexOf("tdmaps")>=0?window.BRAWL_TDMAPS:p.indexOf("skins")>=0?window.BRAWL_SKINS:window.BRAWL_MAPS;};\n'
+    if (!simJs) simJs = '(function(){var module={exports:{}};var require=function(p){return p.indexOf("skins")>=0?window.BRAWL_SKINS:window.BRAWL_MAPS;};\n'
       + fs.readFileSync(path.join(__dirname, 'game.js'), 'utf8') + '\nwindow.BRAWL_SIM=module.exports;})();';
     res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8', 'Cache-Control': 'no-cache' });
     return res.end(simJs);
@@ -511,7 +510,7 @@ server.on('upgrade', (req, sock) => {
         if (err) return notice(err);
       } else if (m.t === 'mode' && room) {
         if (id !== room.hostId) return notice('모드는 방장만 바꿀 수 있어요.');
-        const err = room.sim.setMode(!!m.team, !!m.dbl, TD_ENABLED && !!m.td);   // 입체 모드는 지금 꺼 둠
+        const err = room.sim.setMode(!!m.team, !!m.dbl);
         if (err) return notice(err);
         if (room.sim.doubleMode) for (const cid of room.clients.keys()) room.giveSkill2(cid);
       } else if (m.t === 'team' && room) {
