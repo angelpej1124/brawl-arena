@@ -748,16 +748,25 @@ for (const b of document.querySelectorAll('.snd-btn')) b.addEventListener('click
 renderSnd();
 
 // ---------- 설정 창: 소리 크기 · 모바일 버튼 위치/크기 ----------
-const TDEF = { ms: 100, mx: 0, my: 0, as: 100, ax: 0, ay: 0 };
-const tset = (() => { try { return { ...TDEF, ...JSON.parse(localStorage.getItem('brawlTouch') || '{}') }; } catch (_) { return { ...TDEF }; } })();
+const TDEF = { ms: 100, as: 100 };
+const tset = (() => {
+  let o = {}; try { o = JSON.parse(localStorage.getItem('brawlTouch') || '{}') || {}; } catch (_) {}
+  return { ms: +o.ms || 100, as: +o.as || 100, pos: (o.pos && typeof o.pos === 'object') ? o.pos : {} };
+})();
+// 위치는 가로/세로 화면 따로 저장: pos[land|port][move|a|h|u|s|e|x] = [dx, dy] (화면 px, 원래 자리에서 옮긴 만큼)
+const tOrient = () => innerWidth > innerHeight ? 'land' : 'port';
+const tPos = () => (tset.pos[tOrient()] = tset.pos[tOrient()] || {});
+const tScale = (k) => Math.max(70, Math.min(170, +tset[k] || 100)) / 100;
 function applyTouchLayout() {
-  // 위치는 0~100 → 화면 너비의 최대 30%, 높이의 최대 45%까지 안쪽/위로 옮김
-  const mxW = innerWidth * 0.3, myH = innerHeight * 0.45;
-  for (const [id, k] of [['tgMove', 'm'], ['tgAct', 'a']]) {
-    const el = $(id); if (!el) continue;
-    el.style.setProperty('--ts', (Math.max(70, Math.min(170, +tset[k + 's'] || 100)) / 100).toFixed(2));
-    el.style.setProperty('--tx', Math.round((+tset[k + 'x'] || 0) / 100 * mxW) + 'px');
-    el.style.setProperty('--ty', Math.round((+tset[k + 'y'] || 0) / 100 * myH) + 'px');
+  const P = tPos(), sm = tScale('ms'), sa = tScale('as');
+  const mv = $('tgMove'), ac = $('tgAct'); if (!mv || !ac) return;
+  const m = P.move || [0, 0];
+  mv.style.setProperty('--ts', sm); mv.style.setProperty('--tx', m[0] + 'px'); mv.style.setProperty('--ty', m[1] + 'px');
+  ac.style.setProperty('--ts', sa);
+  // 공격 묶음은 크기만 묶음째로 → 버튼별 이동은 묶음 배율로 나눠서 화면 px 그대로 움직이게
+  for (const b of ac.querySelectorAll('.tbtn')) {
+    const d = P[b.dataset.k] || [0, 0];
+    b.style.transform = d[0] || d[1] ? `translate(${(d[0] / sa).toFixed(1)}px, ${(d[1] / sa).toFixed(1)}px)` : '';
   }
 }
 function saveTouch() { try { localStorage.setItem('brawlTouch', JSON.stringify(tset)); } catch (_) {} }
@@ -766,9 +775,7 @@ function renderSet() {
   const o = window.SFX ? SFX.get() : { bv: 1, sv: 1 };
   $('setBv').value = Math.round((o.bv ?? 1) * 100); $('setBvO').textContent = $('setBv').value + '%';
   $('setSv').value = Math.round((o.sv ?? 1) * 100); $('setSvO').textContent = $('setSv').value + '%';
-  for (const r of document.querySelectorAll('#setModal input[data-t]')) {
-    r.value = tset[r.dataset.t]; r.nextElementSibling.textContent = r.dataset.t[1] === 's' ? r.value + '%' : r.value;
-  }
+  for (const r of document.querySelectorAll('#setModal input[data-t]')) { r.value = tset[r.dataset.t]; r.nextElementSibling.textContent = r.value + '%'; }
   for (const b of document.querySelectorAll('#setModal .snd-btn')) b.textContent = b.classList.contains('off') ? '꺼짐' : '켜짐';
 }
 function openSet() { renderSnd(); renderSet(); $('setModal').hidden = false; }
@@ -788,8 +795,52 @@ for (const r of document.querySelectorAll('#setModal input[data-t]')) r.addEvent
   document.body.classList.add('tpreview');
 });
 addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('setModal').hidden) closeSet(); });
-$('setReset').addEventListener('click', () => { Object.assign(tset, TDEF); saveTouch(); applyTouchLayout(); renderSet(); document.body.classList.add('tpreview'); });
+function resetTouch() { tset.ms = tset.as = 100; tset.pos = {}; saveTouch(); applyTouchLayout(); }
+$('setReset').addEventListener('click', () => { resetTouch(); renderSet(); document.body.classList.add('tpreview'); });
 for (const b of document.querySelectorAll('#setModal .snd-btn')) b.addEventListener('click', () => setTimeout(renderSet, 0));
+
+// ---------- 버튼 위치 편집: 끌어서 옮기기 ----------
+let tEditing = false, tDrag = null;
+function startTouchEdit() {
+  closeSet(); tEditing = true; touchMap.clear(); refreshTouch();
+  document.body.classList.add('tedit'); $('tEditBar').hidden = false;
+}
+function endTouchEdit() {
+  tEditing = false; tDrag = null; document.body.classList.remove('tedit'); $('tEditBar').hidden = true;
+  document.querySelectorAll('.tbtn.drag').forEach((b) => b.classList.remove('drag'));
+  saveTouch(); openSet();
+}
+$('setEdit').addEventListener('click', startTouchEdit);
+$('tEditDone').addEventListener('click', endTouchEdit);
+$('tEditReset').addEventListener('click', () => { tset.pos[tOrient()] = {}; saveTouch(); applyTouchLayout(); });
+addEventListener('keydown', (e) => { if (tEditing && (e.key === 'Escape' || e.key === 'Enter')) { e.preventDefault(); endTouchEdit(); } });
+addEventListener('pointerdown', (e) => {
+  if (!tEditing) return;
+  const b = e.target.closest && e.target.closest('#touch .tbtn'); if (!b) return;
+  e.preventDefault(); e.stopPropagation();
+  const isMove = !!b.closest('#tgMove'), key = isMove ? 'move' : b.dataset.k;
+  const els = isMove ? [...$('tgMove').querySelectorAll('.tbtn')] : [b];
+  // 화면 밖으로 못 나가게: 끌기 시작할 때 버튼(묶음)이 차지하는 영역
+  const rs = els.map((el) => el.getBoundingClientRect());
+  const box = { l: Math.min(...rs.map((r) => r.left)), r: Math.max(...rs.map((r) => r.right)), t: Math.min(...rs.map((r) => r.top)), b: Math.max(...rs.map((r) => r.bottom)) };
+  tDrag = { id: e.pointerId, key, els, sx: e.clientX, sy: e.clientY, d0: (tPos()[key] || [0, 0]).slice(), box };
+  els.forEach((el) => el.classList.add('drag'));
+  try { b.setPointerCapture(e.pointerId); } catch (_) {}
+}, true);
+addEventListener('pointermove', (e) => {
+  if (!tDrag || e.pointerId !== tDrag.id) return;
+  e.preventDefault();
+  const { box } = tDrag, pad = 4;
+  const ddx = Math.max(pad - box.l, Math.min(innerWidth - pad - box.r, e.clientX - tDrag.sx));
+  const ddy = Math.max(pad - box.t, Math.min(innerHeight - pad - box.b, e.clientY - tDrag.sy));
+  tPos()[tDrag.key] = [Math.round(tDrag.d0[0] + ddx), Math.round(tDrag.d0[1] + ddy)];
+  applyTouchLayout();
+}, true);
+const tDragEnd = (e) => {
+  if (!tDrag || e.pointerId !== tDrag.id) return;
+  tDrag.els.forEach((el) => el.classList.remove('drag')); tDrag = null; saveTouch();
+};
+addEventListener('pointerup', tDragEnd, true); addEventListener('pointercancel', tDragEnd, true);
 let snapshots = [], latest = null, lastEvSeen = 0, pingMs = null;
 
 try { $('roomcode').value = localStorage.getItem('brawl_room') || ''; } catch (e) {}
@@ -1017,6 +1068,7 @@ function refreshTouch() {
 }
 const touchEl = $('touch');
 touchEl.addEventListener('pointerdown', (e) => {
+  if (tEditing) return;
   const k = keyAt(e.clientX, e.clientY);
   if (!k) return;
   e.preventDefault();

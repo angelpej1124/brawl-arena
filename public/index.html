@@ -174,11 +174,23 @@
   .set-row .snd-btn { border: 1px solid #3d3670; border-radius: 999px; padding: 4px 10px; background: transparent; color: var(--text); cursor: pointer; font-size: 12px; flex: none; width: 52px; }
   /* 모바일 버튼 묶음: 설정의 크기·위치를 transform으로 적용 */
   .tgrp { position: absolute; inset: 0; pointer-events: none; }
-  #tgMove { transform-origin: left bottom; transform: translate(var(--tx, 0px), calc(-1 * var(--ty, 0px))) scale(var(--ts, 1)); }
-  #tgAct { transform-origin: right bottom; transform: translate(calc(-1 * var(--tx, 0px)), calc(-1 * var(--ty, 0px))) scale(var(--ts, 1)); }
+  #tgMove { transform-origin: left bottom; transform: translate(var(--tx, 0px), var(--ty, 0px)) scale(var(--ts, 1)); }
+  #tgAct { transform-origin: right bottom; transform: scale(var(--ts, 1)); }
   /* 설정 창에서 버튼 미리보기 */
   body.tpreview #touch { display: block !important; z-index: 30; opacity: .6; }
   body.tpreview #touch, body.tpreview #touch * { pointer-events: none !important; }
+  .set-move { display: block; width: 100%; margin: 12px 0 4px; border: 1.5px dashed var(--accent); border-radius: 10px; background: transparent; color: var(--accent); padding: 10px; font: 700 14px inherit; font-family: inherit; cursor: pointer; }
+  /* 버튼 위치 편집 모드: 화면을 어둡게 하고 버튼을 끌어서 옮김 */
+  body.tedit::before { content: ''; position: fixed; inset: 0; z-index: 29; background: rgba(6,5,14,.55); }
+  body.tedit #touch { display: block !important; z-index: 30; }
+  body.tedit #touch .tbtn[hidden] { display: flex !important; }
+  body.tedit #touch .tbtn { border-style: dashed; border-color: var(--accent); background: rgba(255,207,63,.16); cursor: grab; }
+  body.tedit #touch .tbtn.drag { background: rgba(255,207,63,.45); cursor: grabbing; }
+  #tEditBar { position: fixed; top: calc(12px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); z-index: 31; display: flex; align-items: center; gap: 8px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 99px; padding: 6px 6px 6px 16px; font-size: 14px; white-space: nowrap; }
+  #tEditBar[hidden] { display: none !important; }
+  #tEditBar button { border: 0; border-radius: 99px; padding: 7px 14px; font: 700 13px inherit; font-family: inherit; cursor: pointer; background: #2f2a55; color: var(--text); }
+  #tEditBar #tEditDone { background: var(--accent); color: #2a1a00; }
   .botlist { display: flex; flex-wrap: wrap; gap: 6px; }
   .botlist .bp { display: flex; align-items: center; gap: 4px; background: #15122a; border-radius: 8px; padding: 3px 6px; font-size: 12px; color: var(--muted); }
   .botlist .kick { border: 1px solid #ff6b6b; border-radius: 6px; background: transparent; color: #ffb3b3; font: inherit; font-size: 12px; padding: 2px 8px; cursor: pointer; }
@@ -584,6 +596,7 @@
     <p class="hint" id="nickMsg" role="status"></p>
   </div>
 </div>
+<div id="tEditBar" hidden><span>버튼을 끌어서 옮기세요</span><button type="button" id="tEditReset">처음대로</button><button type="button" id="tEditDone">완료</button></div>
 <div id="setModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="setTitle">
   <div class="modal-card set-card">
     <div class="modal-head"><b id="setTitle">설정</b><button class="modal-x" id="setClose" type="button" aria-label="닫기">✕</button></div>
@@ -594,12 +607,10 @@
     <h4 class="set-h">모바일 버튼 <small>(조절하면 화면에 미리 보여요)</small></h4>
     <div class="set-sub">이동 버튼 (◀ ▶ ▼)</div>
     <div class="set-row"><span>크기</span><input type="range" data-t="ms" min="70" max="170" step="5"><output></output></div>
-    <div class="set-row"><span>좌우 위치</span><input type="range" data-t="mx" min="0" max="100" step="1"><output></output></div>
-    <div class="set-row"><span>높이</span><input type="range" data-t="my" min="0" max="100" step="1"><output></output></div>
     <div class="set-sub">공격·점프·스킬 버튼</div>
     <div class="set-row"><span>크기</span><input type="range" data-t="as" min="70" max="170" step="5"><output></output></div>
-    <div class="set-row"><span>좌우 위치</span><input type="range" data-t="ax" min="0" max="100" step="1"><output></output></div>
-    <div class="set-row"><span>높이</span><input type="range" data-t="ay" min="0" max="100" step="1"><output></output></div>
+    <button class="set-move" id="setEdit" type="button">✥ 버튼 위치 바꾸기 (끌어서 옮기기)</button>
+    <p class="hint">이동 버튼은 세 개가 같이, 공격·점프·스킬 버튼은 하나씩 따로 옮겨져요. 가로·세로 화면은 위치가 따로 저장돼요.</p>
     <button class="link-btn" id="setReset" type="button">버튼 위치·크기 처음대로</button>
     <button class="play" id="setOk" type="button">확인</button>
   </div>
