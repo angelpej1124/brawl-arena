@@ -98,6 +98,10 @@ const SKILLS = {
   flood:    { name: '홍수', cd: 12, rise: 120, riseSpeed: 140, hold: 15, recede: 22, fullHold: 10, drainTime: 5, breath: 10,
               moveMul: 0.55, jumpMul: 0.7, atkMul: 0.6, swim: 1.15, proj: 0.45, dash: 0.5, stunMul: 1.6, iceMul: 1.6 },
   turret:   { name: '터렛', cd: 12, max: 3, hp: 3, range: 560, fireEvery: 1.1, size: 1.3, bulletSpeed: 820, bulletLife: 0.9, dmg: 3, baseKB: 210, growthKB: 5 },
+  venom:    { name: '독침', cd: 8, perHit: 2, max: 10, tick: 0.5, dmgPer: 0.12, slowAt: 5, slowT: 1.2, spreadR: 170, spreadAdd: 4 },
+  ambush:   { name: '암습', cd: 9, range: 480, time: 2, dmgMul: 1.6, kbMul: 1.4, behind: 50 },
+  mark:     { name: '표식', cd: 7, range: 420, delay: 3, max: 3, radius: 140, dmg: 9, power: 760, stun: 0.5 },
+  hook:     { name: '낚시', cd: 6, range: 440, pullFoe: 4.5, pullSelf: 4.5, maxPull: 1000, dmg: 3, stun: 0.25 },
 };
 const SKILL_IDS = Object.keys(SKILLS);
 
@@ -225,6 +229,7 @@ class Sim {
     this.blizzards = [];     // 얼음 눈보라 { by, t }
     this.arrows = [];        // 궁수 화살
     this.mines = [];         // 지뢰
+    this.marks = [];         // 표식 (폭발 대기)
     this.logs = [];          // 닌자 통나무(눈사람)
     this.shields = [];       // 던진 방패
     this.flashes = [];       // 섬광 자국 { owner, x, y, r, t }
@@ -326,7 +331,7 @@ class Sim {
     if (p.skill2 === skill) p.skill2 = p.skill;   // 두 스킬을 서로 바꾼 것
     p.skill = skill; p.randS1 = false;
     p.skillCd = 0; p.skillCdB = 0; p.skillCd2 = 0; p.charged = false; p.stillT = 0; p.parHits = {};
-    p.flyT = 0; p.rockT = 0; p.buffT = 0; p.stealth = 0; p.giantT = 0; p.rubberT = 0; p.engineT = 0; p.stunT = 0; p.hulkS = 1; p.sunT = 0; p.waveT = 0; p.dope = null; p.chargeMode = false; p.chargeN = 0; p.rushT = 0; p.rushCarry = []; p.hopT = 0; p.ammo = SKILLS.shotgun.ammo; p.gemT = 0;
+    p.venom = 0; p.venomT = 0; p.ambushT = 0; p.flyT = 0; p.rockT = 0; p.buffT = 0; p.stealth = 0; p.giantT = 0; p.rubberT = 0; p.engineT = 0; p.stunT = 0; p.hulkS = 1; p.sunT = 0; p.waveT = 0; p.dope = null; p.chargeMode = false; p.chargeN = 0; p.rushT = 0; p.rushCarry = []; p.hopT = 0; p.ammo = SKILLS.shotgun.ammo; p.gemT = 0;
     this.clones.delete(id);
     this.removeTurrets(id);
     this.skillPicked(p);
@@ -342,7 +347,7 @@ class Sim {
     if (conflicts(skill, p.skill)) return '검사·궁수·닌자·방패·촉수·샷건은 공격 방식이 바뀌는 스킬이라 같이 쓸 수 없어요. (촉수와 비행도 불가)';
     if (p.parHost) this.endParasite(p, true);
     p.skill2 = skill; p.randS2 = false; p.skillCd = 0; p.skillCdB = 0; p.skillCd2 = 0; p.charged = false; p.stillT = 0; p.parHits = {};
-    p.flyT = 0; p.rockT = 0; p.buffT = 0; p.stealth = 0; p.giantT = 0; p.rubberT = 0; p.engineT = 0; p.sunT = 0; p.waveT = 0; p.dope = null; p.chargeMode = false; p.chargeN = 0; p.rushT = 0; p.rushCarry = []; p.hopT = 0; p.ammo = SKILLS.shotgun.ammo; p.gemT = 0;
+    p.venom = 0; p.venomT = 0; p.ambushT = 0; p.flyT = 0; p.rockT = 0; p.buffT = 0; p.stealth = 0; p.giantT = 0; p.rubberT = 0; p.engineT = 0; p.sunT = 0; p.waveT = 0; p.dope = null; p.chargeMode = false; p.chargeN = 0; p.rushT = 0; p.rushCarry = []; p.hopT = 0; p.ammo = SKILLS.shotgun.ammo; p.gemT = 0;
     this.clones.delete(id); this.removeTurrets(id);
     this.skillPicked(p);
     return null;
@@ -467,7 +472,7 @@ class Sim {
   }
   clearField() {
     this.clones.clear(); this.smokes = []; this.slashes = [];
-    this.turrets = []; this.bullets = []; this.blizzards = []; this.arrows = []; this.winds = []; this.timeSaves = new Map(); this.mines = []; this.logs = []; this.starRain = []; this.starBits = []; this.shields = []; this.flashes = []; this.water = null; this.potions = []; this.portals = [];
+    this.turrets = []; this.bullets = []; this.blizzards = []; this.arrows = []; this.winds = []; this.timeSaves = new Map(); this.mines = []; this.marks = []; this.logs = []; this.starRain = []; this.starBits = []; this.shields = []; this.flashes = []; this.water = null; this.potions = []; this.portals = [];
   }
   removeTurrets(id) {
     this.turrets = this.turrets.filter((t) => t.owner !== id);
@@ -739,6 +744,7 @@ class Sim {
     this.updateTurrets(targets, dt);
     this.updateAtoms(targets, dt);
     this.updateMines(targets, dt);
+    this.updateMarks(dt);
     this.updateArrows(targets, dt);
     this.updateLogs(dt);
     this.updateStars(targets, dt);
@@ -839,6 +845,7 @@ class Sim {
     this.tickTimers(p, dt);
     if (p.dropThrough > 0) p.dropThrough -= dt;
     if (p.slow > 0) p.slow = Math.max(0, p.slow - dt);
+    if (p.ambushT > 0) p.ambushT = Math.max(0, p.ambushT - dt);
     if (p.stealth > 0) p.stealth = Math.max(0, p.stealth - dt);
     if (p.flyT > 0) p.flyT = Math.max(0, p.flyT - dt);
     if (p.flyDownT > 0) p.flyDownT = Math.max(0, p.flyDownT - dt);
@@ -1359,6 +1366,80 @@ class Sim {
       const count = 6 + n * 6;
       this.starRain.push({ owner: p.id, team: p.team, n, left: count, every: s.spawnTime / count, timer: 0, dir: p.facing, cx: p.x });
       this.ev({ k: 'starfall', x: r0(p.x), y: r0(cy), n, pid: p.id });
+    } else if (k === 'venom') {
+      // 독침 Q: 주변 상대에게 독을 퍼뜨림
+      const s = SKILLS.venom;
+      let hits = 0;
+      for (const o of others()) {
+        if (o.invincible > 0) continue;
+        if (Math.hypot(o.x - cx, o.y - bh(o) / 2 - cy) <= s.spreadR) { o.venom = Math.min(s.max, (o.venom || 0) + s.spreadAdd); o.venomBy = p.id; if (!o.clone) hits++; }
+      }
+      p.skillCd = s.cd;
+      this.ev({ k: 'venom', x: r0(cx), y: r0(cy), r: s.spreadR, h: hits, pid: p.id });
+    } else if (k === 'ambush') {
+      // 암습 Q: 가장 가까운 상대 뒤로 순간이동, 그 뒤 처음 때리는 공격이 세짐
+      const s = SKILLS.ambush;
+      let best = null, bd = s.range;
+      for (const o of others()) {
+        if (o.invincible > 0) continue;
+        const d = Math.hypot(o.x - cx, o.y - cy);
+        if (d < bd) { bd = d; best = o; }
+      }
+      if (!best) { this.deny(p, '근처에 상대가 없어요'); return; }
+      const nx = best.x - (best.facing || 1) * s.behind;
+      if (this.solidAt(nx, best.y - bh(p) / 2)) { this.deny(p, '그 자리엔 숨을 수 없어요'); return; }
+      const fromX = p.x, fromY = p.y;
+      p.x = nx; p.y = best.y; p.vx = 0; p.vy = 0;
+      p.facing = Math.sign(best.x - p.x) || 1;
+      p.ambushT = s.time; p.attack = null;
+      p.skillCd = s.cd;
+      this.ev({ k: 'ambush', x: r0(fromX), y: r0(fromY - bh(p) / 2), x2: r0(p.x), y2: r0(p.y - bh(p) / 2), pid: p.id });
+    } else if (k === 'mark') {
+      // 표식 Q: 가까운 상대에게 표식을 붙이면 잠시 뒤 폭발
+      const s = SKILLS.mark;
+      let best = null, bd = s.range;
+      for (const o of others()) {
+        if (o.invincible > 0 || o.clone) continue;
+        const d = Math.hypot(o.x - cx, o.y - bh(o) / 2 - cy);
+        if (d < bd) { bd = d; best = o; }
+      }
+      if (!best) { this.deny(p, '표식을 붙일 상대가 없어요'); return; }
+      const mine = this.marks.filter((m) => m.owner === p.id);
+      if (mine.length >= s.max) this.marks = this.marks.filter((m) => m !== mine[0]);   // 가장 오래된 표식 제거
+      this.marks.push({ owner: p.id, target: best, t: s.delay });
+      p.skillCd = s.cd;
+      this.ev({ k: 'markset', x: r0(best.x), y: r0(best.y - bh(best) / 2), pid: p.id });
+    } else if (k === 'hook') {
+      // 낚시 Q: 바라보는 쪽(위·아래 살짝 조준)으로 갈고리를 던짐. 상대에 걸면 끌어오고, 벽에 걸면 내가 끌려감
+      const s = SKILLS.hook;
+      const inp = p.input || {};
+      let dx = p.facing || 1, dy = inp.u ? -0.6 : inp.d ? 0.6 : 0;
+      const len = Math.hypot(dx, dy); dx /= len; dy /= len;
+      let hx = cx + dx * s.range, hy = cy + dy * s.range, kind = 0, tgt = null;
+      for (let d = 8; d <= s.range; d += 8) {
+        const px = cx + dx * d, py = cy + dy * d;
+        const hit = others().find((o) => o.invincible <= 0 && Math.hypot(o.x - px, o.y - bh(o) / 2 - py) < 28);
+        if (hit) { tgt = hit; hx = px; hy = py; kind = 1; break; }
+        if (this.solidAt(px, py)) { hx = px; hy = py; kind = 2; break; }
+      }
+      if (kind === 1) {
+        tgt.damage = Math.min(tgt.damage + s.dmg, 999);
+        tgt.lastHitBy = p.id; tgt.lastHitAt = this.tickCount;
+        if (tgt.rockT <= 0) {
+          const ux = cx - tgt.x, uy = cy - (tgt.y - bh(tgt) / 2), dist = Math.hypot(ux, uy) || 1;
+          const sp = Math.min(s.maxPull, dist * s.pullFoe);
+          tgt.vx = ux / dist * sp; tgt.vy = uy / dist * sp; tgt.grounded = false;
+        }
+        tgt.hitstun = Math.max(tgt.hitstun, s.stun); tgt.attack = null;
+        if (tgt.clone) this.hitClone(tgt);
+      } else if (kind === 2) {
+        const ux = hx - cx, uy = hy - cy, dist = Math.hypot(ux, uy) || 1;
+        const sp = Math.min(s.maxPull, dist * s.pullSelf);
+        p.vx = ux / dist * sp; p.vy = uy / dist * sp; p.grounded = false; p.attack = null;
+        p.jumpsLeft = Math.max(p.jumpsLeft, 1);
+      }
+      p.skillCd = s.cd;
+      this.ev({ k: 'hook', x: r0(cx), y: r0(cy), hx: r0(hx), hy: r0(hy), h: kind, pid: p.id });
     } else if (k === 'mine') {
       const s = SKILLS.mine;
       const mine = this.mines.filter((m) => m.owner === p.id);
@@ -1454,6 +1535,35 @@ class Sim {
     }
   }
   // ---------------- 지뢰 ----------------
+  // 표식: 붙은 상대를 따라다니다 시간이 다 되면 그 자리에서 폭발
+  updateMarks(dt) {
+    if (!this.marks.length) return;
+    const s = SKILLS.mark;
+    const keep = [];
+    for (const m of this.marks) {
+      m.t -= dt;
+      const tg = m.target;
+      if (!tg || !tg.alive || tg.inside) continue;   // 상대가 죽거나 장외면 표식도 사라짐
+      if (m.t > 0) { keep.push(m); continue; }
+      const cx = tg.x, cy = tg.y - bh(tg) / 2;
+      const owner = this.players.get(m.owner) || { id: m.owner };
+      let hits = 0;
+      for (const o of [...this.players.values(), ...this.clones.values()]) {
+        if (!o.alive || o.inside || o.invincible > 0 || o.frozen > 0 || !this.foe(owner, o)) continue;
+        const ox = o.x, oy = o.y - bh(o) / 2, d = Math.hypot(ox - cx, oy - cy);
+        if (d > s.radius) continue;
+        const nx = d < 1 ? 1 : (ox - cx) / d, ny = d < 1 ? -0.5 : (oy - cy) / d;
+        o.damage = Math.min(o.damage + s.dmg, 999);
+        if (o.rockT <= 0) { o.vx = nx * s.power * (o.buffT > 0 ? SKILLS.empower.kbMul : 1); o.vy = Math.min(ny * s.power, 0) - 320; o.grounded = false; }
+        o.hitstun = Math.max(o.hitstun, s.stun); o.attack = null;
+        o.lastHitBy = m.owner; o.lastHitAt = this.tickCount;
+        if (o.clone) this.hitClone(o);
+        if (!o.clone) hits++;
+      }
+      this.ev({ k: 'markboom', x: r0(cx), y: r0(cy), r: s.radius, h: hits, pid: m.owner });
+    }
+    this.marks = keep;
+  }
   updateMines(list, dt) {
     if (!this.mines.length) return;
     const s = SKILLS.mine;
@@ -2073,6 +2183,18 @@ class Sim {
   }
   // 불 붙은 상태(조금씩 밀림) · 얼음 게이지 (눈보라면 계속 참, 아니면 서서히 줄어듦)
   updateElements(p, dt) {
+    // 독침: 0.5초마다 쌓인 독만큼 퍼센트가 오르고, 독이 많으면 느려짐. 독은 조금씩 빠짐
+    if (p.venom > 0) {
+      p.venomT = (p.venomT || 0) - dt;
+      if (p.venomT <= 0) {
+        const s = SKILLS.venom;
+        p.venomT = s.tick;
+        p.damage = Math.min(p.damage + p.venom * s.dmgPer, 999);
+        if (p.venomBy) { p.lastHitBy = p.venomBy; p.lastHitAt = this.tickCount; }
+        if (p.venom >= s.slowAt) p.slow = Math.max(p.slow || 0, s.slowT);
+        p.venom = Math.max(0, p.venom - 1);
+      }
+    }
     if (p.burnN > 0 && this.inWater(p)) { p.burnN = 0; this.ev({ k: 'fizz', x: r0(p.x), y: r0(p.y - bh(p) / 2) }); }   // 물에 들어가면 불이 꺼짐
     if (p.burnN > 0) {
       p.burnT -= dt;
@@ -2277,6 +2399,13 @@ class Sim {
         return;
       }
     }
+    // 암습: 숨어서 처음 때리는 공격은 세게 (넉백도 더 셈)
+    if (a.ambushT > 0 && !a.clone) {
+      const s = SKILLS.ambush;
+      def = { ...def, damage: def.damage * s.dmgMul }; opt = { ...opt, kbMul: s.kbMul };
+      a.ambushT = 0;
+      this.ev({ k: 'ambushhit', x: r0(t.x), y: r0(t.y - bh(t) / 2), pid: a.id });
+    }
     // 충전: 충전 모드는 때릴 때마다 스택 +1 (넉백 없음), 공격 모드는 스택만큼 피해·넉백 ↑
     if (has(a, 'charge') && !a.clone) {
       const cs = SKILLS.charge;
@@ -2300,6 +2429,8 @@ class Sim {
     if (has(a, 'atom') && !a.clone && !opt.electron) { a.electrons = Math.min(SKILLS.atom.max, (a.electrons || 0) + 1); a.eLast = this.time; a.eDecayT = 0; }
     if (has(a, 'combo') && !a.clone && !opt.smash) a.combo = Math.min(SKILLS.combo.maxStack, (a.combo || 0) + 1);
     if (!t.clone && has(a, 'parasite') && !a.clone) a.parHits[t.id] = (a.parHits[t.id] || 0) + 1;
+    // 독침: 때리면 독이 쌓임
+    if (has(a, 'venom') && !a.clone && !t.clone && !t.dummy) { t.venom = Math.min(SKILLS.venom.max, (t.venom || 0) + SKILLS.venom.perHit); t.venomBy = a.ownerId || a.id; }
     // 비행 중 올라가다 맞으면 잠시 내려감
     if (t.flyT > 0 && t.vy < 0) t.flyDownT = SKILLS.fly.hitDrop;
     this.launch(a, t, def, type, opt);
@@ -2330,6 +2461,7 @@ class Sim {
     if (has(a, 'hulk')) kb *= 1 + SKILLS.hulk.power * hulkF(a);
     if (a.sunT > 0 && !opt.small) kb *= SKILLS.sun.kbMul;
     if (a.waveT > 0 && !opt.small) kb *= SKILLS.wave.kbMul;
+    if (opt.kbMul) kb *= opt.kbMul;                                       // 암습: 세게 밀어냄
     if (opt.chg) kb *= 1 + SKILLS.charge.kbPer * opt.chg;                // 충전 스택만큼 세게              // 파동: 팔에 감긴 파동으로 세게 침
     kb *= dopeMul(a, 'pow') * dopeMul(t, 'def');                          // 도핑: 힘 · 방어
     if (has(a, 'wind') && !opt.small) kb *= SKILLS.wind.kbMul;               // 바람: 더 날아감                      // 태양: 세게 침          // 헐크: 세게 침
@@ -2467,6 +2599,8 @@ class Sim {
       am: has(p, 'shotgun') ? p.ammo : undefined, jw: has(p, 'gem') ? [p.gemEarn || 0, p.gemT > 0 ? Math.ceil(p.gemT) : 0] : undefined,
       dp: p.dope ? [DOPE_KINDS.indexOf(p.dope.k), p.dope.bad ? 1 : 0, Math.ceil(p.dope.t)] : 0,
       mk: (() => { let m = 0; for (const g of this.players.values()) if (g.ghostT > 0 && g.gMarks[p.id]) m = Math.max(m, g.gMarks[p.id]); return m; })(),
+      vn: p.venom > 0 ? Math.round(p.venom) : undefined, ab: p.ambushT > 0 ? 1 : undefined,
+      mt: this.marks.some((m) => m.target === p) ? 1 : undefined,
     });
     return {
       ph: this.phase, tm: Math.ceil(this.timer), w: this.winner, wi: this.winnerId, wt: this.winTeam,
@@ -2736,6 +2870,10 @@ function botThink(sim, b) {
         if (sk === 'ninja' && ready && (b.damage > 70 && best < 160 || b.hitstun > 0.2) && R < 0.06) use(sk);
         if (sk === 'gamble' && ready && R < 0.01) use(sk);
         if (sk === 'flash' && ready && best < 260 && R < 0.05) use(sk);
+        if (sk === 'venom' && ready && best < 170 && R < 0.05) use(sk);
+        if (sk === 'ambush' && ready && best > 200 && best < 460 && R < 0.05) use(sk);
+        if (sk === 'mark' && ready && best < 400 && R < 0.05) use(sk);
+        if (sk === 'hook' && ready && best > 150 && best < 420 && R < 0.05) use(sk);
         if (sk === 'wave' && ready && best < 200 && R < 0.06) use(sk);
         if (sk === 'shotgun' && ready && (b.ammo === 0 || (b.ammo < SKILLS.shotgun.ammo && best > 380)) && R < 0.1) use(sk);
         if (sk === 'gem' && ready && best < 160 && R < 0.05) use(sk);

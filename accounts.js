@@ -116,7 +116,7 @@ function scrypt(pw, salt) {
 //  보석 · 스킬 뽑기 · 관리자
 //  숫자를 바꾸면 보석 획득량과 뽑기 확률이 바뀌어요.
 // =====================================================================
-const ALL_SKILLS = ['slow', 'blink', 'stealth', 'clone', 'swap', 'fly', 'explode', 'freeze', 'rock', 'magnet', 'empower', 'parasite', 'quake', 'giant', 'rubber', 'engine', 'sword', 'blackflash', 'lightning', 'undying', 'hulk', 'fire', 'ice', 'turret', 'error', 'sun', 'wind', 'archer', 'time', 'combo', 'reflect', 'invert', 'atom', 'mine', 'ninja', 'gamble', 'starlight', 'shield', 'tentacle', 'ghost', 'flash', 'flood', 'wave', 'dope', 'portal', 'charge', 'dash', 'hop', 'gem', 'shotgun'];
+const ALL_SKILLS = ['slow', 'blink', 'stealth', 'clone', 'swap', 'fly', 'explode', 'freeze', 'rock', 'magnet', 'empower', 'parasite', 'quake', 'giant', 'rubber', 'engine', 'sword', 'blackflash', 'lightning', 'undying', 'hulk', 'fire', 'ice', 'turret', 'error', 'sun', 'wind', 'archer', 'time', 'combo', 'reflect', 'invert', 'atom', 'mine', 'ninja', 'gamble', 'starlight', 'shield', 'tentacle', 'ghost', 'flash', 'flood', 'wave', 'dope', 'portal', 'charge', 'dash', 'hop', 'gem', 'shotgun', 'venom', 'ambush', 'mark', 'hook'];
 const BASE_SKILLS = ['slow', 'blink'];          // 게스트·새 계정 기본 스킬
 // 운영 보상 (자동 지급, 계정마다 한 번)
 const GRANTS = [

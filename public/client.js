@@ -65,6 +65,10 @@ const SKILLS = {
   flood:    { name: '홍수', desc: 'Q마다 아래에서 물이 차오름 (여러 번 쓰면 더 높이, 15초간 안 쓰면 천천히 빠짐). 화면 끝까지 꽉 차면 10초 뒤 5초 동안 전부 빠지고, 그동안은 다시 못 씀. 나는 물속을 자유롭게 헤엄치고, 다른 사람은 느려지고 공격·점프가 약해짐(물속 점프는 무한). 머리가 잠기면 숨방울 10개가 1초에 하나씩 줄고 다 떨어지면 가라앉음. 물속에선 불 무효·터렛 고장·번개 스턴↑·얼음 게이지↑·투사체와 돌진이 느려짐', cd: '쿨 12초' },
   ghost:    { name: '귀신', desc: '목숨을 다 잃으면 마지막 5초간 귀신이 됨 (중력·벽 무시, WASD 이동, 안 맞음). 그동안 한 명을 3번 때리면 그 사람도 장외 → 마지막 상대였다면 귀신이 승리 (패시브)', cd: '패시브' },
   starlight: { name: '별빛', desc: '별 카운트(처음 1개, 9초마다·죽을 때마다 +1, 최대 5)를 모두 써서 하늘에서 사선으로 별비를 쏟음. 별이 많을수록 별이 많고 크고 세게 밀어냄', cd: '별 1개 이상' },
+  venom:    { name: '독침', desc: '때리면 상대에게 독이 쌓여서 0.5초마다 퍼센트가 조금씩 오름 (넉백 없음). 독이 많이 쌓이면 잠깐 느려짐. Q = 근처 상대에게 독을 퍼뜨림', cd: '쿨 8초' },
+  ambush:   { name: '암습', desc: 'Q = 가장 가까운 상대 뒤로 순간이동. 그 뒤 2초 안에 처음 때리는 공격이 세고 넉백도 세짐', cd: '쿨 9초' },
+  mark:     { name: '표식', desc: 'Q = 가까운 상대에게 표식을 붙임. 3초 뒤 그 자리에서 폭발해서 주변 상대를 밀어냄 (최대 3개)', cd: '쿨 7초' },
+  hook:     { name: '낚시', desc: 'Q = 바라보는 쪽으로 갈고리를 던짐 (위·아래 살짝 조준 가능). 상대에 걸면 나에게 끌어오고, 벽·바닥에 걸면 나를 그쪽으로 끌어당김', cd: '쿨 6초' },
 };
 const SKILL_COLOR = {
   slow: '#7fb8ff', blink: '#c77dff', stealth: '#7fe0c8', clone: '#ff9ecf', swap: '#b48cff', fly: '#9ad7ff',
@@ -72,6 +76,7 @@ const SKILL_COLOR = {
   quake: '#d6a45c', giant: '#ff6b4a', rubber: '#ff9ff3', engine: '#ffb000',
   sword: '#cfe3ff', blackflash: '#c0263a', lightning: '#ffe94a', undying: '#ffd27a',
   hulk: '#5fd35a', fire: '#ff5a1f', ice: '#8fdcff', turret: '#a7b2c4', error: '#39ff88', sun: '#ffc21a',
+  venom: '#9bd34a', ambush: '#8b6bd6', mark: '#ff4d6d', hook: '#c8a878',
   wind: '#b8f2e6', archer: '#c98b4a', time: '#7c9cff', combo: '#ff5fa2', reflect: '#e0f0ff', invert: '#c2185b', atom: '#5ad8ff', mine: '#8a8f6a',
   ninja: '#5b6b8a', gamble: '#3fd07a', starlight: '#ffe27a', shield: '#c9a24a', tentacle: '#3a2a4a', ghost: '#d8d8f0', flash: '#fff6b0', flood: '#3a9ad8', wave: '#5fe0ff', dope: '#c06bff', portal: '#7a5cff', charge: '#3ccf6e', dash: '#ff8a3d', hop: '#7fe0ff', gem: '#5ef2ff', shotgun: '#8a6a4a',
 };
@@ -81,7 +86,7 @@ const conflictsK = (a, b) => a !== b && ((WEAPONS.includes(a) && WEAPONS.include
 // 스킬 목록 순서 = 나온 순서 (새 스킬은 항상 맨 뒤에 추가)
 const SKILL_ORDER = ['slow', 'blink', 'stealth', 'clone', 'swap', 'fly', 'explode', 'freeze', 'rock', 'magnet', 'empower', 'parasite', 'quake', 'giant', 'rubber', 'engine',
   'sword', 'blackflash', 'lightning', 'undying', 'hulk', 'fire', 'ice', 'turret', 'error', 'sun', 'wind', 'archer', 'time', 'combo', 'reflect', 'invert', 'atom', 'mine',
-  'ninja', 'gamble', 'starlight', 'shield', 'tentacle', 'ghost', 'flash', 'flood', 'wave', 'dope', 'portal', 'charge', 'dash', 'hop', 'gem', 'shotgun'];
+  'ninja', 'gamble', 'starlight', 'shield', 'tentacle', 'ghost', 'flash', 'flood', 'wave', 'dope', 'portal', 'charge', 'dash', 'hop', 'gem', 'shotgun', 'venom', 'ambush', 'mark', 'hook'];
 const SKILL_IDS = [...SKILL_ORDER.filter((k) => SKILLS[k]), ...Object.keys(SKILLS).filter((k) => !SKILL_ORDER.includes(k))];
 const MAPS = window.BRAWL_MAPS;   // maps.js (서버와 같은 맵 정보)
 let STAGE = MAPS[0];               // 지금 판의 맵
@@ -1480,6 +1485,28 @@ function onEvent(ev) {
     banners.push({ text: `${ev.n}의 반전! ${(ev.names || []).join(', ')}`, life: 1.8, max: 1.8, small: true, color: '#ff4f8b' });
   } else if (ev.k === 'atomq') {
     particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.4, max: 0.4, r: 80, c: '90,216,255' });
+  } else if (ev.k === 'venom') {
+    particles.push({ ring: true, fill: true, x: ev.x, y: ev.y, life: 0.5, max: 0.5, r: ev.r, c: '155,211,74', grow: true });
+    for (let i = 0; i < 16; i++) particles.push({ x: ev.x + (Math.random() - 0.5) * ev.r, y: ev.y + (Math.random() - 0.5) * 40, vx: 0, vy: -60 - Math.random() * 80, life: 0.7, max: 0.7, c: i % 2 ? '#9bd34a' : '#5e8a22', r: 4, nograv: true });
+  } else if (ev.k === 'ambush') {
+    for (let i = 0; i < 14; i++) {
+      const a = Math.random() * Math.PI * 2, sp = 60 + Math.random() * 160;
+      particles.push({ x: ev.x, y: ev.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.4, max: 0.4, c: '#8b6bd6', r: 5, nograv: true });
+      particles.push({ x: ev.x2, y: ev.y2, vx: Math.cos(a) * sp * 0.6, vy: Math.sin(a) * sp * 0.6, life: 0.4, max: 0.4, c: '#c9b6ff', r: 4, nograv: true });
+    }
+  } else if (ev.k === 'ambushhit') {
+    for (let i = 0; i < 12; i++) { const a = Math.random() * Math.PI * 2, sp = 200 + Math.random() * 300; particles.push({ x: ev.x, y: ev.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.35, max: 0.35, c: i % 2 ? '#c9b6ff' : '#8b6bd6', r: 4, nograv: true }); }
+  } else if (ev.k === 'markset') {
+    for (let i = 0; i < 8; i++) particles.push({ x: ev.x + (Math.random() - 0.5) * 30, y: ev.y, vx: (Math.random() - 0.5) * 60, vy: -80 - Math.random() * 60, life: 0.5, max: 0.5, c: '#ff4d6d', r: 3, nograv: true });
+  } else if (ev.k === 'markboom') {
+    particles.push({ ring: true, fill: false, x: ev.x, y: ev.y, life: 0.45, max: 0.45, r: ev.r, c: '255,77,109', grow: true });
+    for (let i = 0; i < 20; i++) { const a = Math.random() * Math.PI * 2, sp = 200 + Math.random() * 300; particles.push({ x: ev.x, y: ev.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 100, life: 0.5, max: 0.5, c: i % 2 ? '#ff4d6d' : '#ffd36b', r: 5, nograv: true }); }
+  } else if (ev.k === 'hook') {
+    for (let i = 0; i <= 14; i++) {
+      const t = i / 14;
+      particles.push({ x: ev.x + (ev.hx - ev.x) * t, y: ev.y + (ev.hy - ev.y) * t, vx: 0, vy: 0, life: 0.3, max: 0.3, c: '#c8a878', r: 3, nograv: true });
+    }
+    if (ev.h) particles.push({ ring: true, fill: false, x: ev.hx, y: ev.hy, life: 0.25, max: 0.25, r: 22, c: '200,168,120', grow: true });
   } else if (ev.k === 'mineset') {
     for (let i = 0; i < 6; i++) particles.push({ x: ev.x + (Math.random() - 0.5) * 20, y: ev.y, vx: (Math.random() - 0.5) * 120, vy: -Math.random() * 120, life: 0.3, max: 0.3, c: '#9a8a6a', r: 3 });
   } else if (ev.k === 'boom') {
@@ -2091,6 +2118,22 @@ function drawPlayer(p, time) {
       const a4 = time / 700 + i * Math.PI;
       drawSoulWisp(Math.cos(a4) * 38, -PH * 0.55 + Math.sin(a4 * 2) * 10, 8, time, i * 3, 0.55 + 0.25 * Math.sin(time / 300 + i), false);
     }
+  }
+  // 독침: 몸에서 독 방울이 올라감 (쌓인 만큼 많이)
+  if (p.vn > 0) {
+    const n = Math.min(4, 1 + Math.floor(p.vn / 3));
+    for (let i = 0; i < n; i++) {
+      const yy = -PH * 0.25 - ((time / 12 + i * 19) % 46);
+      ctx.fillStyle = 'rgba(160,230,80,0.75)'; ctx.beginPath(); ctx.arc(Math.sin(time / 220 + i * 2) * 11, yy, 2.6, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  // 암습 중: 보라색 테두리 (다음 공격이 세다는 표시)
+  if (p.ab) { ctx.strokeStyle = 'rgba(180,140,255,0.8)'; ctx.lineWidth = 2; ctx.setLineDash([4, 4]); ctx.strokeRect(-PW / 2 - 5, -PH - 5, PW + 10, PH + 10); ctx.setLineDash([]); }
+  // 표식이 붙은 상대: 빨간 조준 표시
+  if (p.mt) {
+    const ty = -PH - 24 + Math.sin(time / 120) * 2;
+    ctx.strokeStyle = 'rgba(255,77,109,0.95)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, ty, 8, 0, Math.PI * 2); ctx.moveTo(0, ty - 13); ctx.lineTo(0, ty + 13); ctx.moveTo(-13, ty); ctx.lineTo(13, ty); ctx.stroke();
   }
   if (p.brn && p.bb === 3) {
     // 영혼 불에 붙음: 머리 위로 작은 영혼들이 빙글빙글 돌며 빠져나감
