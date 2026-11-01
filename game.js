@@ -1781,7 +1781,7 @@ class Sim {
       this.arrows.push({ id: ++this.evSeq, owner: p.id, x, y, vx, vy, c: 0.3, ku: 1, sg: 1, t: s.life * clamp(range, 0.5, 2), el, big });
     }
     p.vx -= p.facing * 160;   // 반동
-    this.ev({ k: 'shotgun', x: r0(x), y: r0(y), f: p.facing, pid: p.id, n: p.ammo });
+    this.ev({ k: 'shotgun', x: r0(x), y: r0(y), f: p.facing, pid: p.id, n: p.ammo, cn: skinOn(p, 'cannon') ? 1 : 0 });
   }
   // 통나무: 중력으로 떨어져 땅에 놓였다가 사라짐
   updateLogs(dt) {
@@ -2417,7 +2417,7 @@ class Sim {
     if (has(a, 'gem') && !a.clone && !a.bot && this.phase === 'playing' && !t.clone && !t.dummy && !opt.small) {
       const add = (type === 'heavy' ? 2 : 1) * (a.gemT > 0 ? 2 : 1), before = a.gemEarn || 0;
       a.gemEarn = Math.min(SKILLS.gem.cap, before + add);
-      if (a.gemEarn > before) this.ev({ k: 'gemget', x: r0(t.x), y: r0(t.y - bh(t)), n: a.gemEarn - before, tot: a.gemEarn, only: a.id });
+      if (a.gemEarn > before) this.ev({ k: 'gemget', x: r0(t.x), y: r0(t.y - bh(t)), n: a.gemEarn - before, tot: a.gemEarn, only: a.id, dm: skinOn(a, 'diamond') ? 1 : 0 });
     }
     t.damage = Math.min(Math.round(t.damage + def.damage), 999);   // 퍼센트는 정수로
     t.attack = null;

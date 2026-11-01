@@ -76,6 +76,13 @@
     snowninja:   { skill: 'ninja', name: '스노우', desc: '쿠나이 대신 고드름을 휘두르고 던짐. 통나무 대신 눈사람을 남김', color: '#cfeaff' },
     solar:       { skill: 'atom', name: '태양계', desc: '시전자는 이글거리는 태양, 전자는 수성·금성·지구·화성·목성. 스킬을 쓰면 토성·천왕성·해왕성까지 수금지화목토천해가 다 돎', color: '#ffb02e' },
     camera:      { skill: 'flash', name: '플래시 카메라', desc: '섬광이 카메라 플래시처럼 하얗게 터지고, 터질 때 "찰칵" 셔터 소리가 남', color: '#fff6b0' },
+    cannon:      { skill: 'shotgun', name: '대포', desc: '샷건이 짧은 대포로 바뀌고, 발사할 때 연기가 크게 피어오름', color: '#6b6b78' },
+    diamond:     { skill: 'gem', name: '다이아', desc: '보석을 얻으면 반짝이는 다이아 조각이 튀고, 얻은 개수도 다이아로 표시됨', color: '#7fe9ff' },
+    spring:      { skill: 'hop', name: '스프링', desc: '발밑에 용수철이 달려서, 땅에 있을 땐 눌려 있고 뛸 때 쭉 늘어남', color: '#ff7ab0' },
+    wings:       { skill: 'hop', name: '날개', desc: '공중에 있을 때 등 뒤에 날개가 펄럭임', color: '#f4f4ff' },
+    rocket:      { skill: 'dash', name: '로켓', desc: '돌진할 때 뒤로 로켓 불꽃이 길게 뿜어짐', color: '#ff7a3a' },
+    magic:       { skill: 'charge', name: '마법진', desc: '충전 모드에 들어가면 발밑에 마법진이 생기고, 충전할수록 커지며 빙글빙글 돎', color: '#8a5cff' },
+    vortex:      { skill: 'portal', name: '소용돌이', desc: '포탈이 검은 구멍 대신 빙글빙글 도는 소용돌이로 보임', color: '#3a7cff' },
     gold:        { skill: 'rock', name: '골드', desc: '바위 대신 번쩍이는 금덩어리 몸', color: '#ffc928' },
   };
   const PRICE = 100;
