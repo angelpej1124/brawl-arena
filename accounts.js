@@ -155,7 +155,7 @@ function upgrade(a, key) {
   if (!Array.isArray(a.owned)) { a.owned = [...BASE_SKILLS]; changed = true; }
   for (const b of BASE_SKILLS) if (!a.owned.includes(b)) { a.owned.push(b); changed = true; }
   a.owned = a.owned.filter((k) => ALL_SKILLS.includes(k));
-  if (!a.owned.includes(a.skill)) { a.skill = 'slow'; changed = true; }
+  if (!hasSkill(a, a.skill)) { a.skill = 'slow'; changed = true; }
   const shouldAdmin = ADMIN_NICKS.includes(key);
   if (shouldAdmin && !a.admin) { a.admin = true; changed = true; }
   // 운영 보상: 계정마다 한 번 자동으로 지급 (before 전에 만든 계정만)
@@ -172,11 +172,19 @@ function upgradeAll() {
   if (changed) save();
 }
 
+// 실제로 가진 스킬·스킨 (관리자는 지급하지 않아도 전부 — 출시 전 한정판 스킨까지)
+//  저장된 a.owned / a.skins 는 그대로 두고, 관리자일 때만 전부 가진 걸로 봄
+//  → 새 스킬·스킨을 추가해도 자동으로 생기고, 관리자에서 빠지면 원래 가진 것만 남음
+const skillsOf = (a) => (a && a.admin ? [...ALL_SKILLS] : [...(a.owned || [])]);
+const skinIdsOf = (a) => (a && a.admin ? Object.keys(SKINS) : [...(a.skins || [])]);
+const hasSkill = (a, k) => !!a && (a.admin ? ALL_SKILLS.includes(k) : (a.owned || []).includes(k));
+const hasSkin = (a, id) => !!a && (a.admin ? !!SKINS[id] : (a.skins || []).includes(id));
+
 function publicProfile(a) {
   return {
     nick: a.nick, wins: a.wins, games: a.games, kos: a.kos, skill: a.skill,
-    gems: a.gems, owned: [...a.owned], admin: !!a.admin,
-    skins: [...(a.skins || [])], skinSel: { ...(a.skinSel || {}) },
+    gems: a.gems, owned: skillsOf(a), admin: !!a.admin,
+    skins: skinIdsOf(a), skinSel: { ...(a.skinSel || {}) },
     nickWarn: a.nickWarn || null,   // 닉네임 경고 (사유). 있으면 닉네임을 바꿔야 게임 가능
     patchSeen: a.patchSeen || null,   // 마지막으로 본 패치 내역
     patchClaimed: patchRewardsFor(a).every((r) => (a.patchClaimed || []).includes(r.id)),   // 받을 수 있는 보상을 다 받았는지
@@ -251,15 +259,15 @@ function isTaken(nick) {
 
 function ownedOf(key) {
   const a = store.accounts[key];
-  return a ? [...a.owned] : [...BASE_SKILLS];
+  return a ? skillsOf(a) : [...BASE_SKILLS];
 }
 function owns(key, skill) {
   const a = store.accounts[key];
-  return !!a && a.owned.includes(skill);
+  return hasSkill(a, skill);
 }
 function setSkill(key, skill) {
   const a = store.accounts[key];
-  if (a && a.skill !== skill && a.owned.includes(skill)) { a.skill = skill; save(); }
+  if (a && a.skill !== skill && hasSkill(a, skill)) { a.skill = skill; save(); }
 }
 
 // 판이 끝날 때 서버가 호출 (counted = 사람 2명 이상인 판이라 전적에 기록)
@@ -349,7 +357,7 @@ function buySkill(key, skill) {
   const a = store.accounts[key];
   if (!a) throw new Error('로그인이 필요해요.');
   if (!ALL_SKILLS.includes(skill)) throw new Error('없는 스킬이에요.');
-  if (a.owned.includes(skill)) throw new Error('이미 가진 스킬이에요.');
+  if (hasSkill(a, skill)) throw new Error('이미 가진 스킬이에요.');
   if (a.gems < GACHA.BUY) throw new Error(`보석이 모자라요. 스킬 사기는 ${GACHA.BUY}개예요.`);
   a.gems -= GACHA.BUY; a.owned.push(skill);
   save();
@@ -390,16 +398,16 @@ function shopInfo(key) {
   const nextReset = Date.parse(t.day + 'T00:00:00+09:00') + 86400000;
   return {
     day: t.day, nextReset, daily: SHOP.DAILY, dailyDone: !!a && a.dailyAt === t.day,
-    skins: t.skins.map((id) => ({ id, price: SHOP.SKIN_PRICE, normal: SKIN_PRICE, owned: !!a && a.skins.includes(id) })),
-    skills: t.skills.map((id) => ({ id, price: SHOP.SKILL_PRICE, owned: !!a && a.owned.includes(id) })),
+    skins: t.skins.map((id) => ({ id, price: SHOP.SKIN_PRICE, normal: SKIN_PRICE, owned: hasSkin(a, id) })),
+    skills: t.skills.map((id) => ({ id, price: SHOP.SKILL_PRICE, owned: hasSkill(a, id) })),
     events: activeEvents(t.day).map((e) => ({
       id: e.id, name: e.name, desc: e.desc, ends: Date.parse(e.until + 'T00:00:00+09:00') + 86400000,
-      skins: e.skins.filter((id) => SKINS[id]).map((id) => ({ id, price: e.price, owned: !!a && a.skins.includes(id) })),
+      skins: e.skins.filter((id) => SKINS[id]).map((id) => ({ id, price: e.price, owned: hasSkin(a, id) })),
     })),
     packages: activePackages(t.day).map((p) => ({
       id: p.id, name: p.name, desc: p.desc, price: p.price, skills: p.skills || [], skins: p.skins || [],
       ends: Date.parse(p.until + 'T00:00:00+09:00') + 86400000,
-      owned: !!a && (p.skills || []).every((k) => a.owned.includes(k)) && (p.skins || []).every((k) => a.skins.includes(k)),
+      owned: !!a && (p.skills || []).every((k) => hasSkill(a, k)) && (p.skins || []).every((k) => hasSkin(a, k)),
     })),
   };
 }
@@ -419,23 +427,23 @@ function shopBuy(key, kind, id) {
   const pay = (price) => { if (a.gems < price) throw new Error(`보석이 모자라요. ${price}개가 필요해요.`); a.gems -= price; };
   if (kind === 'skin') {
     if (!t.skins.includes(id)) throw new Error('오늘 상점에 없는 스킨이에요. (상점이 바뀌었을 수 있어요)');
-    if (a.skins.includes(id)) throw new Error('이미 가진 스킨이에요.');
+    if (hasSkin(a, id)) throw new Error('이미 가진 스킨이에요.');
     pay(SHOP.SKIN_PRICE); a.skins.push(id); a.skinSel[SKINS[id].skill] = id;
   } else if (kind === 'skill') {
     if (!t.skills.includes(id)) throw new Error('오늘 상점에 없는 스킬이에요. (상점이 바뀌었을 수 있어요)');
-    if (a.owned.includes(id)) throw new Error('이미 가진 스킬이에요.');
+    if (hasSkill(a, id)) throw new Error('이미 가진 스킬이에요.');
     pay(SHOP.SKILL_PRICE); a.owned.push(id);
   } else if (kind === 'event') {
     // 한정판: 이벤트 기간에만
     const ev = activeEvents().find((e) => e.skins.includes(id));
     if (!ev || !SKINS[id]) throw new Error('지금은 살 수 없는 한정판 스킨이에요.');
-    if (a.skins.includes(id)) throw new Error('이미 가진 스킨이에요.');
+    if (hasSkin(a, id)) throw new Error('이미 가진 스킨이에요.');
     pay(ev.price); a.skins.push(id); a.skinSel[SKINS[id].skill] = id;
   } else if (kind === 'pkg') {
     const p = activePackages().find((x) => x.id === id);
     if (!p) throw new Error('지금 팔지 않는 패키지예요.');
-    const sk = (p.skills || []).filter((k) => ALL_SKILLS.includes(k) && !a.owned.includes(k));
-    const sn = (p.skins || []).filter((k) => SKINS[k] && !a.skins.includes(k));
+    const sk = (p.skills || []).filter((k) => ALL_SKILLS.includes(k) && !hasSkill(a, k));
+    const sn = (p.skins || []).filter((k) => SKINS[k] && !hasSkin(a, k));
     if (!sk.length && !sn.length) throw new Error('패키지에 든 걸 이미 다 가지고 있어요.');
     pay(p.price); a.owned.push(...sk); a.skins.push(...sn);
   } else throw new Error('잘못된 상품이에요.');
@@ -449,7 +457,7 @@ function buySkin(key, id) {
   const sk = SKINS[id];
   if (!sk) throw new Error('없는 스킨이에요.');
   if (sk.limited) throw new Error('한정판 스킨은 이벤트 기간에 상점에서만 살 수 있어요.');
-  if (a.skins.includes(id)) throw new Error('이미 가진 스킨이에요.');
+  if (hasSkin(a, id)) throw new Error('이미 가진 스킨이에요.');
   if (a.gems < SKIN_PRICE) throw new Error(`보석이 모자라요. 스킨은 ${SKIN_PRICE}개예요.`);
   a.gems -= SKIN_PRICE; a.skins.push(id);
   a.skinSel[sk.skill] = id;                 // 사면 바로 장착
@@ -463,7 +471,7 @@ function equipSkin(key, skill, id) {
   if (!id) { delete a.skinSel[skill]; save(); return { profile: publicProfile(a) }; }   // 기본 스킨
   const sk = SKINS[id];
   if (!sk || sk.skill !== skill) throw new Error('이 능력의 스킨이 아니에요.');
-  if (!a.skins.includes(id)) throw new Error('아직 사지 않은 스킨이에요.');
+  if (!hasSkin(a, id)) throw new Error('아직 사지 않은 스킨이에요.');
   a.skinSel[skill] = id; save();
   return { profile: publicProfile(a) };
 }
@@ -472,7 +480,7 @@ function skinsOf(key) {
   const a = key && store.accounts[key];
   if (!a) return {};
   const out = {};
-  for (const [skill, id] of Object.entries(a.skinSel || {})) if (SKINS[id] && SKINS[id].skill === skill && a.skins.includes(id)) out[skill] = id;
+  for (const [skill, id] of Object.entries(a.skinSel || {})) if (SKINS[id] && SKINS[id].skill === skill && hasSkin(a, id)) out[skill] = id;
   return out;
 }
 
@@ -488,7 +496,7 @@ function gacha(key, count = 1) {
     let r = crypto.randomInt(total);
     let skill = GACHA.POOL[0].skill;
     for (const x of GACHA.POOL) { if (r < x.weight) { skill = x.skill; break; } r -= x.weight; }
-    const dup = a.owned.includes(skill);   // 같은 10회 안에서 두 번째로 나온 것도 중복
+    const dup = hasSkill(a, skill);   // 같은 10회 안에서 두 번째로 나온 것도 중복
     if (dup) a.gems += GACHA.DUP_REFUND;
     else a.owned.push(skill);
     results.push({ skill, dup, refund: dup ? GACHA.DUP_REFUND : 0 });
@@ -524,7 +532,7 @@ function adminUpdate(targetNick, { gems, owned, skins }) {
     const set = new Set(owned.filter((k) => ALL_SKILLS.includes(k)));
     for (const b of BASE_SKILLS) set.add(b);       // 기본 스킬은 항상 유지
     a.owned = ALL_SKILLS.filter((k) => set.has(k));
-    if (!a.owned.includes(a.skill)) a.skill = 'slow';
+    if (!hasSkill(a, a.skill)) a.skill = 'slow';
   }
   if (skins !== undefined) {
     // 스킨 지급·회수: 없는 스킨 id는 버리고, 회수한 스킨을 장착 중이었으면 장착도 해제
