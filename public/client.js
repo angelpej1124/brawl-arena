@@ -3932,7 +3932,6 @@ function renderDetail(restart) {
   else {
     for (const h of d.how || []) li('', h);
     li('기본 공격', d.atk);
-    li('입체 모드', d.td);
     li('팁', d.tip);
   }
   detActions();

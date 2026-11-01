@@ -321,6 +321,8 @@
   #detailModal { z-index: 25; }
   .det-card { width: min(680px, 100%); }
   .det-tabs { display: flex; gap: 6px; margin: 10px 0 8px; }
+  .det-tabs[hidden] { display: none; }
+  .det-video { margin-top: 10px; }
   .det-tabs button { flex: 1; border: 1.5px solid var(--line); border-radius: 10px; background: #15122a; color: var(--muted); font: 700 14px inherit; font-family: inherit; padding: 7px; cursor: pointer; }
   .det-tabs button[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: #2a1a00; }
   .det-video { position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: 12px; overflow: hidden; background: #0b0a16; border: 1px solid var(--line); }
@@ -517,7 +519,7 @@
       <div class="tgls" id="modeTgls" role="group" aria-labelledby="modeLbl">
         <button type="button" data-f="0" aria-pressed="false" title="같은 팀끼리는 공격·스킬이 안 통해요">팀</button>
         <button type="button" data-f="1" aria-pressed="false" title="스킬 2개 (Q · E)">더블</button>
-        <button type="button" data-f="2" aria-pressed="false" title="위에서 내려다보는 모드: 8방향 이동, 바닥 밖으로 떨어지면 장외">입체</button>
+        <button type="button" data-f="2" hidden aria-pressed="false" title="위에서 내려다보는 모드: 8방향 이동, 바닥 밖으로 떨어지면 장외">입체</button>
       </div>
       <span class="rp-note" id="modeNote"></span>
     </div>
@@ -592,9 +594,9 @@
 <div id="detailModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="detTitle">
   <div class="modal-card det-card">
     <div class="modal-head"><b id="detTitle">스킬</b><span id="detTag" class="hint"></span><button class="modal-x" id="detClose" type="button" aria-label="닫기">✕</button></div>
-    <div class="det-tabs" role="tablist" aria-label="영상 모드">
+    <div class="det-tabs" role="tablist" aria-label="영상 모드" hidden>
       <button type="button" role="tab" id="detTabSide" aria-selected="true">일반 모드</button>
-      <button type="button" role="tab" id="detTabTd" aria-selected="false">입체 모드</button>
+      <button type="button" role="tab" id="detTabTd" aria-selected="false" hidden>입체 모드</button>
     </div>
     <div class="det-video"><canvas id="detCanvas" aria-label="스킬 사용 예시 영상"></canvas><div class="det-loading" id="detLoading">영상 불러오는 중…</div></div>
     <p class="det-desc" id="detDesc"></p>
