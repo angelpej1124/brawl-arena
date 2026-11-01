@@ -150,7 +150,7 @@ class CardRoom {
     this.g = {
       deck, pile: [first], hands,
       s: { top: first, color: D.colorOf(first), attack: 0, atkKind: null },   // 처음 카드는 A·2여도 공격 없음
-      turn: crypto.randomInt(this.seats.length), plays: 0, log: [],
+      turn: crypto.randomInt(this.seats.length), plays: 0, log: [], dir: 1,   // dir: 1 = 정방향, -1 = Q로 바뀐 반대 방향
       lacks: new Map(this.seats.map((x) => [x.id, new Set()])),   // 최근에 못 내서 카드를 받아 간 색 (모두가 볼 수 있는 정보)
     };
     this.phase = 'playing';
@@ -160,8 +160,10 @@ class CardRoom {
     return null;
   }
   ocActive() { return this.seats.map((s, i) => i).filter((i) => !this.seats[i].out); }
+  // 다음 차례 (Q로 방향이 바뀌면 거꾸로)
   ocNext(i) {
-    for (let k = 1; k <= this.seats.length; k++) { const j = (i + k) % this.seats.length; if (!this.seats[j].out) return j; }
+    const n = this.seats.length, dir = this.g && this.g.dir === -1 ? -1 : 1;
+    for (let k = 1; k <= n; k++) { const j = (((i + dir * k) % n) + n) % n; if (!this.seats[j].out) return j; }
     return i;
   }
   ocBeginTurn() {
@@ -203,11 +205,24 @@ class CardRoom {
     g.plays++;
     seat.plays = (seat.plays || 0) + 1;
     const atk = D.rankOf(card) <= 2 && !D.isJoker(card);
-    this.ocLog(`${seat.name}: ${D.nameOf(card)}${g.s.attack ? ` (공격 ${g.s.attack}장)` : ''}`);
-    if (!hand.length) return this.ocEnd(g.turn);
-    g.turn = this.ocNext(g.turn);
+    const rank = D.isJoker(card) ? 0 : D.rankOf(card);
+    let extra = '';
+    if (!hand.length) { this.ocLog(`${seat.name}: ${D.nameOf(card)}`); return this.ocEnd(g.turn); }
+    const two = this.ocActive().length === 2;
+    if (rank === 11) {
+      // J: 다음 사람을 건너뜀 (둘이서 하면 내가 한 번 더)
+      const skipped = this.seats[this.ocNext(g.turn)];
+      extra = two ? ' — 점프! 한 번 더' : ` — 점프! ${skipped.name} 건너뜀`;
+      g.turn = this.ocNext(this.ocNext(g.turn));
+    } else if (rank === 12) {
+      // Q: 방향 바꾸기 (둘이서 하면 순서가 그대로라 J처럼 내가 한 번 더)
+      g.dir = -g.dir;
+      extra = two ? ' — 방향 바꾸기! 한 번 더' : ' — 방향 바꾸기!';
+      if (!two) g.turn = this.ocNext(g.turn);
+    } else g.turn = this.ocNext(g.turn);
+    this.ocLog(`${seat.name}: ${D.nameOf(card)}${g.s.attack ? ` (공격 ${g.s.attack}장)` : ''}${extra}`);
     this.ocBeginTurn();
-    this.event({ k: 'play', n: seat.name, card, atk, joker: D.isJoker(card) });
+    this.event({ k: 'play', n: seat.name, card, atk, joker: D.isJoker(card), jump: rank === 11, rev: rank === 12 });
     return null;
   }
   ocDraw(id) {
@@ -450,7 +465,7 @@ class CardRoom {
       if (this.game === 'onecard' && g) {
         base.oc = {
           top: g.s.top, color: g.s.color, attack: g.s.attack, atkKind: g.s.atkKind, deck: g.deck.length, pile: g.pile.length,
-          turn: g.turn, left: Math.max(0, g.deadline - Date.now()), log: g.log,
+          turn: g.turn, dir: g.dir, left: Math.max(0, g.deadline - Date.now()), log: g.log,
           counts: this.seats.map((s) => (g.hands.get(s.id) || []).length),
           hand: me >= 0 ? [...(g.hands.get(cid) || [])] : null,
         };
@@ -591,4 +606,4 @@ function handleSocket(socket, req) {
   socket.on('close', () => { clearInterval(counter); if (room) room.leave(id); });
 }
 
-module.exports = { init, handleSocket, publicRooms, onlineCount, CFG, GAMES, rooms };
+module.exports = { init, handleSocket, publicRooms, onlineCount, CFG, GAMES, rooms, CardRoom };

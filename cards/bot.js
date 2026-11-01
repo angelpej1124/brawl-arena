@@ -39,6 +39,8 @@ function onecardChoose(diff, hand, s, nextCount, nextLacks) {
     if (D.isJoker(id)) v += colorCount[D.colorOf(id)] * 2 - 10;        // 조커는 아껴 둠 (막기·색 바꾸기용)
     else v += colorCount[D.colorOf(id)] * 2 - (hard ? (rankCount[D.rankOf(id)] - 1) * 1.5 : 0);   // 많이 가진 색으로, 같은 숫자는 색 바꾸기용으로 남김
     if (atk) v += nextCount <= 2 ? 6 : -3;                             // 다음 사람이 거의 끝나 가면 공격
+    const jq = !D.isJoker(id) && (D.rankOf(id) === 11 || D.rankOf(id) === 12);
+    if (hard && jq && nextCount <= 2) v += 5;                          // 하드: 거의 끝나 가는 다음 사람을 J로 건너뛰거나 Q로 방향을 돌림
     if (hard) {
       const n = D.afterPlay(id, s);
       v += left.filter((x) => D.canPlay(x, { ...n, attack: 0 })).length * 1.5;   // 다음에도 낼 카드가 남게

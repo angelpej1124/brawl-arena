@@ -41,7 +41,8 @@ const INFO = {
       ② 맨 위 카드와 <b>색이나 숫자가 같은 카드</b>를 한 장 내요. 낼 게 없으면 한 장 받아요<br>
       ③ <b>조커</b>는 아무 때나 낼 수 있고, 색이 조커 색으로 바뀌어요<br>
       ④ <b>A</b>: 다음 사람 4장 · <b>2</b>: 2장 — 받는 사람은 A로 막을 수 있어요(장수가 쌓임). 2로는 A를 못 막아요. 조커를 내면 장수를 그대로 다음 사람에게 넘겨요<br>
-      ⑤ 손에 든 카드를 먼저 다 내면 승리 · 최대 4명 (봇 넣기 가능)<br>
+      ⑤ <b>J</b>: 점프! 다음 사람을 건너뛰어요 · <b>Q</b>: 순서 방향을 바꿔요 (둘이서 할 땐 J·Q 모두 내가 한 번 더)<br>
+      ⑥ 손에 든 카드를 먼저 다 내면 승리 · 최대 4명 (봇 넣기 가능)<br>
       💎 사람 2명 이상: 1등 +100 · 참가 +20 / 봇전: 1등 이지 +10 · 미들 +25 · 하드 +50 · 참가 +5`,
     rank: '원카드 랭킹 (1등 많은 순)',
   },
@@ -242,7 +243,7 @@ function onState(r) {
   room = r; gotAt = performance.now();
   for (const e of r.ev || []) {
     if (e.k === 'start' || e.k === 'deal') { gemsMsg = null; raiseTo = 0; }
-    if (e.k === 'play') { e.atk ? SFX.atk() : SFX.card(); }
+    if (e.k === 'play') { e.atk ? SFX.atk() : SFX.card(); if (e.jump) toast(`🦘 ${e.n}: 점프! 다음 사람 건너뛰기`); if (e.rev) toast(`🔄 ${e.n}: 방향 바꾸기!`); }
     else if (e.k === 'draw') SFX.draw();
     else if (e.k === 'bet') SFX.chip();
     else if (e.k === 'win' || e.k === 'potwin') { const meName = r.you >= 0 ? r.seats[r.you].name : null; (e.n === meName ? SFX.win : r.you >= 0 ? SFX.lose : SFX.win)(); }
@@ -332,6 +333,12 @@ function renderResult() {
 }
 
 // ---- 원카드 ----
+// 지금 차례 다음 사람 (Q로 방향이 바뀌면 거꾸로)
+function nextName(oc) {
+  const n = room.seats.length, dir = oc.dir === -1 ? -1 : 1;
+  for (let k = 1; k <= n; k++) { const j = (((oc.turn + dir * k) % n) + n) % n; if (!room.seats[j].out) return j === room.you ? '나' : room.seats[j].name; }
+  return '';
+}
 function renderOnecard() {
   const r = room, oc = r.oc, playing = r.phase === 'playing';
   if (!oc || !playing) {   // 게임 전·끝난 뒤에는 테이블 대신 대기·결과 화면만
@@ -344,7 +351,8 @@ function renderOnecard() {
     ${playing && oc.attack ? `<div class="attack-row"><div class="attack">⚠ 공격 ${oc.attack}장! ${oc.atkKind === 'A' ? 'A·조커로만 막아요' : 'A·2·조커로 막아요'}</div></div>` : ''}
     <div class="pile"><button type="button" id="deckBtn" aria-label="카드 받기" ${isMyTurn() ? '' : 'disabled'}>${cardHtml(null, 'big')}</button><span>남은 카드 ${oc.deck}장</span></div>
     <div class="pile">${cardHtml(oc.top, 'big')}<span>맨 위 카드</span></div>
-    <div class="now-color"><div class="swatch" style="background:${c.hex};--sw:${c.hex}"></div><b>지금 색: ${c.name}</b></div>`;
+    <div class="now-color"><div class="swatch" style="background:${c.hex};--sw:${c.hex}"></div><b>지금 색: ${c.name}</b>
+      <span class="dir" title="순서 방향">${oc.dir === -1 ? '↺ 반대 방향' : '↻ 정방향'} · 다음: ${esc(nextName(oc))}</span></div>`;
   const mine = isMyTurn();
   const s = { top: oc.top, color: oc.color, attack: oc.attack, atkKind: oc.atkKind };
   const turnName = r.seats[oc.turn] ? r.seats[oc.turn].name : '';
