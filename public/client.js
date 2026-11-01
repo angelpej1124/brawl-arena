@@ -676,7 +676,7 @@ addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('miniModal').h
 function openMini(path) {
   const guest = !account.profile ? cleanNick($('gNick').value) : '';
   $('miniModal').hidden = true;
-  $('miniFrame').src = path + (guest ? '?guest=' + encodeURIComponent(guest) : '');
+  $('miniFrame').src = path + (guest ? (path.includes('?') ? '&' : '?') + 'guest=' + encodeURIComponent(guest) : '');
   $('miniFrameWrap').hidden = false;
   document.body.classList.add('mini-on');
 }
@@ -696,6 +696,8 @@ async function closeMini() {
   renderAccount();
 }
 $('miniChess').addEventListener('click', () => openMini('/chess/'));
+$('miniOnecard').addEventListener('click', () => openMini('/cards/?game=onecard'));
+$('miniPoker').addEventListener('click', () => openMini('/cards/?game=poker'));
 addEventListener('message', (e) => { if (e.origin === location.origin && e.data && e.data.t === 'closeMini') closeMini(); });
 
 $('shopClose').addEventListener('click', () => { $('shopModal').hidden = true; });

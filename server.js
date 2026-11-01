@@ -13,6 +13,8 @@ const { Sim, CONFIG, SKILL_IDS, BOT_NAMES, validSkill, cleanInput, conflicts } =
 const accounts = require('./accounts');
 const chess = require('./chess/core');   // 미니게임: 럭키 체스 (/chess/)
 const CHESS_DIR = path.join(__dirname, 'chess', 'public');
+const cards = require('./cards/core');   // 미니게임: 레인보우 원카드 · 인디언포커 (/cards/)
+const CARDS_DIR = path.join(__dirname, 'cards', 'public');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -176,6 +178,12 @@ async function api(req, res, urlPath) {
     if (req.method === 'GET' && urlPath === '/api/chess/ranking') {
       return sendJson(res, 200, { ranking: accounts.chessRanking(10), online: chess.onlineCount() });
     }
+    if (req.method === 'GET' && (urlPath === '/api/cards/rooms' || urlPath === '/api/cards/ranking')) {
+      const game = new URL(req.url, 'http://x').searchParams.get('game');
+      if (!cards.GAMES[game]) return sendJson(res, 404, { error: '없는 게임이에요.' });
+      if (urlPath === '/api/cards/rooms') return sendJson(res, 200, { rooms: cards.publicRooms(game), online: cards.onlineCount(game) });
+      return sendJson(res, 200, { ranking: game === 'onecard' ? accounts.onecardRanking(10) : accounts.pokerRanking(10), online: cards.onlineCount(game) });
+    }
     if (req.method === 'GET' && urlPath === '/api/chess/rooms') {
       return sendJson(res, 200, { rooms: chess.publicRooms(), online: chess.onlineCount() });
     }
@@ -202,10 +210,10 @@ const server = http.createServer((req, res) => {
   }
   if (urlPath.startsWith('/api/')) return api(req, res, urlPath);
   // 미니게임 화면: /chess/ → chess/public
-  if (urlPath === '/chess') { res.writeHead(301, { Location: '/chess/' }); return res.end(); }
-  const isChess = urlPath.startsWith('/chess/');
-  const base = isChess ? CHESS_DIR : PUBLIC_DIR;
-  const rel = isChess ? urlPath.slice('/chess'.length) : urlPath;
+  if (urlPath === '/chess' || urlPath === '/cards') { res.writeHead(301, { Location: urlPath + '/' }); return res.end(); }
+  const isChess = urlPath.startsWith('/chess/'), isCards = urlPath.startsWith('/cards/');
+  const base = isChess ? CHESS_DIR : isCards ? CARDS_DIR : PUBLIC_DIR;
+  const rel = isChess ? urlPath.slice('/chess'.length) : isCards ? urlPath.slice('/cards'.length) : urlPath;
   const file = path.normalize(path.join(base, rel === '/' ? 'index.html' : rel));
   if (!file.startsWith(base)) { res.writeHead(403); return res.end(); }
   fs.readFile(file, (err, data) => {
@@ -396,7 +404,18 @@ chess.init({
   },
 });
 
+// ---------- 미니게임: 레인보우 카드 ----------
+cards.init({
+  accounts,
+  // 보석이 바뀌면 난투 아레나 방에 있는 같은 계정 화면에도 바로 반영
+  pushProfile: (key, profile) => {
+    if (!key || !profile) return;
+    for (const room of rooms.values()) for (const c of room.clients.values()) if (c.accountKey === key) c.socket.send(JSON.stringify({ t: 'profile', profile }));
+  },
+});
+
 server.on('upgrade', (req, sock) => {
+  if (req.url.startsWith('/cards-ws')) return handleUpgrade(req, sock, (socket) => cards.handleSocket(socket, req));
   if (req.url.startsWith('/chess-ws')) return handleUpgrade(req, sock, (socket) => chess.handleSocket(socket, req));
   if (!req.url.startsWith('/ws')) return sock.destroy();
   handleUpgrade(req, sock, (socket) => {

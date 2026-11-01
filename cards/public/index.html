@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#12101f">
+<title>레인보우 카드</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌈</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  /* 난투 아레나와 같은 어두운 아케이드 색 · 글꼴. 카드는 무지개 7색 그대로, 테이블은 짙은 초록 펠트 대신 보라 펠트 */
+  :root {
+    --bg: #12101f; --panel: #1d1a33; --panel-2: #26224a; --line: #34305a;
+    --text: #f3f0ff; --muted: #a39fc4; --accent: #ffcf3f; --accent-deep: #b3471f;
+    --gem: #5ef2ff; --danger: #ff7b7b; --ok: #6fe39a; --felt: #231d44; --felt-2: #2c2556;
+    --display: 'Black Han Sans', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+    --body: 'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
+    color-scheme: dark;
+  }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--body); -webkit-tap-highlight-color: transparent; }
+  html, body, * { touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+  button { font-family: inherit; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .rainbow-text { background: linear-gradient(90deg, #ff4d4d, #ff9a1f, #ffd23b, #36c96a, #3a8dff, #6a6aff, #a24dff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+  /* ---------- 로비 ---------- */
+  #lobby { min-height: 100%; box-sizing: border-box; background: radial-gradient(ellipse at 50% 20%, #2b2350 0%, var(--bg) 70%);
+    padding: max(20px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(20px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+  .lobby-wrap { min-height: calc(100vh - 40px); display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: center; }
+  .card-box { width: 100%; max-width: 380px; background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 22px 20px; box-shadow: 0 20px 60px rgba(0,0,0,.45); box-sizing: border-box; min-width: 0; }
+  h1 { font-family: var(--display); font-weight: 400; font-size: 38px; margin: 0; text-align: center; line-height: 1.15; }
+  h1 small { display: block; font-size: 17px; color: var(--accent); letter-spacing: 1px; }
+  h2 { font-family: var(--display); font-weight: 400; font-size: 22px; margin: 0 0 4px; }
+  .sub { text-align: center; color: var(--muted); font-size: 14px; margin: 8px 0 14px; }
+  label, .lbl { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 6px; }
+  input { width: 100%; box-sizing: border-box; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line); background: #120f24; color: var(--text); font-size: 16px; font-family: inherit; outline: none; }
+  input:focus-visible { border-color: var(--accent); }
+  .tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; background: #15122a; padding: 4px; border-radius: 12px; }
+  .tabs.four { grid-template-columns: repeat(4, 1fr); }
+  .tabs button { border: 0; border-radius: 9px; padding: 9px 2px; background: transparent; color: var(--muted); font-size: 13px; font-weight: 700; cursor: pointer; }
+  .tabs button[aria-selected="true"] { background: var(--panel-2); color: var(--text); }
+  .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; background: #15122a; padding: 4px; border-radius: 10px; }
+  .seg button { border: 0; border-radius: 8px; padding: 9px 2px; background: transparent; color: var(--muted); font-weight: 700; font-size: 14px; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--panel-2); color: var(--accent); }
+  .sub-btn { width: 100%; margin-top: 14px; padding: 11px; border-radius: 10px; border: 1.5px solid var(--accent); background: transparent; color: var(--accent); font-size: 15px; font-weight: 700; cursor: pointer; }
+  .sub-btn:disabled { opacity: .5; cursor: wait; }
+  .hint { font-size: 12px; color: var(--muted); margin: 8px 0 0; line-height: 1.55; }
+  .hint:empty { display: none; }
+  .me-box { display: flex; justify-content: space-between; align-items: center; gap: 8px; background: #15122a; border-radius: 10px; padding: 10px 12px; font-size: 14px; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); vertical-align: middle; margin-right: 4px; }
+  .link { background: none; border: 0; color: var(--muted); text-decoration: underline; cursor: pointer; font-size: 13px; padding: 4px; }
+  .back-btn { border: 1px solid var(--line); background: #15122a; color: var(--muted); border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 700; cursor: pointer; margin: -6px 0 10px -4px; }
+  .rooms { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 220px; overflow-y: auto; }
+  .rooms button { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 8px; text-align: left; background: #15122a; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; color: var(--text); cursor: pointer; font-size: 14px; }
+  .rooms button:disabled { opacity: .5; cursor: default; }
+  .rooms small { color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .rooms .rt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .room-pane { margin-top: 10px; }
+  .play { width: 100%; margin-top: 18px; padding: 15px; border: 0; border-radius: 12px; background: var(--accent); color: #2a1a00; font-family: var(--display); font-size: 22px; letter-spacing: 1px; cursor: pointer; box-shadow: 0 5px 0 var(--accent-deep); }
+  .play:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--accent-deep); }
+  .play:disabled { opacity: .6; cursor: wait; }
+  #err { color: var(--danger); font-size: 13px; text-align: center; margin-top: 10px; line-height: 1.5; }
+  #err:empty { display: none; }
+  .online { text-align: center; color: var(--muted); font-size: 12px; margin-top: 12px; }
+  .rules { background: rgba(255,207,63,.07); border: 1px solid rgba(255,207,63,.3); border-radius: 10px; padding: 10px 12px; font-size: 13px; line-height: 1.65; }
+  .rules b { color: var(--accent); }
+  .gem-row { display: flex; align-items: center; gap: 8px; background: #15122a; border-radius: 10px; padding: 10px 12px; margin-top: 10px; }
+  .gem-ico { width: 14px; height: 14px; background: var(--gem); transform: rotate(45deg); border-radius: 3px; box-shadow: 0 0 10px rgba(94,242,255,.6); flex: none; display: inline-block; }
+  .gem-row b { font-family: var(--display); font-weight: 400; font-size: 22px; color: var(--gem); }
+  .gem-row small { color: var(--muted); }
+  .rank { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+  .rank li { display: flex; justify-content: space-between; gap: 8px; background: #15122a; border-radius: 8px; padding: 8px 10px; font-size: 14px; }
+  .rank small { color: var(--muted); white-space: nowrap; }
+  .empty { color: var(--muted); font-size: 13px; text-align: center; padding: 8px 0; }
+  .empty:empty { display: none; }
+
+  /* ---------- 카드 ---------- */
+  .rc { --c: #888; --ink: #fff; position: relative; width: 58px; height: 84px; border-radius: 9px; flex: none; box-sizing: border-box;
+    background: linear-gradient(160deg, color-mix(in srgb, var(--c) 82%, #fff) 0%, var(--c) 55%, color-mix(in srgb, var(--c) 78%, #000) 100%);
+    border: 2px solid rgba(255,255,255,.85); box-shadow: 0 4px 10px rgba(0,0,0,.4); color: var(--ink); font-family: var(--display); user-select: none; }
+  .rc .r1 { position: absolute; left: 5px; top: 3px; font-size: 16px; line-height: 1; }
+  .rc .r2 { position: absolute; right: 5px; bottom: 3px; font-size: 16px; line-height: 1; transform: rotate(180deg); }
+  .rc .mid { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 30px; text-shadow: 0 2px 0 rgba(0,0,0,.18); }
+  .rc .cn { position: absolute; left: 0; right: 0; bottom: 3px; text-align: center; font-family: var(--body); font-size: 10px; font-weight: 700; opacity: .85; }
+  .rc.joker { border: 2px solid transparent; background: linear-gradient(var(--c), var(--c)) padding-box, linear-gradient(135deg, #ff4d4d, #ff9a1f, #ffd23b, #36c96a, #3a8dff, #3f3fbf, #a24dff) border-box; }
+  .rc.joker .mid { font-size: 13px; flex-direction: column; line-height: 1.1; letter-spacing: 1px; }
+  .rc.joker .mid i { font-style: normal; font-size: 30px; }
+  .rc.back { background: repeating-linear-gradient(45deg, #2f2860 0 6px, #282153 6px 12px); border-color: #6b62a0; }
+  .rc.back::after { content: ''; position: absolute; inset: 9px; border-radius: 6px; background: linear-gradient(135deg, #ff4d4d55, #ffd23b55, #36c96a55, #3a8dff55, #a24dff55); }
+  .rc.big { width: 92px; height: 132px; border-radius: 12px; }
+  .rc.big .r1, .rc.big .r2 { font-size: 22px; }
+  .rc.big .mid { font-size: 48px; }
+  .rc.big.joker .mid { font-size: 17px; } .rc.big.joker .mid i { font-size: 46px; }
+  .rc.big .cn { font-size: 12px; }
+  .rc.small { width: 30px; height: 44px; border-radius: 5px; border-width: 1.5px; }
+  .rc.small .r1, .rc.small .r2, .rc.small .cn { display: none; }
+  .rc.small .mid { font-size: 15px; }
+  .rc.small.joker .mid { font-size: 0; } .rc.small.joker .mid i { font-size: 16px; }
+
+  /* ---------- 테이블 ---------- */
+  #table { min-height: 100%; box-sizing: border-box; display: flex; flex-direction: column; background: radial-gradient(ellipse at 50% 40%, var(--felt-2) 0%, var(--felt) 45%, var(--bg) 100%);
+    padding: max(8px, env(safe-area-inset-top, 0px)) max(10px, env(safe-area-inset-right, 0px)) max(10px, env(safe-area-inset-bottom, 0px)) max(10px, env(safe-area-inset-left, 0px)); }
+  .topbar { display: flex; align-items: center; gap: 8px; padding: 2px 2px 8px; }
+  .topbar .room-name { flex: 1; min-width: 0; font-size: 14px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .topbar .room-name b { color: var(--text); }
+  .pill { border: 1px solid var(--line); background: var(--panel); color: var(--text); border-radius: 999px; padding: 7px 12px; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+  .pill.off { color: var(--muted); text-decoration: line-through; }
+  .wrapper { width: 100%; max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+  .seats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+  .seat { position: relative; background: rgba(18,16,31,.6); border: 1.5px solid var(--line); border-radius: 12px; padding: 8px 10px; min-width: 0; display: grid; gap: 4px; }
+  .seat.turn { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(255,207,63,.25); }
+  .seat.me { background: rgba(255,207,63,.06); }
+  .seat.out { opacity: .45; }
+  .seat .nm { font-weight: 700; font-size: 14px; display: flex; gap: 6px; align-items: center; min-width: 0; }
+  .seat .nm span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tag { font-size: 10px; font-weight: 700; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; padding: 0 5px; white-space: nowrap; flex: none; }
+  .tag.bot { color: var(--gem); border-color: var(--gem); }
+  .tag.me { color: var(--accent); border-color: var(--accent); }
+  .tag.win { color: #2a1a00; background: var(--accent); border-color: var(--accent); }
+  .seat .meta { font-size: 12px; color: var(--muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .backs { display: flex; align-items: center; }
+  .backs .rc.small { margin-right: -20px; }
+  .backs b { margin-left: 26px; font-family: var(--display); font-weight: 400; font-size: 18px; color: var(--text); }
+  .timer { height: 4px; border-radius: 2px; background: rgba(255,255,255,.1); overflow: hidden; }
+  .timer i { display: block; height: 100%; background: var(--accent); transition: width .2s linear; }
+  .seat .kick { position: absolute; bottom: 6px; right: 6px; border: 0; background: #3a2244; color: var(--danger); border-radius: 6px; font-size: 11px; padding: 2px 6px; cursor: pointer; }
+
+  .center { display: flex; align-items: center; justify-content: center; gap: 18px; padding: 10px 0; flex-wrap: wrap; position: relative; }
+  .pile { display: grid; justify-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
+  .pile button { padding: 0; border: 0; background: none; cursor: pointer; }
+  .pile button:disabled { cursor: default; }
+  .now-color { display: grid; justify-items: center; gap: 6px; }
+  .swatch { width: 44px; height: 44px; border-radius: 50%; border: 3px solid rgba(255,255,255,.9); box-shadow: 0 0 18px var(--sw, transparent); }
+  .now-color b { font-size: 14px; }
+  .attack-row { flex-basis: 100%; display: flex; justify-content: center; }
+  .attack { background: #c43c3c; color: #fff; font-weight: 700; font-size: 13px; padding: 5px 14px; border-radius: 999px; box-shadow: 0 4px 14px rgba(196,60,60,.5); animation: pulse 1s ease-in-out infinite; text-align: center; }
+  @keyframes pulse { 50% { transform: scale(1.06); } }
+  .left-cards { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; align-items: center; margin-top: 6px; font-size: 13px; color: var(--muted); }
+  .left-cards span { flex-basis: 100%; text-align: center; }
+
+  .status { text-align: center; font-weight: 700; font-size: 15px; min-height: 22px; }
+  .status small { display: block; font-weight: 500; color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .hand { display: flex; gap: 6px; overflow-x: auto; padding: 14px 6px 8px; justify-content: safe center; -webkit-overflow-scrolling: touch; }
+  .hand .rc { cursor: pointer; transition: transform .15s; }
+  .hand .rc.can { transform: translateY(-10px); box-shadow: 0 0 0 3px var(--accent), 0 8px 16px rgba(0,0,0,.5); }
+  .hand .rc.no { filter: saturate(.55) brightness(.75); cursor: default; }
+  .actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  .btn { padding: 12px 16px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--panel-2); color: var(--text); font-weight: 700; font-size: 15px; cursor: pointer; min-width: 92px; }
+  .btn.main { background: var(--accent); border-color: var(--accent); color: #2a1a00; }
+  .btn.warn { border-color: var(--danger); color: var(--danger); background: transparent; }
+  .btn.ok { background: var(--ok); border-color: var(--ok); color: #0b2a16; }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .btn small { display: block; font-size: 11px; font-weight: 500; opacity: .8; }
+  .panel { background: rgba(18,16,31,.6); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+  .log { font-size: 13px; color: var(--muted); line-height: 1.6; max-height: 120px; overflow-y: auto; }
+  .log div:last-child { color: var(--text); }
+  .wait-box { display: grid; gap: 10px; }
+  .bot-add { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .bot-add span { font-size: 13px; color: var(--muted); }
+  .bot-add button { border: 1px solid var(--gem); color: var(--gem); background: transparent; border-radius: 8px; padding: 6px 10px; font-weight: 700; cursor: pointer; }
+  .bot-add button:disabled { opacity: .4; cursor: default; }
+
+  /* 포커 */
+  .forehead { display: grid; justify-items: center; gap: 4px; }
+  .forehead .who { font-size: 12px; color: var(--muted); }
+  .pot { display: grid; justify-items: center; gap: 2px; }
+  .pot b { font-family: var(--display); font-weight: 400; font-size: 34px; color: var(--gem); display: flex; align-items: center; gap: 8px; }
+  .pot small { color: var(--muted); font-size: 12px; }
+  .mode-badge { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; border: 1px solid; }
+  .mode-badge.real { color: var(--gem); border-color: var(--gem); background: rgba(94,242,255,.08); }
+  .mode-badge.chip { color: var(--accent); border-color: var(--accent); background: rgba(255,207,63,.08); }
+  .raise-row { display: flex; gap: 6px; justify-content: center; align-items: center; flex-wrap: wrap; }
+  .raise-row button { border: 1px solid var(--line); background: #15122a; color: var(--text); border-radius: 8px; padding: 7px 10px; font-weight: 700; cursor: pointer; }
+  .raise-row output { min-width: 64px; text-align: center; font-family: var(--display); font-size: 22px; color: var(--accent); }
+  .seat .fh { display: flex; align-items: center; gap: 8px; }
+  .seat .chipline { font-size: 12px; color: var(--muted); }
+  .seat .chipline b { color: var(--text); }
+  .seat.folded { opacity: .5; }
+  .result-banner { text-align: center; background: rgba(255,207,63,.1); border: 1px solid rgba(255,207,63,.4); border-radius: 12px; padding: 10px; }
+  .result-banner .big { font-family: var(--display); font-size: 26px; color: var(--accent); }
+  .result-banner .gems { color: var(--gem); font-weight: 700; margin-top: 4px; }
+  .toast { position: fixed; left: 50%; bottom: max(18px, env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 60; background: var(--panel-2); border: 1px solid var(--line); color: var(--text); padding: 10px 16px; border-radius: 12px; font-size: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.5); max-width: 90vw; text-align: center; }
+  @media (max-width: 520px) {
+    .seats { grid-template-columns: 1fr 1fr; }
+    .rc.big { width: 78px; height: 112px; } .rc.big .mid { font-size: 40px; }
+    .center { gap: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="lobby">
+  <div class="lobby-wrap">
+    <div class="card-box">
+      <button class="back-btn" id="backBtn" type="button">← 난투 아레나</button>
+      <h1 id="title"><span class="rainbow-text">레인보우</span><small id="titleSub"></small></h1>
+      <p class="sub" id="subtitle"></p>
+
+      <section id="authBox" aria-label="로그인">
+        <div class="tabs" role="tablist">
+          <button role="tab" id="tabLogin" aria-selected="true">로그인</button>
+          <button role="tab" id="tabSignup" aria-selected="false">회원가입</button>
+          <button role="tab" id="tabGuest" aria-selected="false">게스트</button>
+        </div>
+        <form id="authForm" novalidate>
+          <label for="aNick">닉네임</label>
+          <input id="aNick" maxlength="12" autocomplete="username" placeholder="2~12자">
+          <label for="aPw">비밀번호</label>
+          <input id="aPw" type="password" maxlength="64" autocomplete="current-password" placeholder="4자 이상">
+          <div id="pw2Wrap" hidden><label for="aPw2">비밀번호 확인</label><input id="aPw2" type="password" maxlength="64" autocomplete="new-password"></div>
+          <button class="sub-btn" id="authBtn" type="submit">로그인</button>
+          <p class="hint" id="authMsg" role="status"></p>
+        </form>
+        <div id="guestBox" hidden>
+          <label for="gNick">닉네임</label>
+          <input id="gNick" maxlength="12" placeholder="닉네임 입력" autocomplete="off">
+          <p class="hint" id="guestHint">게스트는 보석을 받지 않아요.</p>
+        </div>
+      </section>
+      <div id="meBox" class="me-box" hidden>
+        <span><span class="dot"></span> <b id="meNick"></b> 님으로 로그인됨</span>
+        <button id="logoutBtn" class="link" type="button">로그아웃</button>
+      </div>
+
+      <span class="lbl" id="roomLbl">방 고르기</span>
+      <div class="tabs four" role="tablist" aria-labelledby="roomLbl">
+        <button role="tab" id="rtList" aria-selected="true">공개 방</button>
+        <button role="tab" id="rtCreate" aria-selected="false">방 만들기</button>
+        <button role="tab" id="rtCode" aria-selected="false">초대 코드</button>
+        <button role="tab" id="rtBot" aria-selected="false">봇전</button>
+      </div>
+      <div id="rpList" class="room-pane">
+        <ul class="rooms" id="roomList" aria-label="공개 방 목록"></ul>
+        <p class="hint" id="roomEmpty">열린 공개 방이 없어요. 빠른 입장을 누르면 새 방이 만들어져요.</p>
+      </div>
+      <div id="rpCreate" class="room-pane" hidden>
+        <label for="roomTitle">방 제목 (누구나 목록에서 보고 들어올 수 있어요)</label>
+        <input id="roomTitle" maxlength="20" placeholder="예: 한 판 하실 분" autocomplete="off">
+      </div>
+      <div id="rpCode" class="room-pane" hidden>
+        <label for="roomcode">초대 코드 (같은 코드를 쓴 친구끼리만 · 목록에 안 보여요)</label>
+        <input id="roomcode" maxlength="20" placeholder="예: ourroom" autocomplete="off" autocapitalize="off">
+      </div>
+      <div id="rpBot" class="room-pane" hidden>
+        <span class="lbl" style="margin-top:0">봇 난이도</span>
+        <div class="seg" id="diffs"><button type="button" data-d="easy">이지</button><button type="button" data-d="medium">미들</button><button type="button" data-d="hard">하드</button></div>
+        <span class="lbl">봇 수</span>
+        <div class="seg" id="botN"><button type="button" data-n="1">1명</button><button type="button" data-n="2">2명</button><button type="button" data-n="3">3명</button></div>
+        <p class="hint" id="botHint"></p>
+      </div>
+      <button class="play" id="playBtn">빠른 입장</button>
+      <div id="err" role="status"></div>
+      <div class="online">지금 이 게임 중: <span id="onlineNow">-</span>명</div>
+    </div>
+
+    <div class="card-box">
+      <h2>규칙</h2>
+      <div class="rules" id="rulesBox"></div>
+      <div class="gem-row"><i class="gem-ico" aria-hidden="true"></i><b id="gemCount">-</b><small>보석</small><small id="myStat" style="margin-left:auto"></small></div>
+      <span class="lbl" id="rankLbl">랭킹</span>
+      <ol class="rank" id="rank"></ol>
+      <div class="empty" id="rankEmpty"></div>
+    </div>
+  </div>
+</div>
+
+<div id="table" hidden>
+  <div class="topbar">
+    <div class="room-name" id="roomName"></div>
+    <button class="pill" id="sndBtn" type="button">소리</button>
+    <button class="pill" id="exitBtn" type="button">나가기</button>
+  </div>
+  <div class="wrapper">
+    <div class="seats" id="seats"></div>
+    <div id="waitBox" class="panel wait-box" hidden></div>
+    <div id="resultBox" hidden></div>
+    <div class="center" id="center"></div>
+    <div class="status" id="status" role="status"></div>
+    <div id="mine"></div>
+    <div class="actions" id="actions"></div>
+    <div class="panel log" id="log" aria-label="기록"></div>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="deck.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -86,7 +86,11 @@ function flush() {
 }
 // 서버가 꺼질 때는 '저장 안 된 변경'이 있을 때만 저장
 // (새 서버로 바뀌는 순간 예전 서버가 오래된 데이터로 덮어쓰지 않게)
+// 서버가 꺼지기 직전에 할 일 (예: 인디언포커 판돈 돌려주기). 저장하기 전에 먼저 실행됨
+const shutdownHooks = [];
+function onShutdown(fn) { shutdownHooks.push(fn); }
 async function shutdown() {
+  for (const fn of shutdownHooks) { try { fn(); } catch (e) { console.error('종료 준비 실패:', e.message); } }
   if (dirty) await flush();
   else await saving;
   if (pool) await pool.end().catch(() => {});
@@ -129,6 +133,9 @@ const GEMS = {
   CHESS_PLAY: 20,     // 럭키 체스 한 판 끝까지 둠 (지거나 비김)
   // 럭키 체스 봇전 (난이도별 이기면 받는 보석 · 지거나 비기면 PLAY). 체스 랭킹·전적에는 안 들어감
   CHESS_BOT: { easy: 10, medium: 25, hard: 50, PLAY: 5 },
+  // 레인보우 원카드 (사람 2명 이상: 1등 / 참가) · 봇전은 CHESS_BOT과 같음 (가장 어려운 봇 기준)
+  ONECARD_WIN: 100,
+  ONECARD_PLAY: 20,
 };
 const GACHA = {
   COST: 150,          // 뽑기 1회 가격
@@ -191,6 +198,8 @@ function publicProfile(a) {
     patchLeft: patchRewardsFor(a).filter((r) => !(a.patchClaimed || []).includes(r.id)).reduce((n, r) => n + r.gems, 0),   // 아직 안 받은 보석
     patchElig: patchRewardsFor(a).map((r) => r.id),   // 이 계정이 받을 수 있는 보상
     chess: { ...CHESS0, ...(a.chess || {}) },   // 럭키 체스 전적 (판·승·패·무)
+    onecard: { g: 0, w: 0, ...(a.onecard || {}) },   // 레인보우 원카드 (판·1등)
+    poker: { g: 0, net: 0, ...(a.poker || {}) },     // 레인보우 인디언포커 (진짜 보석 판 수 · 번 보석)
   };
 }
 
@@ -316,6 +325,61 @@ function chessBotRecord(key, result, diff) {
   save();
   return { profile: publicProfile(a), gained: gems };
 }
+// ---------- 레인보우 원카드 ----------
+//  result: 'win' | 'play' · bot: 봇전이면 가장 어려운 봇 난이도 (보석만, 전적·랭킹엔 안 들어감)
+function onecardRecord(key, result, bot) {
+  const a = store.accounts[key];
+  if (!a) return null;
+  if (!['win', 'play'].includes(result)) throw new Error('잘못된 결과예요.');
+  let gems;
+  if (bot) {
+    if (!['easy', 'medium', 'hard'].includes(bot)) throw new Error('잘못된 결과예요.');
+    gems = result === 'win' ? GEMS.CHESS_BOT[bot] : GEMS.CHESS_BOT.PLAY;
+  } else {
+    a.onecard = { g: 0, w: 0, ...(a.onecard || {}) };
+    a.onecard.g += 1; if (result === 'win') a.onecard.w += 1;
+    gems = result === 'win' ? GEMS.ONECARD_WIN : GEMS.ONECARD_PLAY;
+  }
+  a.gems += gems;
+  save();
+  return { profile: publicProfile(a), gained: gems };
+}
+// ---------- 레인보우 인디언포커: 진짜 보석 걸기 ----------
+//  베팅할 때 바로 빼 두고(takeGems), 판이 끝나면 이긴 사람에게 판돈을 줌(giveGems)
+//  → 보석은 사람끼리 옮겨 다닐 뿐 새로 생기지 않음
+function gemsOf(key) { const a = store.accounts[key]; return a ? a.gems : 0; }
+function takeGems(key, n) {
+  const a = store.accounts[key];
+  n = Math.floor(n);
+  if (!a || !(n > 0) || a.gems < n) return false;
+  a.gems -= n; save();
+  return true;
+}
+function giveGems(key, n) {
+  const a = store.accounts[key];
+  n = Math.floor(n);
+  if (!a || !(n > 0)) return false;
+  a.gems += n; save();
+  return true;
+}
+function pokerStat(key, net) {
+  const a = store.accounts[key];
+  if (!a) return;
+  a.poker = { g: 0, net: 0, ...(a.poker || {}) };
+  a.poker.g += 1; a.poker.net += Math.round(net);
+  save();
+}
+function onecardRanking(limit = 10) {
+  return Object.values(store.accounts).filter((a) => a.onecard && a.onecard.g > 0)
+    .sort((x, y) => y.onecard.w - x.onecard.w || x.onecard.g - y.onecard.g)
+    .slice(0, limit).map((a) => ({ nick: a.nick, g: a.onecard.g, w: a.onecard.w }));
+}
+function pokerRanking(limit = 10) {
+  return Object.values(store.accounts).filter((a) => a.poker && a.poker.g > 0)
+    .sort((x, y) => y.poker.net - x.poker.net || y.poker.g - x.poker.g)
+    .slice(0, limit).map((a) => ({ nick: a.nick, g: a.poker.g, net: a.poker.net }));
+}
+
 function chessRanking(limit = 10) {
   return Object.values(store.accounts)
     .filter((a) => a.chess && a.chess.g > 0)
@@ -589,6 +653,7 @@ setInterval(() => {
 }, 3600000).unref();
 
 module.exports = {
+  onShutdown, onecardRecord, gemsOf, takeGems, giveGems, pokerStat, onecardRanking, pokerRanking,
   init, storage: () => storageName, signup, login, logout, fromToken, profileOf, nickOf, isTaken,
   keyOf, owns, ownedOf, chessRecord, chessBotRecord, chessRanking, setSkill, record, buySkin, equipSkin, skinsOf, adminWarn, changeNick, ranking, cleanNick, gacha, buySkill, shopInfo, shopDaily, shopBuy, todayShop, patchSeen, patchClaim, isAdmin, adminList, adminUpdate,
   GEMS, GACHA, BASE_SKILLS, ALL_SKILLS,
