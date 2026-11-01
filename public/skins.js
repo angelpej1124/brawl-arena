@@ -6,6 +6,12 @@
 // =====================================================================
 (function (root) {
   const SKINS = {
+    // 한정판 (limited): 이벤트 기간에 상점 맨 위 '한정판'에서만 살 수 있음 (shop.js EVENTS). 기간이 끝나면 다시는 못 삼
+    pumpkin:      { skill: 'turret', name: '호박', desc: '터렛이 잭오랜턴 호박이 됨. 총알도 주황색, 소리도 으스스하게', color: '#ff8a1e', limited: 'halloween' },
+    vampire:      { skill: 'ninja', name: '뱀파이어', desc: '쿠나이 대신 박쥐를 던짐. 스킬을 쓰면 통나무 대신 무덤이 생김, 소리도 으스스하게', color: '#7a1030', limited: 'halloween' },
+    soul:         { skill: 'fire', name: '영혼', desc: '불이 전부 초록색 영혼의 불꽃이 됨 (주먹·돌진·불붙은 상대까지), 소리도 으스스하게', color: '#3dff7a', limited: 'halloween' },
+    pepero_sword: { skill: 'sword', name: '빼빼로 검', desc: '검이 초코 빼빼로가 됨', color: '#6b3a1e', limited: 'pepero' },
+    pepero_dope:  { skill: 'dope', name: '빼빼로', desc: '물약 대신 초코·딸기·아몬드·누드 빼빼로가 떨어짐', color: '#d98a4a', limited: 'pepero' },
     venom:       { skill: 'parasite', name: '베놈', desc: '공격이 검은 이펙트로. 기생하면 머리 위 표시가 검게, 숙주에게 베놈 눈이 생김', fx: 'venom', color: '#1b1b22' },
     rainbow:     { skill: 'reflect', name: '무지개 반사', desc: '공격에 무지개 이펙트. 거울 대신 무지개로 반사', fx: 'rainbow', color: '#ff7ac8' },
     redhulk:     { skill: 'hulk', name: '레드 헐크', desc: '커질수록 빨갛게 변함', color: '#e8322e' },

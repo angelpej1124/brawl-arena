@@ -114,6 +114,10 @@ function scrypt(pw, salt) {
 // =====================================================================
 const ALL_SKILLS = ['slow', 'blink', 'stealth', 'clone', 'swap', 'fly', 'explode', 'freeze', 'rock', 'magnet', 'empower', 'parasite', 'quake', 'giant', 'rubber', 'engine', 'sword', 'blackflash', 'lightning', 'undying', 'hulk', 'fire', 'ice', 'turret', 'error', 'sun', 'wind', 'archer', 'time', 'combo', 'reflect', 'invert', 'atom', 'mine', 'ninja', 'gamble', 'starlight', 'shield', 'tentacle', 'ghost', 'flash', 'flood', 'wave', 'dope', 'portal', 'charge', 'dash', 'hop', 'gem', 'shotgun'];
 const BASE_SKILLS = ['slow', 'blink'];          // 게스트·새 계정 기본 스킬
+// 운영 보상 (자동 지급, 계정마다 한 번)
+const GRANTS = [
+  { id: 'server-down-2026-11', gems: 10000, why: '서버 중지 보상', before: '2026-11-01T13:00:00+09:00' },
+];
 const GEMS = {
   START: 200,          // 가입 선물
   PLAY: 25,           // 사람 2명 이상인 판에 참가
@@ -154,6 +158,12 @@ function upgrade(a, key) {
   if (!a.owned.includes(a.skill)) { a.skill = 'slow'; changed = true; }
   const shouldAdmin = ADMIN_NICKS.includes(key);
   if (shouldAdmin && !a.admin) { a.admin = true; changed = true; }
+  // 운영 보상: 계정마다 한 번 자동으로 지급 (before 전에 만든 계정만)
+  if (!Array.isArray(a.grants)) { a.grants = []; changed = true; }
+  for (const g of GRANTS) {
+    if (a.grants.includes(g.id) || (g.before && (a.createdAt || 0) >= Date.parse(g.before))) continue;
+    a.gems += g.gems; a.grants.push(g.id); changed = true;
+  }
   return changed;
 }
 function upgradeAll() {
@@ -357,12 +367,17 @@ function seededPick(list, n, seedStr) {
   for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
   return a.slice(0, n);
 }
+const NORMAL_SKINS = Object.keys(SKINS).filter((id) => !SKINS[id].limited);   // 한정판은 오늘의 상점·일반 구매에 안 나옴
 function todayShop(day = kstDay()) {
   return {
     day,
-    skins: seededPick(Object.keys(SKINS), SHOP.SKINS_PER_DAY, 'skin:' + day),
+    skins: seededPick(NORMAL_SKINS, SHOP.SKINS_PER_DAY, 'skin:' + day),
     skills: seededPick(ALL_SKILLS.filter((k) => !BASE_SKILLS.includes(k)), SHOP.SKILLS_PER_DAY, 'skill:' + day),
   };
+}
+// 지금 하는 한정판 이벤트
+function activeEvents(day = kstDay()) {
+  return (SHOP.EVENTS || []).filter((e) => day >= e.from && day <= e.until);
 }
 // 지금 파는 패키지 (from 00:00 ~ until 23:59, 한국 시간)
 function activePackages(day = kstDay()) {
@@ -377,6 +392,10 @@ function shopInfo(key) {
     day: t.day, nextReset, daily: SHOP.DAILY, dailyDone: !!a && a.dailyAt === t.day,
     skins: t.skins.map((id) => ({ id, price: SHOP.SKIN_PRICE, normal: SKIN_PRICE, owned: !!a && a.skins.includes(id) })),
     skills: t.skills.map((id) => ({ id, price: SHOP.SKILL_PRICE, owned: !!a && a.owned.includes(id) })),
+    events: activeEvents(t.day).map((e) => ({
+      id: e.id, name: e.name, desc: e.desc, ends: Date.parse(e.until + 'T00:00:00+09:00') + 86400000,
+      skins: e.skins.filter((id) => SKINS[id]).map((id) => ({ id, price: e.price, owned: !!a && a.skins.includes(id) })),
+    })),
     packages: activePackages(t.day).map((p) => ({
       id: p.id, name: p.name, desc: p.desc, price: p.price, skills: p.skills || [], skins: p.skins || [],
       ends: Date.parse(p.until + 'T00:00:00+09:00') + 86400000,
@@ -406,6 +425,12 @@ function shopBuy(key, kind, id) {
     if (!t.skills.includes(id)) throw new Error('오늘 상점에 없는 스킬이에요. (상점이 바뀌었을 수 있어요)');
     if (a.owned.includes(id)) throw new Error('이미 가진 스킬이에요.');
     pay(SHOP.SKILL_PRICE); a.owned.push(id);
+  } else if (kind === 'event') {
+    // 한정판: 이벤트 기간에만
+    const ev = activeEvents().find((e) => e.skins.includes(id));
+    if (!ev || !SKINS[id]) throw new Error('지금은 살 수 없는 한정판 스킨이에요.');
+    if (a.skins.includes(id)) throw new Error('이미 가진 스킨이에요.');
+    pay(ev.price); a.skins.push(id); a.skinSel[SKINS[id].skill] = id;
   } else if (kind === 'pkg') {
     const p = activePackages().find((x) => x.id === id);
     if (!p) throw new Error('지금 팔지 않는 패키지예요.');
@@ -423,6 +448,7 @@ function buySkin(key, id) {
   upgrade(a, key);
   const sk = SKINS[id];
   if (!sk) throw new Error('없는 스킨이에요.');
+  if (sk.limited) throw new Error('한정판 스킨은 이벤트 기간에 상점에서만 살 수 있어요.');
   if (a.skins.includes(id)) throw new Error('이미 가진 스킨이에요.');
   if (a.gems < SKIN_PRICE) throw new Error(`보석이 모자라요. 스킨은 ${SKIN_PRICE}개예요.`);
   a.gems -= SKIN_PRICE; a.skins.push(id);

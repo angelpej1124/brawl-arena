@@ -337,6 +337,12 @@
   .det-buy.ghost { opacity: .6; }
   .skin-card[data-info] { cursor: pointer; }
   .skin-card[data-info]:hover { border-color: #5a4f9a; }
+  .shop-event { margin: 4px 0 12px; padding: 10px 12px 12px; border-radius: 14px; border: 1.5px solid #ff8a1e;
+    background: linear-gradient(135deg, rgba(255,138,30,.16), rgba(122,16,48,.22)); }
+  .shop-event.pepero { border-color: #d98a4a; background: linear-gradient(135deg, rgba(107,58,30,.28), rgba(255,122,200,.14)); }
+  .shop-event .ev-h { margin-top: 0; color: #ffcf8a; }
+  .shop-event .ev-sub { margin: 2px 0 8px; }
+  .ltd-tag { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 6px; background: #ff8a1e; color: #2a1200; font-size: 11px; font-weight: 800; vertical-align: 1px; }
   .skin-card { display: flex; align-items: center; gap: 12px; background: #15122a; border: 1.5px solid var(--line); border-radius: 12px; padding: 10px 12px; }
   .skin-card.on { border-color: var(--accent); background: #2a2348; }
   .skin-sw { width: 36px; height: 36px; border-radius: 10px; flex: none; border: 2px solid rgba(255,255,255,.25); }
@@ -560,10 +566,6 @@
   <div class="modal-card patch-card">
     <div class="modal-head"><b id="patchTitle">패치 내역</b><span id="patchDate" class="hint"></span><button class="modal-x" id="patchClose" type="button" aria-label="닫기">✕</button></div>
     <div id="patchBody"></div>
-    <div class="patch-reward" id="patchReward" hidden>
-      <div><b id="patchRewardAmt"></b><small id="patchRewardWhy"></small></div>
-      <button class="sub-btn gacha-btn" id="patchClaim" type="button">받기</button>
-    </div>
     <p class="hint" id="patchMsg" role="status"></p>
     <button class="play" id="patchOk" type="button">확인</button>
   </div>
@@ -588,6 +590,11 @@
   <div class="modal-card shop-card">
     <div class="modal-head"><b id="shopTitle">상점</b><span id="shopGems"></span><button class="modal-x" id="shopClose" type="button" aria-label="닫기">✕</button></div>
     <p class="hint" id="shopReset"></p>
+    <div class="shop-event" id="shopEvent" hidden>
+      <h4 class="shop-h ev-h" id="shopEvTitle">한정판</h4>
+      <p class="hint ev-sub" id="shopEvSub"></p>
+      <div class="skin-list" id="shopEvSkins"></div>
+    </div>
     <div class="shop-daily">
       <div><b>일일 보상</b><small>매일 한국 시간 자정에 다시 받을 수 있어요</small></div>
       <button class="skin-act" id="shopDaily" type="button">보석 30개 받기</button>

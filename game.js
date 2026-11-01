@@ -142,9 +142,9 @@ const dopeMul = (p, kind) => {
   return kind === 'def' ? 1 - up : 1 + up;
 };
 // 불 색 스킨: 화염(청염 파랑 · 흑염 검보라) / 태양(초신성 파랑 · 블랙홀 검보라) → 'fire' | 'blue' | 'dark'
-const fireTint = (p) => (skinOn(p, 'bluefire') ? 'blue' : skinOn(p, 'blackfire') ? 'dark' : 'fire');
+const fireTint = (p) => (skinOn(p, 'bluefire') ? 'blue' : skinOn(p, 'blackfire') ? 'dark' : skinOn(p, 'soul') ? 'green' : 'fire');   // 영혼(할로윈): 초록 불
 const sunTint = (p) => (skinOn(p, 'supernova') ? 'blue' : skinOn(p, 'blackhole') ? 'dark' : 'fire');
-const tintNum = (t) => (t === 'blue' ? 1 : t === 'dark' ? 2 : 0);
+const tintNum = (t) => (t === 'blue' ? 1 : t === 'dark' ? 2 : t === 'green' ? 3 : 0);
 const maxJumps = (p) => CONFIG.EXTRA_JUMPS + (has(p, 'hop') ? 1 : 0);   // 점프 스킬은 3단 점프
 const has = (p, k) => !!p && (p.skill === k || p.skill2 === k);
 // 키 배치: 보통 Q=스킬1, E=스킬2. 자석이 있으면 자석이 Q·E를 쓰고 나머지 스킬은 R
@@ -1239,7 +1239,7 @@ class Sim {
       const t = { id: ++this.evSeq, owner: p.id, x: tx, y: p.y, vy: 0, hp: s.hp, cd: 0.5, aim: p.facing > 0 ? 0 : Math.PI, color: p.color, hitBy: null };
       this.turrets.push(t);
       p.skillCd = s.cd;
-      this.ev({ k: 'turret', x: r0(t.x), y: r0(t.y), pid: p.id });
+      this.ev({ k: 'turret', x: r0(t.x), y: r0(t.y), pid: p.id, hw: skinOn(p, 'pumpkin') ? 1 : undefined });
     } else if (k === 'error') {
       const s = SKILLS.error;
       // 랜덤한 적 한 명만
@@ -1346,8 +1346,8 @@ class Sim {
     } else if (k === 'ninja') {
       // 통나무(스노우 스킨: 눈사람)만 남기고 랜덤한 안전한 곳으로 순간이동
       const s = SKILLS.ninja, spot = this.randomSafeSpot(p);
-      this.logs.push({ id: ++this.evSeq, owner: p.id, x: p.x, y: p.y, vy: Math.min(p.vy, 0) * 0, t: s.logLife, sn: skinOn(p, 'snowninja') ? 1 : 0, big: sizeOf(p) });
-      this.ev({ k: 'kawarimi', x: r0(p.x), y: r0(cy), tx: r0(spot.x), ty: r0(spot.y - bh(p) / 2), pid: p.id, sn: skinOn(p, 'snowninja') ? 1 : 0 });
+      this.logs.push({ id: ++this.evSeq, owner: p.id, x: p.x, y: p.y, vy: Math.min(p.vy, 0) * 0, t: s.logLife, sn: skinOn(p, 'snowninja') ? 1 : 0, vp: skinOn(p, 'vampire') ? 1 : undefined, big: sizeOf(p) });
+      this.ev({ k: 'kawarimi', x: r0(p.x), y: r0(cy), tx: r0(spot.x), ty: r0(spot.y - bh(p) / 2), pid: p.id, sn: skinOn(p, 'snowninja') ? 1 : 0, hw: skinOn(p, 'vampire') ? 1 : undefined });
       p.x = spot.x; p.y = spot.y - 1; p.vx = 0; p.vy = 0; p.grounded = false; p.attack = null; p.drawT = 0;
       p.skillCd = s.cd;
     } else if (k === 'gamble') {
@@ -1654,8 +1654,8 @@ class Sim {
     // 화염·얼음·바람 등은 화살처럼 쿠나이에도 묻음. 고무·강화·거인 등 사거리 버프만큼 멀리 날아감
     const el = (has(p, 'fire') || p.sunT > 0) ? (has(p, 'fire') ? fireTint(p) : sunTint(p)) : has(p, 'ice') ? (skinOn(p, 'sand') ? 'sand' : 'ice') : skinFx(p) || (has(p, 'wind') ? 'wind' : '');
     const range = this.reachBuff(p) * (p.rubberT > 0 ? 1.3 : 1);
-    this.arrows.push({ id: ++this.evSeq, owner: p.id, x, y, vx: p.facing * s.speed, vy: 0, c: 0.5, ku: 1, t: s.life * clamp(range, 0.3, 2), el, big, sw: skinOn(p, 'snowninja') ? 1 : 0 });
-    this.ev({ k: 'kunai', x: r0(x), y: r0(y), pid: p.id, sn: skinOn(p, 'snowninja') ? 1 : 0 });
+    this.arrows.push({ id: ++this.evSeq, owner: p.id, x, y, vx: p.facing * s.speed, vy: 0, c: 0.5, ku: 1, t: s.life * clamp(range, 0.3, 2), el, big, sw: skinOn(p, 'snowninja') ? 1 : 0, vp: skinOn(p, 'vampire') ? 1 : undefined });
+    this.ev({ k: 'kunai', x: r0(x), y: r0(y), pid: p.id, sn: skinOn(p, 'snowninja') ? 1 : 0, hw: skinOn(p, 'vampire') ? 1 : undefined });
   }
   // 샷건: 강공격 → 바로 산탄 5발 부채꼴 발사 (탄이 없으면 철컥 소리만)
   fireShotgun(p) {
@@ -1682,7 +1682,7 @@ class Sim {
       l.vy = Math.min(l.vy + CONFIG.GRAVITY * dt, CONFIG.MAX_FALL); l.y += l.vy * dt;
       const ly = this.landingY(l.x, prevY, l.y); if (ly != null) { l.y = ly; l.vy = 0; }
       if (l.y > this.stage.blast.bottom) l.t = 0;
-      if (l.t <= 0) this.ev({ k: 'logpoof', x: r0(l.x), y: r0(l.y - 25), sn: l.sn });
+      if (l.t <= 0) this.ev({ k: 'logpoof', x: r0(l.x), y: r0(l.y - 25), sn: l.sn, hw: l.vp });
     }
     this.logs = this.logs.filter((l) => l.t > 0);
   }
@@ -2180,6 +2180,7 @@ class Sim {
       t.aim = Math.atan2(target.y - bh(target) / 2 - my, target.x - mx);
       if (t.cd <= 0 && firing) {
         t.cd = s.fireEvery;
+        if (skinOn(owner, 'pumpkin')) this.ev({ k: 'tshot', x: r0(mx), y: r0(my), hw: 1 });   // 호박: 쏠 때 으스스한 소리
         if (skinOn(owner, 'frog')) {
           // 개구리: 혀를 쭉 내밀었다가 다시 감아 들임 (뻗는 동안 혀 끝만 맞음)
           const ox = mx + Math.cos(t.aim) * 14, oy = my + Math.sin(t.aim) * 14;
@@ -2470,8 +2471,8 @@ class Sim {
       md: [this.teamMode ? 1 : 0, this.doubleMode ? 1 : 0], s: this.tickCount, mp: this.stage.id,
       mv: this.phase === 'waiting' && this.mapVote ? [this.mapVote.cands, Object.fromEntries(Object.entries(this.mapVote.votes).filter(([pid]) => this.players.has(pid)).map(([pid, m]) => [pid, this.mapVote.cands.indexOf(m)]))] : 0,
       ev: this.recent.slice(-10),
-      ar: this.arrows.map((a) => ({ x: r0(a.x), y: r0(a.y), vx: r0(a.vx), vy: r0(a.vy), h: a.homing ? 1 : 0, de: a.de ? 1 : undefined, lf: a.lf ? 1 : undefined, el: a.el || undefined, s: a.big !== 1 ? Math.round(a.big * 10) / 10 : undefined, ku: a.ku || undefined, sw: a.sw || undefined, sg: a.sg || undefined })),
-      lg: this.logs.map((l) => ({ x: r0(l.x), y: r0(l.y), sn: l.sn, t: Math.round(l.t * 10) / 10, s: l.big !== 1 ? Math.round(l.big * 10) / 10 : undefined })),
+      ar: this.arrows.map((a) => ({ x: r0(a.x), y: r0(a.y), vx: r0(a.vx), vy: r0(a.vy), h: a.homing ? 1 : 0, de: a.de ? 1 : undefined, lf: a.lf ? 1 : undefined, el: a.el || undefined, s: a.big !== 1 ? Math.round(a.big * 10) / 10 : undefined, ku: a.ku || undefined, sw: a.sw || undefined, vp: a.vp || undefined, sg: a.sg || undefined })),
+      lg: this.logs.map((l) => ({ x: r0(l.x), y: r0(l.y), sn: l.sn, vp: l.vp, t: Math.round(l.t * 10) / 10, s: l.big !== 1 ? Math.round(l.big * 10) / 10 : undefined })),
       fz: this.flashes.map((f) => ({ x: f.x, y: f.y, r: f.r, a: Math.round(Math.min(1, f.t / 0.6) * 100) / 100, o: f.owner, tm: f.team })),
       wa: this.water ? [r0(this.water.y), this.water.lava ? 1 : 0] : 0,
       pt: this.portals.map((o) => [r0(o.x), r0(o.y), o.owner, this.portals.some((q) => q.pair === o.pair && q !== o) ? 1 : 0]),
@@ -2480,13 +2481,13 @@ class Sim {
       sb: this.starBits.map((b) => { const o = this.players.get(b.owner); return { x: r0(b.x), y: r0(b.y), vx: r0(b.vx), vy: r0(b.vy), r: Math.round(b.r), m: o && skinOn(o, 'meteor') ? 1 : undefined }; }),
       wd: this.winds.map((w) => { const o = this.players.get(w.owner); return { i: w.id, x: r0(w.x), y: r0(w.y), vx: w.vx, r: o && skinOn(o, 'firetornado') ? 1 : 0 }; }),
       mn: this.mines.map((m) => { const o = this.players.get(m.owner); return { x: r0(m.x), y: r0(m.y), c: m.color, a: m.arm > 0 ? 0 : 1, sk: o && skinOn(o, 'ginkgo') ? 'g' : o && skinOn(o, 'blocks') ? 'b' : undefined }; }),
-      tr: this.turrets.map((t) => { const o = this.players.get(t.owner); return { i: t.id, x: r0(t.x), y: r0(t.y), a: Math.round(t.aim * 100) / 100, hp: t.hp, c: t.color, o: t.owner, fg: o && skinOn(o, 'frog') ? 1 : o && skinOn(o, 'llama') ? 2 : 0 }; }),
-      bl: this.bullets.map((b) => { const o = this.players.get(b.owner), c = o ? o.color : '#fff'; return b.tg ? { tg: 1, ox: r0(b.ox), oy: r0(b.oy), x: r0(b.x), y: r0(b.y), vx: 0, vy: 0, c } : { x: r0(b.x), y: r0(b.y), vx: r0(b.vx), vy: r0(b.vy), c, sp: o && skinOn(o, 'llama') ? 1 : undefined }; }),
+      tr: this.turrets.map((t) => { const o = this.players.get(t.owner); return { i: t.id, x: r0(t.x), y: r0(t.y), a: Math.round(t.aim * 100) / 100, hp: t.hp, c: t.color, o: t.owner, fg: o && skinOn(o, 'frog') ? 1 : o && skinOn(o, 'llama') ? 2 : o && skinOn(o, 'pumpkin') ? 3 : 0 }; }),
+      bl: this.bullets.map((b) => { const o = this.players.get(b.owner), c = o ? o.color : '#fff'; return b.tg ? { tg: 1, ox: r0(b.ox), oy: r0(b.oy), x: r0(b.x), y: r0(b.y), vx: 0, vy: 0, c } : { x: r0(b.x), y: r0(b.y), vx: r0(b.vx), vy: r0(b.vy), c, sp: o && skinOn(o, 'llama') ? 1 : undefined, pk: o && skinOn(o, 'pumpkin') ? 1 : undefined }; }),
       bz: this.blizzards.length ? Math.ceil(Math.max(...this.blizzards.map((b) => b.t)) * 10) / 10 : 0,
       bzs: this.blizzards.some((b) => b.sand) ? 1 : 0,
       bza: this.blizzards.some((b) => b.skin === 'aurora') ? 1 : 0,
       bzd: this.blizzards.some((b) => b.skin === 'shadow') ? 1 : 0,
-      pj: this.slashes.map((sl) => { const o = this.players.get(sl.owner); return { i: sl.id, x: r0(sl.x), y: r0(sl.y), vx: sl.vx, o: sl.owner, d: o && skinOn(o, 'darkness') ? 1 : 0, ho: o && skinOn(o, 'holyknight') ? 1 : 0, lc: o ? (activeSkins(o).map((id) => SKIN_DB[id] && SKIN_DB[id].blade).find(Boolean) || undefined) : undefined }; }),
+      pj: this.slashes.map((sl) => { const o = this.players.get(sl.owner); return { i: sl.id, x: r0(sl.x), y: r0(sl.y), vx: sl.vx, o: sl.owner, d: o && skinOn(o, 'darkness') ? 1 : 0, pp: o && skinOn(o, 'pepero_sword') ? 1 : undefined, ho: o && skinOn(o, 'holyknight') ? 1 : 0, lc: o ? (activeSkins(o).map((id) => SKIN_DB[id] && SKIN_DB[id].blade).find(Boolean) || undefined) : undefined }; }),
       sm: this.smokes.map((s) => ({ x: r0(s.x), y: r0(s.y), r: s.r, a: Math.round((s.t / s.max) * 100) / 100, nk: s.nuke ? 1 : undefined })),
       p: this.list().map((p) => ({
         id: p.id, n: p.name, c: p.color, x: r0(p.x), y: r0(p.y), f: p.facing,

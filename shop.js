@@ -14,6 +14,13 @@ const SHOP = {
   SKILL_PRICE: 100,   // 오늘의 스킬 가격
   SKINS_PER_DAY: 3,
   SKILLS_PER_DAY: 2,
+  // 한정판 이벤트: 상점 맨 위에 따로 (from 00:00 ~ until 23:59, 한국 시간). 그 전엔 안 보이고, 끝나면 다시는 못 삼
+  EVENTS: [
+    { id: 'halloween-2026', name: '🎃 할로윈 한정판', desc: '이번 주에만 살 수 있는 한정판 스킨! 기간이 끝나면 다시는 못 사요',
+      skins: ['pumpkin', 'vampire', 'soul'], price: 150, from: '2026-11-02', until: '2026-11-08' },
+    { id: 'pepero-2026', name: '🍫 빼빼로 데이 한정판', desc: '빼빼로 데이 주간에만 살 수 있는 한정판 스킨! 기간이 끝나면 다시는 못 사요',
+      skins: ['pepero_sword', 'pepero_dope'], price: 150, from: '2026-11-09', until: '2026-11-15' },
+  ],
   PACKAGES: [
     {
       id: 'jam-2026w43', name: '방해 패키지', desc: '상대를 괴롭히는 스킬 3종: 지진 · 반전 · 에러',

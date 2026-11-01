@@ -132,18 +132,36 @@
     start() { [523, 659, 784, 1047].forEach((f, i) => tone('square', f, f, 0.18, 0.13, { delay: i * 0.09 })); tone('sine', 1047, 1047, 0.6, 0.15, { delay: 0.36 }); },
     win() { [523, 659, 784, 659, 784, 1047].forEach((f, i) => tone('square', f, f, 0.22, 0.12, { delay: i * 0.13 })); tone('triangle', 262, 262, 0.9, 0.2, { delay: 0.65 }); },
     deny(o) { tone('square', 220, 160, 0.15, 0.12, o); },
+    // ---- 할로윈 스킨 소리 (으스스하게) ----
+    // 유령 같은 떨리는 휘~ (테레민)
+    spooky(o, dur = 0.9, base = 330) {
+      const t = (o.at || now()) + (o.delay || 0);
+      const osc = ac.createOscillator(); osc.type = 'sine';
+      osc.frequency.setValueAtTime(base * 1.5, t); osc.frequency.exponentialRampToValueAtTime(base * 0.7, t + dur);
+      const lfo = ac.createOscillator(), lg = ac.createGain(); lfo.frequency.value = 6.5; lg.gain.value = base * 0.06; lfo.connect(lg).connect(osc.frequency);
+      const g = ac.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.16, t + 0.12); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      osc.connect(g).connect(o.dest || out(1, o.pan)); osc.start(t); osc.stop(t + dur + 0.05); lfo.start(t); lfo.stop(t + dur + 0.05);
+      noise('bandpass', 700, 300, dur * 0.8, 0.12, { ...o, q: 4, atk: 0.1 });
+    },
+    // 마녀 웃음 같은 끊어지는 히히히
+    cackle(o) { for (let i = 0; i < 5; i++) tone('sawtooth', 900 - i * 60, 700 - i * 60, 0.07, 0.06, { ...o, delay: i * 0.09 }); },
+    // 박쥐 끽끽
+    bat(o) { for (let i = 0; i < 3; i++) tone('square', 3200 + Math.random() * 900, 2400, 0.03, 0.06, { ...o, delay: i * 0.05 }); noise('bandpass', 1800, 900, 0.12, 0.2, { ...o, q: 3 }); },
+    // 무덤 문 끼이익
+    creak(o) { tone('sawtooth', 140, 95, 0.5, 0.08, o); tone('sawtooth', 147, 100, 0.5, 0.06, o); noise('lowpass', 600, 200, 0.5, 0.25, { ...o, atk: 0.05 }); },
   };
   // 이벤트 종류 → 효과음
   const MAP = {
-    hit: (o, e) => S.hit(o, e.p), bflash: (o) => S.bflash(o), burn: (o, e) => S.burn(o, e.b), ko: (o) => S.ko(o),
+    hit: (o, e) => S.hit(o, e.p), bflash: (o) => S.bflash(o), burn: (o, e) => { S.burn(o, e.b); if (e.b === 3) S.spooky(o, 0.3, 500); }, ko: (o) => S.ko(o),
     jump: (o) => S.jump(o, false), jump2: (o) => S.jump(o, true), slash: (o) => S.slash(o),
     explode: (o) => S.boom(o), boom: (o) => S.boom(o), smash: (o) => S.boom(o),
     freeze: (o) => S.freeze(o), iced: (o) => S.ice(o), blizzard: (o) => S.whoosh(o, false),
+    tshot: (o) => { S.spooky(o, 0.35, 420); noise('lowpass', 900, 200, 0.12, 0.3, o); },
     bolt: (o, ev) => { S.bolt(o); if (ev && ev.th) { tone('sine', 55, 28, 1.4, 0.7, o); noise('lowpass', 300, 80, 1.3, 0.6, { ...o, atk: 0.05 }); } }, thunk: (o) => S.thud(o), blink: (o) => S.blink(o), swap: (o) => S.blink(o),
     pull: (o) => S.pull(o), push: (o) => S.push(o), quake: (o) => S.quake(o), rock: (o) => S.thud(o),
-    wind: (o) => S.wind(o), windend: (o) => S.gust(o), fdash: (o, e) => S.fire(o, e.b), fly: (o) => S.whoosh(o, true), engine: (o) => S.whoosh(o, true),
+    wind: (o) => S.wind(o), windend: (o) => S.gust(o), fdash: (o, e) => { if (e.b === 3) { S.fire(o, true); S.spooky(o, 0.8, 260); } else S.fire(o, e.b); }, fly: (o) => S.whoosh(o, true), engine: (o) => S.whoosh(o, true),
     clone: (o) => S.poof(o), poof: (o) => S.poof(o), stealth: (o) => S.down(o), slow: (o) => S.down(o),
-    parry: (o) => S.ping(o), parryq: (o) => S.click(o), mineset: (o) => S.click(o), turret: (o) => S.click(o), tbreak: (o) => S.thud(o),
+    parry: (o) => S.ping(o), parryq: (o) => S.click(o), mineset: (o) => S.click(o), turret: (o, e) => { S.click(o); if (e && e.hw) { S.spooky(o, 1.0, 300); S.cackle({ ...o, delay: 0.25 }); } }, tbreak: (o) => S.thud(o),
     empower: (o) => S.power(o), charged: (o) => S.power(o), giant: (o) => S.power(o), sun: (o) => S.power(o), rubber: (o) => S.blink(o),
     error: (o) => S.glitch(o), invert: (o) => S.glitch(o), rewind: (o) => S.rewind(o), tsave: (o) => S.chime(o),
     infest: (o) => S.poof(o), unfest: (o) => S.poof(o), atomq: (o) => S.zap(o), homing: (o) => S.zap(o), bfq: (o) => S.zap(o),
@@ -179,7 +197,9 @@
     ghostmark: (o) => tone('triangle', 900, 1400, 0.18, 0.12, o),
     ghostkill: (o) => { tone('sawtooth', 300, 60, 0.7, 0.2, o); S.ko(o); },
     ghostend: (o) => tone('sine', 400, 150, 0.8, 0.15, o),
-    kunai: (o) => S.lunge(o), kawarimi: (o) => S.poof(o), logpoof: (o) => S.poof(o),
+    kunai: (o, e) => (e && e.hw ? S.bat(o) : S.lunge(o)),
+    kawarimi: (o, e) => { S.poof(o); if (e && e.hw) { S.creak(o); S.spooky({ ...o, delay: 0.1 }, 0.9, 250); } },
+    logpoof: (o, e) => { S.poof(o); if (e && e.hw) S.cackle(o); },
     gamble: (o) => { for (let i = 0; i < 5; i++) tone('square', 300 + Math.random() * 500, 0, 0.04, 0.12, { ...o, delay: i * 0.06 }); S.chime({ ...o, delay: 0.32 }); },
     starfall: (o) => { [1320, 1568, 1760, 2093, 2637].forEach((f, i) => tone('sine', f, f, 0.6, 0.12, { ...o, delay: i * 0.08 })); },
     starpop: (o) => tone('triangle', 2400 + Math.random() * 800, 1600, 0.12, 0.08, o),
