@@ -1306,8 +1306,15 @@ function onEvent(ev) {
     if (ev.h > 0) banners.push({ text: `${th ? '천둥' : '번개'}! ${ev.h}명 스턴`, life: 1.2, max: 1.2, small: true, color: th ? '#6aaeff' : '#ffe94a' });
   } else if (ev.k === 'slash') {
     for (let i = 0; i < 8; i++) particles.push({ x: ev.x, y: ev.y + (Math.random() - 0.5) * 50, vx: ev.f * (200 + Math.random() * 200), vy: (Math.random() - 0.5) * 80, life: 0.3, max: 0.3, c: '#e6f1ff', r: 4, nograv: true });
+  } else if (ev.k === 'fdash' && ev.b === 3) {
+    // 영혼 돌진: 영혼 고리 + 흩어지는 도깨비불
+    particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.45, max: 0.45, r: 70, c: '150,255,220' });
+    for (let i = 0; i < 6; i++) particles.push({ wisp: true, face: i < 2, x: ev.x + (Math.random() - 0.5) * 40, y: ev.y + (Math.random() - 0.5) * 30, vx: (Math.random() - 0.5) * 160, vy: -40 - Math.random() * 90, life: 1, max: 1, r: i < 2 ? 15 : 9, seed: Math.random() * 10 });
   } else if (ev.k === 'fdash') {
     particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.3, max: 0.3, r: 60, c: ev.b === 3 ? '70,255,130' : ev.b === 2 ? '140,50,220' : ev.b ? '60,140,255' : '255,120,40' });
+  } else if (ev.k === 'burn' && ev.b === 3) {
+    // 영혼 불: 몸에서 영혼이 빠져나가듯 도깨비불이 떠오름
+    for (let i = 0; i < 4; i++) particles.push({ wisp: true, face: i === 0, x: ev.x + (Math.random() - 0.5) * 30, y: ev.y + (Math.random() - 0.5) * 20, vx: (Math.random() - 0.5) * 60, vy: -70 - Math.random() * 70, life: 0.9, max: 0.9, r: i === 0 ? 14 : 8 + Math.random() * 4, seed: Math.random() * 10 });
   } else if (ev.k === 'burn') {
     for (let i = 0; i < 8; i++) particles.push({ x: ev.x + (Math.random() - 0.5) * 30, y: ev.y + (Math.random() - 0.5) * 30, vx: (Math.random() - 0.5) * 120, vy: -120 - Math.random() * 160, life: 0.4, max: 0.4, c: ev.b === 3 ? (i % 2 ? '#7dffa8' : '#0f8a40') : ev.b === 2 ? (i % 2 ? '#9a3cf0' : '#1a0828') : ev.b ? (i % 2 ? '#9fd8ff' : '#2a6dff') : (i % 2 ? '#ffb02e' : '#ff4d1a'), r: 5, nograv: true });
   } else if (ev.k === 'iced') {
@@ -1860,7 +1867,16 @@ function drawPlayer(p, time) {
     const g3 = ctx.createLinearGradient(0, 0, -f * 120, 0);
     if (skinOn(p, 'bluefire')) { g3.addColorStop(0, 'rgba(140,210,255,0.95)'); g3.addColorStop(1, 'rgba(30,90,255,0)'); }
     else if (skinOn(p, 'blackfire')) { g3.addColorStop(0, 'rgba(150,60,230,0.95)'); g3.addColorStop(0.5, 'rgba(25,6,40,0.85)'); g3.addColorStop(1, 'rgba(10,0,20,0)'); }
-    else if (skinOn(p, 'soul')) { g3.addColorStop(0, 'rgba(190,255,200,0.95)'); g3.addColorStop(0.5, 'rgba(60,240,120,0.8)'); g3.addColorStop(1, 'rgba(10,90,40,0)'); }
+    else if (skinOn(p, 'soul')) {
+      // 영혼 돌진: 뒤로 반투명한 내 잔상(유령)이 줄줄이 따라옴
+      for (let k = 3; k >= 1; k--) {
+        ctx.fillStyle = `rgba(150,255,220,${0.32 - k * 0.07})`;
+        roundRect(-f * (34 * k) - PW / 2, -PH + 4 * k, PW, PH - 4 * k, 14); ctx.fill();
+        ctx.fillStyle = `rgba(10,50,50,${0.4 - k * 0.1})`;
+        for (const ex of [-6, 6]) { ctx.beginPath(); ctx.ellipse(-f * (34 * k) + ex, -PH * 0.62 + 2 * k, 3, 4.5, 0, 0, Math.PI * 2); ctx.fill(); }
+      }
+      g3.addColorStop(0, 'rgba(200,255,235,0.6)'); g3.addColorStop(1, 'rgba(60,220,180,0)');
+    }
     else { g3.addColorStop(0, 'rgba(255,200,60,0.9)'); g3.addColorStop(1, 'rgba(255,60,20,0)'); }
     ctx.fillStyle = g3; ctx.beginPath(); ctx.ellipse(-f * 50, -PH / 2, 80, 30, 0, 0, Math.PI * 2); ctx.fill();
   }
@@ -1971,7 +1987,20 @@ function drawPlayer(p, time) {
     ctx.strokeStyle = 'rgba(60,56,52,0.9)'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(-10, -PH + 6); ctx.lineTo(-2, -PH / 2); ctx.lineTo(-12, -14); ctx.moveTo(8, -PH + 14); ctx.lineTo(12, -24); ctx.stroke();
   }
-  if (p.brn) {
+  if (skinOn(p, 'soul') && hasK(p, 'fire')) {
+    // 영혼 스킨 주인: 작은 도깨비불 두 개가 몸 주위를 떠돎
+    for (let i = 0; i < 2; i++) {
+      const a4 = time / 700 + i * Math.PI;
+      drawSoulWisp(Math.cos(a4) * 38, -PH * 0.55 + Math.sin(a4 * 2) * 10, 8, time, i * 3, 0.55 + 0.25 * Math.sin(time / 300 + i), false);
+    }
+  }
+  if (p.brn && p.bb === 3) {
+    // 영혼 불에 붙음: 머리 위로 작은 영혼들이 빙글빙글 돌며 빠져나감
+    for (let i = 0; i < 3; i++) {
+      const a3 = time / 260 + (i * Math.PI * 2) / 3;
+      drawSoulWisp(Math.cos(a3) * 18, -PH - 8 + Math.sin(a3) * 6 - (time / 8 + i * 12) % 14, 10, time, i * 2, 0.85, i === 0);
+    }
+  } else if (p.brn) {
     // 불붙음: 몸 위로 흔들리는 불꽃
     for (let i = 0; i < 3; i++) {
       const fx2 = -12 + i * 12, h2 = 16 + Math.sin(time / 50 + i * 2) * 6;
@@ -2110,11 +2139,12 @@ function drawPlayer(p, time) {
     const gl = ctx.createRadialGradient(fx, fy, 2, fx, fy, fr);
     const tint = hotTint(p), blue = tint === 'blue', dk = tint === 'dark', gn = tint === 'green';
     const hot = hasK(p, 'fire') || p.sun;
-    if (gn) { gl.addColorStop(0, 'rgba(200,255,210,0.95)'); gl.addColorStop(0.55, 'rgba(60,240,120,0.65)'); gl.addColorStop(1, 'rgba(10,90,40,0)'); }
+    if (gn) { gl.addColorStop(0, 'rgba(220,255,240,0.7)'); gl.addColorStop(0.55, 'rgba(120,255,210,0.35)'); gl.addColorStop(1, 'rgba(40,200,170,0)'); }
     else gl.addColorStop(0, dk ? 'rgba(200,110,255,0.95)' : blue ? 'rgba(170,225,255,0.95)' : hot ? 'rgba(255,220,90,0.95)' : 'rgba(235,250,255,0.95)');
     if (!gn) gl.addColorStop(0.55, dk ? 'rgba(80,15,140,0.8)' : blue ? 'rgba(100,170,255,0.6)' : hot ? 'rgba(255,140,40,0.6)' : 'rgba(180,225,255,0.6)');
     if (!gn) gl.addColorStop(1, dk ? 'rgba(10,0,20,0)' : blue ? 'rgba(30,90,255,0)' : hot ? 'rgba(255,60,20,0)' : 'rgba(120,200,255,0)');
     ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(fx, fy, fr, 0, Math.PI * 2); ctx.fill();
+    if (gn) drawSoulWisp(fx, fy - 6, p.at === 2 ? 16 : 12, time, 1, 0.95, true);   // 영혼: 주먹에 얼굴 있는 도깨비불
   }
   if (hasK(p, 'ninja')) drawKunaiHand(p, f, fx, fy, time);
   if (hasK(p, 'shotgun')) {
@@ -2767,6 +2797,30 @@ function finishPlayer(p, x, y, G, light, ownerId, baseAlpha, isClone, time) {
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
   }
 }
+// 영혼(화염 할로윈 스킨): 위로 꼬리가 흔들리는 반투명 도깨비불 영혼 (눈·입이 있음)
+function drawSoulWisp(x, y, r, time, seed = 0, alpha = 1, face = true) {
+  ctx.save(); ctx.translate(x, y); ctx.globalAlpha *= alpha;
+  const sway = Math.sin(time / 180 + seed) * r * 0.45;
+  ctx.shadowColor = 'rgba(120,255,210,0.95)'; ctx.shadowBlur = r * 1.4;
+  const g = ctx.createRadialGradient(0, r * 0.15, r * 0.1, 0, 0, r * 1.25);
+  g.addColorStop(0, 'rgba(240,255,250,0.95)'); g.addColorStop(0.45, 'rgba(140,255,215,0.75)'); g.addColorStop(1, 'rgba(40,200,170,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.moveTo(-r, r * 0.2);
+  ctx.bezierCurveTo(-r, r * 1.15, r, r * 1.15, r, r * 0.2);                     // 둥근 아래쪽
+  ctx.bezierCurveTo(r, -r * 0.9, sway * 0.6 + r * 0.3, -r * 1.5, sway, -r * 2.6); // 오른쪽 위로 가늘어지는 꼬리
+  ctx.bezierCurveTo(sway * 0.4 - r * 0.4, -r * 1.4, -r, -r * 0.9, -r, r * 0.2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  if (face && r >= 5) {
+    // 텅 빈 눈 두 개 + 놀란 입
+    ctx.fillStyle = 'rgba(10,40,40,0.85)';
+    ctx.beginPath(); ctx.ellipse(-r * 0.35, r * 0.15, r * 0.17, r * 0.25, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(r * 0.35, r * 0.15, r * 0.17, r * 0.25, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(0, r * 0.62, r * 0.13, r * 0.18, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+}
 function drawParticles(dt) {
   particles = particles.filter((p) => (p.life -= dt) > 0);
   for (const p of particles) {
@@ -2879,6 +2933,10 @@ function drawParticles(dt) {
       ctx.rotate(t * 12); ctx.strokeStyle = 'rgba(200,170,255,0.7)'; ctx.lineWidth = 2;
       for (let k = 0; k < 3; k++) { ctx.rotate(Math.PI * 2 / 3); ctx.beginPath(); ctx.arc(R * 0.3, 0, R * 0.45, 0, Math.PI * 1.1); ctx.stroke(); }
       ctx.restore();
+    } else if (p.wisp) {
+      // 영혼: 흔들리며 위로 떠오르다 사라짐
+      p.x += p.vx * dt + Math.sin((p.life + p.seed) * 9) * 18 * dt; p.y += p.vy * dt; p.vx *= 0.94;
+      drawSoulWisp(p.x, p.y, p.r * (0.6 + a * 0.4), performance.now(), p.seed, Math.min(1, a * 1.4), p.face);
     } else if (p.ghost) {
       ctx.fillStyle = `rgba(${p.c},${a * 0.45})`;
       roundRect(p.x - PW / 2, p.y - PH, PW, PH, 12); ctx.fill();
