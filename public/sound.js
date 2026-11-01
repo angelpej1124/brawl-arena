@@ -169,7 +169,10 @@
     error: (o) => S.glitch(o), invert: (o) => S.glitch(o), rewind: (o) => S.rewind(o), tsave: (o) => S.chime(o),
     infest: (o) => S.poof(o), unfest: (o) => S.poof(o), atomq: (o) => S.zap(o), homing: (o) => S.zap(o), bfq: (o) => S.zap(o),
     start: () => S.start(), deny: (o) => S.deny(o),
-    flash: (o) => { noise('highpass', 4000, 2000, 0.25, 0.9, o); tone('sine', 3200, 2800, 1.2, 0.08, o); tone('sine', 80, 40, 0.3, 0.6, o); },
+    flash: (o, e) => {
+      if (e && e.cam) { noise('highpass', 6000, 3000, 0.05, 0.8, o); tone('square', 2600, 1800, 0.05, 0.14, o); noise('highpass', 5000, 2500, 0.04, 0.5, o); return; }   // 찰칵
+      noise('highpass', 4000, 2000, 0.25, 0.9, o); tone('sine', 3200, 2800, 1.2, 0.08, o); tone('sine', 80, 40, 0.3, 0.6, o);
+    },
     flood: (o) => { noise('lowpass', 500, 1200, 1.2, 0.6, { ...o, atk: 0.2 }); noise('bandpass', 800, 300, 1.0, 0.3, { ...o, q: 1 }); },
     wave: (o) => { tone('sine', 120, 60, 0.6, 0.5, o); noise('bandpass', 600, 2400, 0.5, 0.5, { ...o, q: 2, atk: 0.04 }); tone('sine', 300, 900, 0.4, 0.12, o); },
     drink: (o) => { tone('sine', 500, 900, 0.08, 0.2, o); tone('sine', 700, 1200, 0.08, 0.2, { ...o, delay: 0.09 }); tone('triangle', 900, 1600, 0.25, 0.15, { ...o, delay: 0.18 }); },

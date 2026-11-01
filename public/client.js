@@ -1176,6 +1176,10 @@ function onEvent(ev) {
   } else if (ev.k === 'potland') {
     for (let i = 0; i < 5; i++) particles.push({ x: ev.x, y: ev.y, vx: (Math.random() - 0.5) * 120, vy: -60 - Math.random() * 80, life: 0.3, max: 0.3, c: '#e8f4ff', r: 3 });
   } else if (ev.k === 'flash') {
+    if (ev.cam) {
+      // 플래시 카메라: 여러 겹의 하얀 빛이 한 번에 터짐
+      for (const r of [200, 320, 480]) particles.push({ ring: true, fill: true, x: ev.x, y: ev.y, life: 0.35, max: 0.35, r, c: '255,255,255', grow: true });
+    }
     particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.5, max: 0.5, r: 300, c: '255,250,210' });
     for (let i = 0; i < 26; i++) { const a = Math.random() * Math.PI * 2, sp = 200 + Math.random() * 500; particles.push({ x: ev.x, y: ev.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.4, max: 0.4, c: i % 2 ? '#ffffff' : '#fff3a0', r: 4, nograv: true }); }
     shake = Math.max(shake, 10);

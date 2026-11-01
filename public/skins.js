@@ -75,6 +75,7 @@
     saber_p:     { skill: 'sword', name: '광선검-퍼플', desc: '보라 광선검', color: '#b42aff', blade: '#b42aff' },
     snowninja:   { skill: 'ninja', name: '스노우', desc: '쿠나이 대신 고드름을 휘두르고 던짐. 통나무 대신 눈사람을 남김', color: '#cfeaff' },
     solar:       { skill: 'atom', name: '태양계', desc: '시전자는 이글거리는 태양, 전자는 수성·금성·지구·화성·목성. 스킬을 쓰면 토성·천왕성·해왕성까지 수금지화목토천해가 다 돎', color: '#ffb02e' },
+    camera:      { skill: 'flash', name: '플래시 카메라', desc: '섬광이 카메라 플래시처럼 하얗게 터지고, 터질 때 "찰칵" 셔터 소리가 남', color: '#fff6b0' },
     gold:        { skill: 'rock', name: '골드', desc: '바위 대신 번쩍이는 금덩어리 몸', color: '#ffc928' },
   };
   const PRICE = 100;

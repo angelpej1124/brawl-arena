@@ -1334,7 +1334,7 @@ class Sim {
         if (!o.clone && d < s.blindR) o.blindT = Math.max(o.blindT || 0, s.blindMax * (1 - d / s.blindR) + 0.4);   // 가까울수록 오래 눈부심
       }
       p.skillCd = s.cd;
-      this.ev({ k: 'flash', x: r0(cx), y: r0(cy), pid: p.id });
+      this.ev({ k: 'flash', x: r0(cx), y: r0(cy), pid: p.id, cam: skinOn(p, 'camera') ? 1 : 0 });   // 플래시 카메라 스킨: 찰칵
     } else if (k === 'flood') {
       // 아래에서 물이 차오름 (또 쓰면 더 높이)
       const s = SKILLS.flood, bottom = this.stage.height + 40, top = this.waterTop();
