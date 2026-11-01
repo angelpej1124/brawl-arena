@@ -663,6 +663,37 @@ async function shopBuy(kind, id, name, price) {
   } catch (e) { $('shopMsg').style.color = 'var(--danger)'; $('shopMsg').textContent = e.message; loadShop(); }
 }
 $('shopBtn').addEventListener('click', async () => { $('shopMsg').textContent = ''; $('shopModal').hidden = false; renderShop(); await loadShop(); renderShop(); });
+// ---------------- 미니게임 (상점 밑) ----------------
+// 미니게임은 같은 사이트의 /chess/ 를 전체 화면 창으로 띄움 → 로그인·보석이 그대로 이어짐
+$('miniBtn').addEventListener('click', () => { $('miniModal').hidden = false; });
+$('miniClose').addEventListener('click', () => { $('miniModal').hidden = true; });
+$('miniModal').addEventListener('click', (e) => { if (e.target === $('miniModal')) $('miniModal').hidden = true; });
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('miniModal').hidden) $('miniModal').hidden = true; });
+function openMini(path) {
+  const guest = !account.profile ? cleanNick($('gNick').value) : '';
+  $('miniModal').hidden = true;
+  $('miniFrame').src = path + (guest ? '?guest=' + encodeURIComponent(guest) : '');
+  $('miniFrameWrap').hidden = false;
+  document.body.classList.add('mini-on');
+}
+async function closeMini() {
+  $('miniFrameWrap').hidden = true;
+  $('miniFrame').src = 'about:blank';
+  document.body.classList.remove('mini-on');
+  // 미니게임에서 로그인·로그아웃했거나 보석을 받았을 수 있으니 계정을 새로 불러옴
+  let t = null;
+  try { t = localStorage.getItem('brawl_token'); } catch (e) {}
+  account.token = t;
+  if (!t) account.profile = null;
+  else {
+    try { account.profile = (await api('/api/me')).profile; }
+    catch (e) { if (e.status === 401) { account.token = null; account.profile = null; } }
+  }
+  renderAccount();
+}
+$('miniChess').addEventListener('click', () => openMini('/chess/'));
+addEventListener('message', (e) => { if (e.origin === location.origin && e.data && e.data.t === 'closeMini') closeMini(); });
+
 $('shopClose').addEventListener('click', () => { $('shopModal').hidden = true; });
 $('shopModal').addEventListener('click', (e) => { if (e.target === $('shopModal')) $('shopModal').hidden = true; });
 addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('shopModal').hidden) $('shopModal').hidden = true; });
@@ -770,7 +801,6 @@ async function loadRooms() {
   try {
     const r = await api('/api/rooms');
     $('onlineNow').textContent = r.online;
-    if (r.chessUrl && /^https?:\/\//.test(r.chessUrl) && $('chessLink')) { $('chessLink').href = r.chessUrl; $('chessLink').hidden = false; }
     const ul = $('roomList');
     ul.textContent = '';
     for (const room of r.rooms || []) {

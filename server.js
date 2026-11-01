@@ -11,6 +11,8 @@ const path = require('path');
 const { handleUpgrade } = require('./ws');
 const { Sim, CONFIG, SKILL_IDS, BOT_NAMES, validSkill, cleanInput, conflicts } = require('./game');
 const accounts = require('./accounts');
+const chess = require('./chess/core');   // 미니게임: 럭키 체스 (/chess/)
+const CHESS_DIR = path.join(__dirname, 'chess', 'public');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -29,18 +31,7 @@ function limited(ip, bucket, max, perMs) {
   return ++h.n > max;
 }
 setInterval(() => { const now = Date.now(); for (const [k, h] of hits) if (h.reset < now) hits.delete(k); }, 60000).unref();
-// ---------- 럭키 체스 서버 연동 ----------
-// 체스 사이트(다른 주소)의 서버가 이 서버의 계정·보석을 같이 씀.
-// 두 서버의 환경 변수 CHESS_SECRET 이 같아야 체스 결과(보석 지급)를 받아 줌.
-const CHESS_SECRET = process.env.CHESS_SECRET || '';
-const fromChess = (req) => {
-  const k = String(req.headers['x-chess-key'] || '');
-  return !!CHESS_SECRET && k.length === CHESS_SECRET.length
-    && require('crypto').timingSafeEqual(Buffer.from(k), Buffer.from(CHESS_SECRET));
-};
-// 체스 서버를 거쳐 온 요청은 체스 서버가 알려준 진짜 사용자 IP로 횟수 제한
-const clientIp = (req) => (fromChess(req) && req.headers['x-client-ip'] ? String(req.headers['x-client-ip']).slice(0, 64) : '')
-  || String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || '?';
+const clientIp = (req) => String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || '?';
 
 function sendJson(res, status, obj) {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
@@ -179,30 +170,14 @@ async function api(req, res, urlPath) {
       return sendJson(res, 404, { error: '없는 주소예요.' });
     }
     if (req.method === 'GET' && urlPath === '/api/rooms') {
-      return sendJson(res, 200, { rooms: publicRooms(), online: onlineCount(), chessUrl: process.env.CHESS_URL || '' });
+      return sendJson(res, 200, { rooms: publicRooms(), online: onlineCount() });
     }
-    // ----- 럭키 체스 -----
+    // ----- 미니게임: 럭키 체스 -----
     if (req.method === 'GET' && urlPath === '/api/chess/ranking') {
-      return sendJson(res, 200, { ranking: accounts.chessRanking(10) });
+      return sendJson(res, 200, { ranking: accounts.chessRanking(10), online: chess.onlineCount() });
     }
-    if (urlPath.startsWith('/api/chess/internal/')) {
-      if (!fromChess(req)) return sendJson(res, 403, { error: '체스 서버만 쓸 수 있어요.' });
-      if (req.method === 'GET' && urlPath === '/api/chess/internal/taken') {
-        const nick = new URL(req.url, 'http://x').searchParams.get('nick') || '';
-        return sendJson(res, 200, { taken: accounts.isTaken(nick) });
-      }
-      if (req.method === 'POST' && urlPath === '/api/chess/internal/result') {
-        const b = await readBody(req);
-        const nk = accounts.keyOf(String(b.nick || ''));
-        // 봇전이면 보석만 (난이도별), 사람끼리면 전적·랭킹도
-        const r = b.bot ? accounts.chessBotRecord(nk, String(b.result || ''), String(b.bot)) : accounts.chessRecord(nk, String(b.result || ''));
-        if (!r) return sendJson(res, 404, { error: '그런 계정이 없어요.' });
-        // 난투 아레나에 접속해 있으면 보석이 바로 바뀌어 보임
-        const k = accounts.keyOf(r.profile.nick);
-        for (const room of rooms.values()) for (const c of room.clients.values()) if (c.accountKey === k) c.socket.send(JSON.stringify({ t: 'profile', profile: r.profile }));
-        return sendJson(res, 200, r);
-      }
-      return sendJson(res, 404, { error: '없는 주소예요.' });
+    if (req.method === 'GET' && urlPath === '/api/chess/rooms') {
+      return sendJson(res, 200, { rooms: chess.publicRooms(), online: chess.onlineCount() });
     }
     if (req.method === 'GET' && urlPath === '/api/ranking') {
       return sendJson(res, 200, { ranking: accounts.ranking(10), online: onlineCount() });
@@ -227,8 +202,13 @@ const server = http.createServer((req, res) => {
     return res.end(simJs);
   }
   if (urlPath.startsWith('/api/')) return api(req, res, urlPath);
-  const file = path.normalize(path.join(PUBLIC_DIR, urlPath === '/' ? 'index.html' : urlPath));
-  if (!file.startsWith(PUBLIC_DIR)) { res.writeHead(403); return res.end(); }
+  // 미니게임 화면: /chess/ → chess/public
+  if (urlPath === '/chess') { res.writeHead(301, { Location: '/chess/' }); return res.end(); }
+  const isChess = urlPath.startsWith('/chess/');
+  const base = isChess ? CHESS_DIR : PUBLIC_DIR;
+  const rel = isChess ? urlPath.slice('/chess'.length) : urlPath;
+  const file = path.normalize(path.join(base, rel === '/' ? 'index.html' : rel));
+  if (!file.startsWith(base)) { res.writeHead(403); return res.end(); }
   fs.readFile(file, (err, data) => {
     if (err) { res.writeHead(404); return res.end('Not found'); }
     res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
@@ -388,7 +368,22 @@ function publicRooms() {
 }
 
 // ---------- 실시간 연결 ----------
+// ---------- 미니게임: 럭키 체스 (계정·보석은 이 서버의 accounts 를 그대로 씀) ----------
+chess.init({
+  profileFromToken: (token) => { const k = accounts.fromToken(token); return k ? accounts.profileOf(k) : null; },
+  isTaken: (nick) => accounts.isTaken(nick),
+  record: (nick, result, bot) => {
+    const nk = accounts.keyOf(String(nick || ''));
+    // 봇전이면 보석만 (난이도별), 사람끼리면 체스 전적·랭킹도
+    const r = bot ? accounts.chessBotRecord(nk, result, bot) : accounts.chessRecord(nk, result);
+    // 난투 아레나 방에도 들어가 있으면 보석이 바로 바뀌어 보임
+    if (r) for (const room of rooms.values()) for (const c of room.clients.values()) if (c.accountKey === nk) c.socket.send(JSON.stringify({ t: 'profile', profile: r.profile }));
+    return r;
+  },
+});
+
 server.on('upgrade', (req, sock) => {
+  if (req.url.startsWith('/chess-ws')) return handleUpgrade(req, sock, (socket) => chess.handleSocket(socket, req));
   if (!req.url.startsWith('/ws')) return sock.destroy();
   handleUpgrade(req, sock, (socket) => {
     const id = 'p' + nextId++;

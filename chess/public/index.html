@@ -89,6 +89,8 @@
   .gem-row small { color: var(--muted); }
   .link-note { background: rgba(111,227,154,.08); border: 1px solid rgba(111,227,154,.3); border-radius: 10px; padding: 10px 12px; font-size: 13px; line-height: 1.55; margin-top: 12px; }
   .link-note a { color: var(--lucky); font-weight: 700; }
+  .back-btn { border: 1px solid var(--line); background: #15122a; color: var(--muted); border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 700; cursor: pointer; margin: -6px 0 10px -4px; }
+  .back-btn:hover { color: var(--text); border-color: var(--accent); }
   .rules-note { background: rgba(255,207,63,.07); border-color: rgba(255,207,63,.3); }
   .rank { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
   .rank li { display: flex; justify-content: space-between; gap: 8px; background: #15122a; border-radius: 8px; padding: 8px 10px; font-size: 14px; }
@@ -239,6 +241,7 @@
 <div id="lobby">
   <div class="lobby-wrap">
     <div class="card">
+      <button class="back-btn" id="backBtn" type="button">← 난투 아레나</button>
       <h1>럭키 체스 <span class="clover" aria-hidden="true">☘</span></h1>
       <p class="sub">동전 · 주사위 · 가위바위보로 즐기는 운빨 체스! 흑백은 매 판 랜덤</p>
 
@@ -325,8 +328,7 @@
       </div>
       <div class="link-note">
         <b>난투 아레나 계정 그대로!</b><br>
-        같은 닉네임·비밀번호로 로그인돼요. 여기서 가입해도 난투 아레나에서 쓸 수 있고, 보석도 같이 쌓여요.<br>
-        <a id="brawlLink" href="https://brawl-arena-uiea.onrender.com" target="_blank" rel="noopener">난투 아레나 하러 가기 →</a>
+        난투 아레나에 로그인돼 있으면 여기서도 바로 그 계정이에요. 체스에서 받은 보석은 난투 아레나에서 그대로 써요.
       </div>
       <span class="lbl">체스 랭킹 (승리 순)</span>
       <ol class="rank" id="rank"></ol>

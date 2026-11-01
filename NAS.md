@@ -13,21 +13,20 @@ DSM 7.2 이상, **Container Manager**가 되는 모델(대부분의 plus 모델,
 1. PC에서 `.env.example`을 복사해 이름을 **`.env`**로 바꾸고 메모장으로 값을 채워요.
    - `DATABASE_URL`: Render 대시보드 → brawl-arena → **Environment**에 있는 값을 그대로 복사해요. 이걸 넣어야 원래 계정·보석·스킨이 이어져요. 비워 두면 NAS에 새로 저장해요 (처음부터 시작).
    - `ADMIN_NICKS`: 관리자 닉네임 (예: `deku`)
-   - 럭키 체스도 쓸 거면 `CHESS_SECRET`(아무 긴 글자)과 `CHESS_URL`(사람들이 체스에 들어갈 주소)을 넣어요.
 2. `.env` 파일을 `docker/brawl-arena/` 폴더에 올려요. (`.env`는 비밀번호가 들어 있으니 아무에게도 보여주지 마세요.)
 
 ## 3. 실행
 1. **Container Manager → 프로젝트 → 생성**
 2. 프로젝트 이름: `brawl-arena` · 경로: `/docker/brawl-arena` 선택
 3. 원본: **"기존 docker-compose.yml 사용"** → 다음 → (웹 포털 설정은 건너뛰기) → **완료**
-4. 처음엔 이미지를 만들고(빌드) 켜느라 1~3분 걸려요. 컨테이너 `brawl-arena`, `lucky-chess`가 **실행 중**이 되면 끝!
-5. 같은 와이파이에서 `http://NAS내부IP:8580` 으로 들어가 봐요 (체스는 `:8581`).
-   체스를 안 쓰면 `lucky-chess` 컨테이너는 꺼 둬도 돼요.
+4. 처음엔 이미지를 만들고(빌드) 켜느라 1~3분 걸려요. 컨테이너 `brawl-arena`가 **실행 중**이 되면 끝!
+5. 같은 와이파이에서 `http://NAS내부IP:8580` 으로 들어가 봐요. 럭키 체스는 로비의 상점 밑 **🎮 미니게임**에 있어요.
+   (예전 설정으로 만든 `lucky-chess` 컨테이너가 남아 있으면 이제 필요 없으니 정지하고 지워도 돼요.)
 
 ## 4. 밖(친구 폰·다른 집)에서 들어오게 하기
 QuickConnect로는 게임에 못 들어와요. 아래 둘 중 하나를 해요.
 
-**A. 간단하게 (http)**: 공유기 설정에서 **포트 포워딩** 외부 8580 → NAS내부IP:8580 (체스는 8581).
+**A. 간단하게 (http)**: 공유기 설정에서 **포트 포워딩** 외부 8580 → NAS내부IP:8580.
 주소는 `http://집공인IP:8580` 또는 DDNS 주소 `http://내이름.synology.me:8580`.
 
 **B. 추천 (https, 포트 번호 없이)**
@@ -45,7 +44,7 @@ QuickConnect로는 게임에 못 들어와요. 아래 둘 중 하나를 해요.
 
 ## 오류가 날 때
 - **`driver failed programming external connectivity` / `port is already allocated` / `address already in use`**
-  NAS의 다른 앱이 같은 포트를 쓰고 있어요. `.env`에 `BRAWL_PORT=8590`, `CHESS_PORT=8591`처럼 다른 숫자를 넣고
+  NAS의 다른 앱이 같은 포트를 쓰고 있어요. `.env`에 `BRAWL_PORT=8590`처럼 다른 숫자를 넣고
   프로젝트를 **정지 → 시작** (또는 작업 → 빌드) 하세요. 컨테이너 목록에 예전에 만든 `brawl-arena`가 남아 있으면 지우고 다시 해요.
 
 - **`Bind mount failed: '/volume1/docker/brawl-arena/data' does not exist`**

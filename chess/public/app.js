@@ -91,7 +91,14 @@ const SFX = {
 };
 
 // ---------------- 계정 ----------------
-const account = { token: store.get('chess_token'), profile: null };
+// 난투 아레나와 같은 사이트라 로그인도 같이 씀 (brawl_token)
+const account = { token: store.get('brawl_token'), profile: null };
+// 난투 아레나 안(미니게임 창)에서 열렸는지
+const embedded = window.parent !== window;
+function backToBrawl() {
+  if (embedded) window.parent.postMessage({ t: 'closeMini' }, location.origin);
+  else location.href = '/';
+}
 let authMode = 'login';
 // 계정 서버(난투 아레나)가 자다가 깨어나는 중이면 서버가 waking 으로 답함 → 깰 때까지 저절로 다시 시도
 //   onWait(초): 기다리는 동안 화면에 보여 줄 때 씀
@@ -116,14 +123,7 @@ async function api(p, opts = {}) {
     return j;
   }
 }
-const wakeMsg = (sec) => `계정 서버를 깨우는 중이에요… (${sec}초) 오래 안 들어오면 서버가 잠들어서 처음엔 1~2분 걸릴 수 있어요.`;
-// 브라우저에서도 바로 계정 서버를 깨움 (체스 서버보다 먼저 깨어날 수 있게)
-let brawlPinged = false;
-function pingBrawlFromBrowser(url) {
-  if (brawlPinged || !/^https?:\/\//.test(url || '')) return;
-  brawlPinged = true;
-  fetch(url.replace(/\/+$/, '') + '/health', { mode: 'no-cors', cache: 'no-store' }).catch(() => {});
-}
+const wakeMsg = (sec) => `서버에 연결하는 중이에요… (${sec}초)`;
 function setAuthMode(m) {
   authMode = m;
   for (const [id, mode] of [['tabLogin', 'login'], ['tabSignup', 'signup'], ['tabGuest', 'guest']]) $(id).setAttribute('aria-selected', String(m === mode));
@@ -138,7 +138,8 @@ function setAuthMode(m) {
 $('tabLogin').onclick = () => setAuthMode('login');
 $('tabSignup').onclick = () => setAuthMode('signup');
 $('tabGuest').onclick = () => setAuthMode('guest');
-$('gNick').value = store.get('chess_guest') || '';
+$('gNick').value = new URLSearchParams(location.search).get('guest') || store.get('chess_guest') || '';
+$('backBtn').onclick = backToBrawl;
 $('authForm').onsubmit = async (e) => {
   e.preventDefault();
   const nick = $('aNick').value.trim(), pw = $('aPw').value;
@@ -147,7 +148,7 @@ $('authForm').onsubmit = async (e) => {
   $('authMsg').textContent = '계정 서버에 연결하는 중…';
   try {
     const r = await api('/api/' + authMode, { method: 'POST', body: { nick, pw }, onWait: (sec) => { $('authMsg').textContent = wakeMsg(sec); } });
-    account.token = r.token; store.set('chess_token', r.token);
+    account.token = r.token; store.set('brawl_token', r.token);
     setProfile(r.profile);
     $('aPw').value = ''; $('aPw2').value = '';
     $('authMsg').textContent = '';
@@ -156,7 +157,7 @@ $('authForm').onsubmit = async (e) => {
 };
 $('logoutBtn').onclick = () => {
   api('/api/logout', { method: 'POST' }).catch(() => {});
-  account.token = null; account.profile = null; store.set('chess_token', null);
+  account.token = null; account.profile = null; store.set('brawl_token', null);
   setProfile(null);
 };
 function setProfile(p) {
@@ -176,7 +177,7 @@ async function loadMe() {
   $('acctText').textContent = '계정 확인 중…';
   try { setProfile((await api('/api/me', { onWait: (sec) => { $('acctText').textContent = wakeMsg(sec); } })).profile); }
   catch (e) {
-    if (e.status === 401) { account.token = null; store.set('chess_token', null); setProfile(null); }
+    if (e.status === 401) { account.token = null; store.set('brawl_token', null); setProfile(null); }
     else $('acctText').textContent = e.message;
   }
 }
@@ -207,10 +208,8 @@ const timeLabel = (m) => (m ? m + '분' : '무제한');
 async function loadRooms() {
   if (!$('lobby').hidden) {
     try {
-      const r = await api('/api/rooms', { wait: false });
-      pingBrawlFromBrowser(r.brawl);
+      const r = await api('/api/chess/rooms', { wait: false });
       $('onlineNow').textContent = r.online;
-      if (r.brawl && /^https?:\/\//.test(r.brawl)) $('brawlLink').href = r.brawl;
       const ul = $('roomList');
       ul.innerHTML = r.rooms.map((x) => `<li><button type="button" data-code="${esc(x.code)}" ${x.full ? 'disabled' : ''}>
         <span class="rt">${esc(x.title)}</span>
@@ -222,7 +221,7 @@ async function loadRooms() {
 }
 async function loadRanking() {
   try {
-    const r = await api('/api/ranking', { onWait: () => { $('rankEmpty').textContent = '랭킹 불러오는 중…'; } });
+    const r = await api('/api/chess/ranking', { onWait: () => { $('rankEmpty').textContent = '랭킹 불러오는 중…'; } });
     $('rank').innerHTML = (r.ranking || []).map((x, i) => `<li><span>${i + 1}. ${esc(x.nick)}</span><small>${x.w}승 ${x.l}패 ${x.d}무</small></li>`).join('');
     $('rankEmpty').textContent = (r.ranking || []).length ? '' : '아직 기록이 없어요. 첫 승리의 주인공이 되어 보세요!';
   } catch (e) { $('rankEmpty').textContent = '랭킹을 불러오지 못했어요.'; }
@@ -260,7 +259,7 @@ function connect(msg) {
   $('playBtn').disabled = true;
   if (!msg.resumeOnly) $('err').textContent = '';
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const s = new WebSocket(`${proto}//${location.host}/ws`);
+  const s = new WebSocket(`${proto}//${location.host}/chess-ws`);
   ws = s;
   s.onopen = () => s.send(JSON.stringify(msg));
   s.onmessage = (e) => { let m; try { m = JSON.parse(e.data); } catch (_) { return; } onMsg(m); };
@@ -683,7 +682,7 @@ function toast(msg) {
 }
 
 // ---------------- 시작 ----------------
-setAuthMode('login');
+setAuthMode(!account.token && new URLSearchParams(location.search).get('guest') ? 'guest' : 'login');
 setRoomTab('list');
 loadMe(); loadRooms(); loadRanking();
 setInterval(loadRooms, 4000);
