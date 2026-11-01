@@ -62,7 +62,7 @@ $('titleSub').textContent = INFO[GAME].name;
 $('subtitle').textContent = INFO[GAME].sub;
 $('rulesBox').innerHTML = INFO[GAME].rules;
 $('rankLbl').textContent = INFO[GAME].rank;
-$('botHint').textContent = GAME === 'poker' ? '봇전은 연습 칩으로 해요 (보석이 안 바뀌어요).' : '봇전 보석: 1등 이지 +10 · 미들 +25 · 하드 +50, 참가 +5';
+$('botHint').textContent = GAME === 'poker' ? '봇전은 연습 칩으로 해요 (보석이 안 바뀌어요).' : '봇전 보석: 1등 이지 +10 · 미들 +25 · 하드 +50, 참가 +5 (봇 중 가장 높은 난이도 기준)';
 $('guestHint').textContent = GAME === 'poker' ? '게스트는 연습 칩으로만 해요.' : '게스트는 보석을 받지 않아요.';
 
 // ---------------- 카드 그리기 ----------------
@@ -149,26 +149,44 @@ async function loadMe() {
 }
 
 // ---------------- 로비 ----------------
-let roomTab = 'list', botDiff = store.get('cards_bot') || 'medium', botN = Number(store.get('cards_botn') || (GAME === 'poker' ? 2 : 3));
 const DIFF_KO = { easy: '이지', medium: '미들', hard: '하드' };
+let roomTab = 'list';
+// 봇전: 봇마다 난이도를 따로 고름 (1~3명). 예: [하드, 이지, 이지]
+function loadBots() {
+  try {
+    const a = JSON.parse(store.get('cards_bots') || 'null');
+    if (Array.isArray(a) && a.length >= 1 && a.length <= 3 && a.every((d) => DIFF_KO[d])) return a;
+  } catch (e) {}
+  return Array(GAME === 'poker' ? 2 : 3).fill('medium');
+}
+let botDiffs = loadBots();
 function setRoomTab(t) {
   roomTab = t;
   for (const [id, k] of [['rtList', 'list'], ['rtCreate', 'create'], ['rtCode', 'code'], ['rtBot', 'bot']]) $(id).setAttribute('aria-selected', String(t === k));
   $('rpList').hidden = t !== 'list'; $('rpCreate').hidden = t !== 'create'; $('rpCode').hidden = t !== 'code'; $('rpBot').hidden = t !== 'bot';
-  $('playBtn').textContent = t === 'list' ? '빠른 입장' : t === 'create' ? '방 만들기' : t === 'bot' ? `봇 ${botN}명이랑 시작 (${DIFF_KO[botDiff]})` : '입장하기';
+  $('playBtn').textContent = t === 'list' ? '빠른 입장' : t === 'create' ? '방 만들기' : t === 'bot' ? `봇 ${botDiffs.length}명이랑 시작 (${botDiffs.map((d) => DIFF_KO[d]).join(' · ')})` : '입장하기';
 }
 $('rtList').onclick = () => setRoomTab('list'); $('rtCreate').onclick = () => setRoomTab('create');
 $('rtCode').onclick = () => setRoomTab('code'); $('rtBot').onclick = () => setRoomTab('bot');
-function setBot(d, n) {
-  botDiff = DIFF_KO[d] ? d : 'medium'; botN = [1, 2, 3].includes(n) ? n : 1;
-  store.set('cards_bot', botDiff); store.set('cards_botn', String(botN));
-  for (const b of $('diffs').children) b.setAttribute('aria-pressed', String(b.dataset.d === botDiff));
-  for (const b of $('botN').children) b.setAttribute('aria-pressed', String(Number(b.dataset.n) === botN));
+function setBots(arr) {
+  botDiffs = arr;
+  store.set('cards_bots', JSON.stringify(arr));
+  $('botSlots').innerHTML = arr.map((d, i) => `<div class="bot-slot"><span>봇 ${i + 1}</span><div class="seg">${['easy', 'medium', 'hard'].map((k) => `<button type="button" data-slot="${i}" data-d="${k}" aria-pressed="${k === d}">${DIFF_KO[k]}</button>`).join('')}</div></div>`).join('');
+  for (const b of $('botSlots').querySelectorAll('[data-slot]')) {
+    b.onclick = () => { const next = botDiffs.slice(); next[Number(b.dataset.slot)] = b.dataset.d; setBots(next); };
+  }
+  for (const b of $('botN').children) b.setAttribute('aria-pressed', String(Number(b.dataset.n) === arr.length));
   if (roomTab === 'bot') setRoomTab('bot');
 }
-for (const b of $('diffs').children) b.onclick = () => setBot(b.dataset.d, botN);
-for (const b of $('botN').children) b.onclick = () => setBot(botDiff, Number(b.dataset.n));
-setBot(botDiff, botN);
+for (const b of $('botN').children) {
+  b.onclick = () => {
+    const n = Number(b.dataset.n);
+    const next = botDiffs.slice(0, n);
+    while (next.length < n) next.push('medium');
+    setBots(next);
+  };
+}
+setBots(botDiffs);
 $('roomcode').value = store.get('cards_room') || '';
 async function loadRooms() {
   if ($('lobby').hidden) return;
@@ -191,7 +209,7 @@ async function loadRanking() {
 $('playBtn').onclick = () => {
   if (roomTab === 'list') go('quick');
   else if (roomTab === 'create') go('create', { title: $('roomTitle').value.trim() });
-  else if (roomTab === 'bot') go('bot', { diff: botDiff, bots: botN });
+  else if (roomTab === 'bot') go('bot', { bots: botDiffs.slice() });
   else {
     const code = $('roomcode').value.trim().toLowerCase();
     if (!code) { $('err').textContent = '초대 코드를 써 주세요.'; return; }
