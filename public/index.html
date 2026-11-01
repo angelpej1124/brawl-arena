@@ -162,6 +162,23 @@
   .snd-row { display: flex; justify-content: center; gap: 6px; margin: -4px 0 10px; }
   .snd-row .snd-btn { border: 1px solid #3d3670; border-radius: 999px; padding: 4px 12px; background: transparent; color: var(--muted); cursor: pointer; font-size: 12px; }
   .snd-btn.off { opacity: .5; text-decoration: line-through; }
+  .snd-row .set-btn { border: 1px solid #3d3670; border-radius: 999px; padding: 4px 12px; background: transparent; color: var(--muted); cursor: pointer; font-size: 12px; }
+  .set-card { width: min(440px, 100%); }
+  .set-h { margin: 14px 0 6px; font-size: 15px; color: var(--text); }
+  .set-h small { font-weight: 400; font-size: 12px; color: var(--muted); }
+  .set-sub { font-size: 13px; color: var(--accent); margin: 10px 0 2px; font-weight: 700; }
+  .set-row { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
+  .set-row span { width: 64px; flex: none; font-size: 13px; color: var(--muted); }
+  .set-row input[type=range] { flex: 1; min-width: 0; accent-color: var(--accent); height: 28px; }
+  .set-row output { width: 44px; flex: none; text-align: right; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .set-row .snd-btn { border: 1px solid #3d3670; border-radius: 999px; padding: 4px 10px; background: transparent; color: var(--text); cursor: pointer; font-size: 12px; flex: none; width: 52px; }
+  /* 모바일 버튼 묶음: 설정의 크기·위치를 transform으로 적용 */
+  .tgrp { position: absolute; inset: 0; pointer-events: none; }
+  #tgMove { transform-origin: left bottom; transform: translate(var(--tx, 0px), calc(-1 * var(--ty, 0px))) scale(var(--ts, 1)); }
+  #tgAct { transform-origin: right bottom; transform: translate(calc(-1 * var(--tx, 0px)), calc(-1 * var(--ty, 0px))) scale(var(--ts, 1)); }
+  /* 설정 창에서 버튼 미리보기 */
+  body.tpreview #touch { display: block !important; z-index: 30; opacity: .6; }
+  body.tpreview #touch, body.tpreview #touch * { pointer-events: none !important; }
   .botlist { display: flex; flex-wrap: wrap; gap: 6px; }
   .botlist .bp { display: flex; align-items: center; gap: 4px; background: #15122a; border-radius: 8px; padding: 3px 6px; font-size: 12px; color: var(--muted); }
   .botlist .kick { border: 1px solid #ff6b6b; border-radius: 6px; background: transparent; color: #ffb3b3; font: inherit; font-size: 12px; padding: 2px 8px; cursor: pointer; }
@@ -376,7 +393,7 @@
     <div class="card">
       <h1>난투 아레나</h1>
       <p class="sub">서로 때려서 날려버리고, 마지막까지 살아남으세요</p>
-      <div class="snd-row"><button class="snd-btn" data-snd="bgm" type="button">음악</button><button class="snd-btn" data-snd="sfx" type="button">효과음</button></div>
+      <div class="snd-row"><button class="snd-btn" data-snd="bgm" type="button">음악</button><button class="snd-btn" data-snd="sfx" type="button">효과음</button><button class="set-btn" type="button">⚙ 설정</button></div>
 
       <section id="authBox" aria-label="로그인">
         <div class="tabs" role="tablist">
@@ -507,6 +524,7 @@
   <button id="dumDel" hidden>더미 빼기</button>
   <button class="snd-btn" data-snd="bgm" type="button">음악</button>
   <button class="snd-btn" data-snd="sfx" type="button">효과음</button>
+  <button class="set-btn" type="button" title="설정">⚙</button>
   <button id="exitBtn">나가기</button>
 </div>
 <div id="net" hidden></div>
@@ -541,15 +559,19 @@
 <div id="rotate" hidden>가로로 돌리면 더 크게 보여요</div>
 
 <div id="touch" hidden>
+ <div class="tgrp" id="tgMove">
   <div class="tbtn tb-l" data-k="l">◀</div>
   <div class="tbtn tb-r" data-k="r">▶</div>
   <div class="tbtn tb-d" data-k="d">▼</div>
+ </div>
+ <div class="tgrp" id="tgAct">
   <div class="tbtn tb-h" data-k="h">강</div>
   <div class="tbtn tb-a" data-k="a">약</div>
   <div class="tbtn tb-u" data-k="u">점프</div>
   <div class="tbtn tb-s" data-k="s" id="tSkill"><span id="tSkillName">스킬</span><small id="tSkillCd"></small></div>
   <div class="tbtn tb-e" data-k="e" id="tSkill2" hidden><span id="tSkill2Name">밀기</span><small id="tSkill2Cd">E</small></div>
   <div class="tbtn tb-e tb-x" data-k="x" id="tSkill3" hidden><span id="tSkill3Name">R</span><small id="tSkill3Cd">R</small></div>
+ </div>
 </div>
 
 <div id="nickModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="nickTitle">
@@ -560,6 +582,26 @@
     <input id="nickNew" maxlength="12" autocomplete="off">
     <button class="sub-btn" id="nickSave" type="button">바꾸기</button>
     <p class="hint" id="nickMsg" role="status"></p>
+  </div>
+</div>
+<div id="setModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="setTitle">
+  <div class="modal-card set-card">
+    <div class="modal-head"><b id="setTitle">설정</b><button class="modal-x" id="setClose" type="button" aria-label="닫기">✕</button></div>
+    <h4 class="set-h">소리</h4>
+    <div class="set-row"><span>음악</span><input type="range" id="setBv" min="0" max="200" step="5"><output id="setBvO"></output><button class="snd-btn" data-snd="bgm" type="button">켜짐</button></div>
+    <div class="set-row"><span>효과음</span><input type="range" id="setSv" min="0" max="200" step="5"><output id="setSvO"></output><button class="snd-btn" data-snd="sfx" type="button">켜짐</button></div>
+    <p class="hint">100%가 원래 크기예요. 최대 200%까지 키울 수 있어요.</p>
+    <h4 class="set-h">모바일 버튼 <small>(조절하면 화면에 미리 보여요)</small></h4>
+    <div class="set-sub">이동 버튼 (◀ ▶ ▼)</div>
+    <div class="set-row"><span>크기</span><input type="range" data-t="ms" min="70" max="170" step="5"><output></output></div>
+    <div class="set-row"><span>좌우 위치</span><input type="range" data-t="mx" min="0" max="100" step="1"><output></output></div>
+    <div class="set-row"><span>높이</span><input type="range" data-t="my" min="0" max="100" step="1"><output></output></div>
+    <div class="set-sub">공격·점프·스킬 버튼</div>
+    <div class="set-row"><span>크기</span><input type="range" data-t="as" min="70" max="170" step="5"><output></output></div>
+    <div class="set-row"><span>좌우 위치</span><input type="range" data-t="ax" min="0" max="100" step="1"><output></output></div>
+    <div class="set-row"><span>높이</span><input type="range" data-t="ay" min="0" max="100" step="1"><output></output></div>
+    <button class="link-btn" id="setReset" type="button">버튼 위치·크기 처음대로</button>
+    <button class="play" id="setOk" type="button">확인</button>
   </div>
 </div>
 <div id="patchModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="patchTitle">

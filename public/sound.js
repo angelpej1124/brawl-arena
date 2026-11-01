@@ -5,7 +5,10 @@
 (function (root) {
   let ac = null, master, sfxBus, bgmBus, noiseBuf;
   const store = (() => { try { return JSON.parse(localStorage.getItem('brawlSound') || '{}'); } catch (_) { return {}; } })();
-  const opt = { bgm: store.bgm !== false, sfx: store.sfx !== false };
+  const clampV = (v) => { v = +v; return isFinite(v) ? Math.max(0, Math.min(2, v)) : 1; };
+  // bgm/sfx: 켜짐·꺼짐, bv/sv: 크기 (0~2 = 0%~200%, 기본 1 = 100%)
+  const opt = { bgm: store.bgm !== false, sfx: store.sfx !== false, bv: clampV(store.bv ?? 1), sv: clampV(store.sv ?? 1) };
+  const busV = (k) => k === 'sfx' ? (opt.sfx ? 0.9 * opt.sv : 0) : (opt.bgm ? 0.45 * opt.bv : 0);
   const saveOpt = () => { try { localStorage.setItem('brawlSound', JSON.stringify(opt)); } catch (_) {} };
 
   function init() {
@@ -16,8 +19,8 @@
     master = ac.createGain(); master.gain.value = 0.8;
     const comp = ac.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4;
     master.connect(comp).connect(ac.destination);
-    sfxBus = ac.createGain(); sfxBus.gain.value = opt.sfx ? 0.9 : 0; sfxBus.connect(master);
-    bgmBus = ac.createGain(); bgmBus.gain.value = opt.bgm ? 0.45 : 0; bgmBus.connect(master);
+    sfxBus = ac.createGain(); sfxBus.gain.value = busV('sfx'); sfxBus.connect(master);
+    bgmBus = ac.createGain(); bgmBus.gain.value = busV('bgm'); bgmBus.connect(master);
     noiseBuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
     const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     startBgm();
@@ -261,10 +264,10 @@
   }
   function mode(m) { want = m === 'battle' ? 'battle' : 'calm'; }
 
-  function set(k, on) {
-    opt[k] = !!on; saveOpt();
-    if (ac) { if (k === 'sfx') sfxBus.gain.value = on ? 0.9 : 0; if (k === 'bgm') bgmBus.gain.value = on ? 0.45 : 0; }
-  }
+  function apply() { if (ac) { sfxBus.gain.setTargetAtTime(busV('sfx'), ac.currentTime, 0.02); bgmBus.gain.setTargetAtTime(busV('bgm'), ac.currentTime, 0.02); } }
+  function set(k, on) { opt[k] = !!on; saveOpt(); apply(); }
+  // 크기 조절: k = 'bv'(음악) | 'sv'(효과음), v = 0~2
+  function vol(k, v) { if (k !== 'bv' && k !== 'sv') return; opt[k] = clampV(v); saveOpt(); apply(); }
   function play(name) { if (ac && opt.sfx && S[name]) try { S[name]({}); } catch (_) {} }
   // 이벤트가 없는 소리(검 휘두르기 등): x 위치로 크기·좌우 맞춤
   function at(name, x, y, me) {
@@ -275,5 +278,5 @@
     try { S[name]({ dest: out(vol, pan) }); } catch (_) {}
   }
 
-  root.SFX = { event, mode, set, play, at, get: () => ({ ...opt }), init, _S: S, _MAP: MAP, _ac: () => ac, _master: () => master };
+  root.SFX = { event, mode, set, vol, play, at, get: () => ({ ...opt }), init, _S: S, _MAP: MAP, _ac: () => ac, _master: () => master };
 })(this);

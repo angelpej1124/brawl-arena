@@ -746,6 +746,50 @@ for (const b of document.querySelectorAll('.snd-btn')) b.addEventListener('click
   SFX.init(); SFX.set(b.dataset.snd, !SFX.get()[b.dataset.snd]); renderSnd();
 });
 renderSnd();
+
+// ---------- 설정 창: 소리 크기 · 모바일 버튼 위치/크기 ----------
+const TDEF = { ms: 100, mx: 0, my: 0, as: 100, ax: 0, ay: 0 };
+const tset = (() => { try { return { ...TDEF, ...JSON.parse(localStorage.getItem('brawlTouch') || '{}') }; } catch (_) { return { ...TDEF }; } })();
+function applyTouchLayout() {
+  // 위치는 0~100 → 화면 너비의 최대 30%, 높이의 최대 45%까지 안쪽/위로 옮김
+  const mxW = innerWidth * 0.3, myH = innerHeight * 0.45;
+  for (const [id, k] of [['tgMove', 'm'], ['tgAct', 'a']]) {
+    const el = $(id); if (!el) continue;
+    el.style.setProperty('--ts', (Math.max(70, Math.min(170, +tset[k + 's'] || 100)) / 100).toFixed(2));
+    el.style.setProperty('--tx', Math.round((+tset[k + 'x'] || 0) / 100 * mxW) + 'px');
+    el.style.setProperty('--ty', Math.round((+tset[k + 'y'] || 0) / 100 * myH) + 'px');
+  }
+}
+function saveTouch() { try { localStorage.setItem('brawlTouch', JSON.stringify(tset)); } catch (_) {} }
+applyTouchLayout(); addEventListener('resize', applyTouchLayout);
+function renderSet() {
+  const o = window.SFX ? SFX.get() : { bv: 1, sv: 1 };
+  $('setBv').value = Math.round((o.bv ?? 1) * 100); $('setBvO').textContent = $('setBv').value + '%';
+  $('setSv').value = Math.round((o.sv ?? 1) * 100); $('setSvO').textContent = $('setSv').value + '%';
+  for (const r of document.querySelectorAll('#setModal input[data-t]')) {
+    r.value = tset[r.dataset.t]; r.nextElementSibling.textContent = r.dataset.t[1] === 's' ? r.value + '%' : r.value;
+  }
+  for (const b of document.querySelectorAll('#setModal .snd-btn')) b.textContent = b.classList.contains('off') ? '꺼짐' : '켜짐';
+}
+function openSet() { renderSnd(); renderSet(); $('setModal').hidden = false; }
+function closeSet() { $('setModal').hidden = true; document.body.classList.remove('tpreview'); }
+for (const b of document.querySelectorAll('.set-btn')) b.addEventListener('click', (e) => { e.currentTarget.blur(); openSet(); });
+$('setClose').addEventListener('click', closeSet); $('setOk').addEventListener('click', closeSet);
+$('setModal').addEventListener('click', (e) => { if (e.target === $('setModal')) closeSet(); });
+for (const [id, k] of [['setBv', 'bv'], ['setSv', 'sv']]) $(id).addEventListener('input', (e) => {
+  if (!window.SFX) return; SFX.init();
+  SFX.vol(k, e.target.value / 100);
+  if (+e.target.value > 0 && !SFX.get()[k === 'bv' ? 'bgm' : 'sfx']) SFX.set(k === 'bv' ? 'bgm' : 'sfx', true);   // 올리면 자동으로 켜짐
+  renderSnd(); renderSet();
+});
+$('setSv').addEventListener('change', () => { if (window.SFX) SFX.play('hit'); });   // 효과음 크기 확인용
+for (const r of document.querySelectorAll('#setModal input[data-t]')) r.addEventListener('input', () => {
+  tset[r.dataset.t] = +r.value; saveTouch(); applyTouchLayout(); renderSet();
+  document.body.classList.add('tpreview');
+});
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('setModal').hidden) closeSet(); });
+$('setReset').addEventListener('click', () => { Object.assign(tset, TDEF); saveTouch(); applyTouchLayout(); renderSet(); document.body.classList.add('tpreview'); });
+for (const b of document.querySelectorAll('#setModal .snd-btn')) b.addEventListener('click', () => setTimeout(renderSet, 0));
 let snapshots = [], latest = null, lastEvSeen = 0, pingMs = null;
 
 try { $('roomcode').value = localStorage.getItem('brawl_room') || ''; } catch (e) {}
