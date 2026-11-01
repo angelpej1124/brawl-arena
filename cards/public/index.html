@@ -47,6 +47,9 @@
   .seg button[aria-pressed="true"] { background: var(--panel-2); color: var(--accent); }
   .sub-btn { width: 100%; margin-top: 14px; padding: 11px; border-radius: 10px; border: 1.5px solid var(--accent); background: transparent; color: var(--accent); font-size: 15px; font-weight: 700; cursor: pointer; }
   .sub-btn:disabled { opacity: .5; cursor: wait; }
+  .bot-slots { display: grid; gap: 6px; }
+  .bot-slot { display: grid; grid-template-columns: 56px 1fr; align-items: center; gap: 8px; }
+  .bot-slot > span { font-size: 13px; color: var(--muted); }
   .hint { font-size: 12px; color: var(--muted); margin: 8px 0 0; line-height: 1.55; }
   .hint:empty { display: none; }
   .me-box { display: flex; justify-content: space-between; align-items: center; gap: 8px; background: #15122a; border-radius: 10px; padding: 10px 12px; font-size: 14px; }
@@ -84,7 +87,7 @@
   .rc .r1 { position: absolute; left: 5px; top: 3px; font-size: 16px; line-height: 1; }
   .rc .r2 { position: absolute; right: 5px; bottom: 3px; font-size: 16px; line-height: 1; transform: rotate(180deg); }
   .rc .mid { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 30px; text-shadow: 0 2px 0 rgba(0,0,0,.18); }
-  .rc .cn { position: absolute; left: 0; right: 0; bottom: 3px; text-align: center; font-family: var(--body); font-size: 10px; font-weight: 700; opacity: .85; }
+  .rc .cn { position: absolute; right: 4px; top: 4px; font-family: var(--body); font-size: 10px; font-weight: 700; line-height: 1; opacity: .85; }
   .rc.joker { border: 2px solid transparent; background: linear-gradient(var(--c), var(--c)) padding-box, linear-gradient(135deg, #ff4d4d, #ff9a1f, #ffd23b, #36c96a, #3a8dff, #3f3fbf, #a24dff) border-box; }
   .rc.joker .mid { font-size: 13px; flex-direction: column; line-height: 1.1; letter-spacing: 1px; }
   .rc.joker .mid i { font-style: normal; font-size: 30px; }
@@ -94,7 +97,7 @@
   .rc.big .r1, .rc.big .r2 { font-size: 22px; }
   .rc.big .mid { font-size: 48px; }
   .rc.big.joker .mid { font-size: 17px; } .rc.big.joker .mid i { font-size: 46px; }
-  .rc.big .cn { font-size: 12px; }
+  .rc.big .cn { font-size: 12px; right: 6px; top: 5px; }
   .rc.small { width: 30px; height: 44px; border-radius: 5px; border-width: 1.5px; }
   .rc.small .r1, .rc.small .r2, .rc.small .cn { display: none; }
   .rc.small .mid { font-size: 15px; }
@@ -246,10 +249,10 @@
         <input id="roomcode" maxlength="20" placeholder="예: ourroom" autocomplete="off" autocapitalize="off">
       </div>
       <div id="rpBot" class="room-pane" hidden>
-        <span class="lbl" style="margin-top:0">봇 난이도</span>
-        <div class="seg" id="diffs"><button type="button" data-d="easy">이지</button><button type="button" data-d="medium">미들</button><button type="button" data-d="hard">하드</button></div>
         <span class="lbl">봇 수</span>
         <div class="seg" id="botN"><button type="button" data-n="1">1명</button><button type="button" data-n="2">2명</button><button type="button" data-n="3">3명</button></div>
+        <span class="lbl">봇마다 난이도 따로 고르기</span>
+        <div class="bot-slots" id="botSlots"></div>
         <p class="hint" id="botHint"></p>
       </div>
       <button class="play" id="playBtn">빠른 입장</button>

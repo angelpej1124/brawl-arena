@@ -544,12 +544,16 @@ function handleSocket(socket, req) {
     let r;
     if (m.mode === 'bot') {
       // 봇전: 나 + 봇 1~3명, 바로 시작
-      const diff = BOT_DIFFS[m.diff] ? m.diff : 'medium';
-      const n = Math.max(1, Math.min(3, Math.floor(Number(m.bots) || 1)));
-      r = new CardRoom(game, newCode('bot-'), { isPublic: false, title: `봇전 · ${BOT_DIFFS[diff]}`, botRoom: true });
+      // m.bots: 봇마다 고른 난이도 배열 (예: ['hard','easy']). 옛 형식(숫자 + m.diff)도 받아 줌
+      let list = Array.isArray(m.bots)
+        ? m.bots.slice(0, 3).map((d) => (BOT_DIFFS[d] ? d : 'medium'))
+        : Array(Math.max(1, Math.min(3, Math.floor(Number(m.bots) || 1)))).fill(BOT_DIFFS[m.diff] ? m.diff : 'medium');
+      if (!list.length) list = ['medium'];
+      const title = `봇전 · ${list.map((d) => BOT_DIFFS[d]).join(' · ')}`;
+      r = new CardRoom(game, newCode('bot-'), { isPublic: false, title, botRoom: true });
       rooms.set(r.key, r);
       r.join(id, socket, name, key);
-      for (let k = 0; k < n; k++) r.addBot(id, diff);
+      for (const d of list) r.addBot(id, d);
       room = r;
       socket.send(JSON.stringify({ t: 'welcome', id, room: r.code, title: r.title }));
       r.start(id);
