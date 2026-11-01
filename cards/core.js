@@ -22,7 +22,7 @@ const CFG = {
   POKER_NEXT_MS: 6000,      // 포커 결과를 보여 주고 다음 판까지
   ANTE: 1,                  // 포커 기본 베팅
   CHIPS: 100,               // 연습 칩
-  BOT_MS: [900, 1600],      // 봇이 생각하는 시간
+  BOT_MS: [2200, 3600],      // 봇이 생각하는 시간 (사람이 보기 좋게 텀을 둠)
 };
 if (process.env.LUCKY_FAST) { CFG.BOT_MS = [40, 80]; CFG.POKER_NEXT_MS = 300; }   // 테스트용
 const BOT_DIFFS = { easy: '이지', medium: '미들', hard: '하드' };

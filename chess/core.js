@@ -13,7 +13,7 @@ const R = require('./public/rules.js');
 const BOT = require('./bot.js');
 // 봇전: 난이도 이름 · 봇이 행동하기 전에 기다리는 시간 (사람이 볼 수 있게)
 const BOT_DIFFS = { easy: '이지', medium: '미들', hard: '하드' };
-const BOT_DELAY = { coin: 800, dice: 800, move: 750, rps: 1200 };
+const BOT_DELAY = { coin: 1600, dice: 1600, move: 1800, rps: 2200 };   // 봇이 생각하는 시간(ms)
 
 const CONFIG = {
   MAX_MEMBERS: 12,            // 한 방에 들어올 수 있는 사람 (두는 사람 2 + 구경 10)
