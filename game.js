@@ -2083,8 +2083,9 @@ class Sim {
         if (p.burnBy) { p.lastHitBy = p.burnBy; p.lastHitAt = this.tickCount; }
         if (p.rockT <= 0 && !(p.frozen > 0)) {
           const kb = s.burnKB * (p.buffT > 0 ? SKILLS.empower.kbMul : 1) * (1 - SKILLS.hulk.tough * hulkF(p));
-          p.vx = p.burnDir * kb; p.vy = Math.min(p.vy, -kb * 0.8); p.grounded = false;
-          p.hitstun = Math.max(p.hitstun, 0.08);
+          // 불 틱은 지금 날아가는 속도에 더해질 뿐, 속도를 덮어쓰거나 경직(멈춤)을 걸지 않음 → 날아가던 중에도 계속 날아감
+          p.vx += p.burnDir * kb * 0.3;
+          if (p.grounded) { p.vy = Math.min(p.vy, -kb * 0.8); p.grounded = false; }
         }
         this.ev({ k: 'burn', x: r0(p.x), y: r0(p.y - bh(p) / 2), b: p.burnBlue || 0 });
       }
