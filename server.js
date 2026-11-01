@@ -215,6 +215,16 @@ const server = http.createServer((req, res) => {
   });
 });
 
+// 스냅샷 줄이기: 꼭 있어야 하는 값 말고는 0·false·빈 값이면 뺌
+const SLIM_KEEP = new Set(['id', 'n', 'c', 'x', 'y', 'f', 'dmg', 'st', 'ms', 'ko', 'wn', 'cd', 'cd2', 'cdB', 'tm', 'sk', 'sk2', 'vx', 'vy', 'am', 'bd', 'br', 'ow']);
+function slim(q) {
+  const o = {};
+  for (const k in q) {
+    const v = q[k];
+    if (SLIM_KEEP.has(k) || !(v === 0 || v === false || v == null || (Array.isArray(v) && !v.length))) o[k] = v;
+  }
+  return o;
+}
 // ---------- 게임 방 ----------
 const rooms = new Map();
 let nextId = 1;
@@ -242,7 +252,7 @@ class GameRoom {
     this.sim = new Sim();
     this.clients = new Map(); // id -> { socket, accountKey, name } (들어온 순서대로 저장됨)
     this.hostId = null;       // 방장: 이 방에 가장 먼저 들어온 사람
-    this.tickN = 0;
+    this.tickN = 0; this.evSent = 0;
     this.sim.onEvent = (e) => { if (e.k === 'win') this.recordRound(); };
     this.timer = setInterval(() => this.step(), 1000 / CONFIG.TICK_RATE);
   }
@@ -253,6 +263,11 @@ class GameRoom {
     if (++this.tickN % CONFIG.SEND_EVERY === 0) {
       const ss = this.sim.startStatus(this.hostId);
       const snap = { t: 's', host: this.hostId, rdy: [ss.ready, ss.need], ...this.sim.snapshot() };
+      // 데이터 줄이기: ① 이벤트는 새로 생긴 것만 (예전엔 최근 10개를 매번 다시 보냄)
+      //               ② 사람·분신 정보에서 0·false·빈 값은 빼고 보냄 (화면에선 없으면 0으로 봄)
+      snap.ev = snap.ev.filter((e) => e.i > this.evSent);
+      if (snap.ev.length) this.evSent = snap.ev[snap.ev.length - 1].i;
+      snap.p = snap.p.map(slim); snap.cl = snap.cl.map(slim);
       // 보이면 안 되는 정보는 서버에서 빼고 보냄 (화면을 조작해도 못 봄)
       //  - 기생 중인 몸: 모두에게 안 보임
       //  - 은신: 본인만 보임 (정지당하면 모두에게 반투명하게 드러남)
