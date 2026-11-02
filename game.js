@@ -98,10 +98,10 @@ const SKILLS = {
   flood:    { name: '홍수', cd: 12, rise: 120, riseSpeed: 140, hold: 15, recede: 22, fullHold: 10, drainTime: 5, breath: 10,
               moveMul: 0.55, jumpMul: 0.7, atkMul: 0.6, swim: 1.15, proj: 0.45, dash: 0.5, stunMul: 1.6, iceMul: 1.6 },
   turret:   { name: '터렛', cd: 12, max: 3, hp: 3, range: 560, fireEvery: 1.1, size: 1.3, bulletSpeed: 820, bulletLife: 0.9, dmg: 3, baseKB: 210, growthKB: 5 },
-  venom:    { name: '독침', cd: 8, perHit: 2, max: 10, tick: 0.5, dmgPer: 0.12, slowAt: 5, slowT: 1.2, spreadR: 170, spreadAdd: 4 },
-  ambush:   { name: '암습', cd: 9, range: 480, time: 2, dmgMul: 1.6, kbMul: 1.4, behind: 50 },
-  mark:     { name: '표식', cd: 7, range: 420, delay: 3, max: 3, radius: 140, dmg: 9, power: 760, stun: 0.5 },
-  hook:     { name: '낚시', cd: 6, range: 440, pullFoe: 4.5, pullSelf: 4.5, maxPull: 1000, dmg: 3, stun: 0.25 },
+  venom:    { name: '독침', cd: 6, perHit: 3, max: 15, tick: 0.5, dmgPer: 0.2, decayEvery: 2, slowAt: 6, slowT: 1.5, kbPer: 0.02, spreadR: 230, spreadAdd: 6, burstDmg: 4 },
+  ambush:   { name: '암습', cd: 6, range: 650, time: 3, dmgMul: 2, kbMul: 1.7, behind: 50, inv: 0.35, daze: 0.35 },
+  mark:     { name: '표식', cd: 5, range: 600, delay: 2, max: 3, radius: 190, dmg: 14, power: 600, growth: 7, stun: 0.5 },
+  hook:     { name: '낚시', cd: 4, range: 600, pullSelf: 5, maxPull: 1300, dmg: 6, stun: 0.5, front: 46 },
 };
 const SKILL_IDS = Object.keys(SKILLS);
 
@@ -1372,7 +1372,11 @@ class Sim {
       let hits = 0;
       for (const o of others()) {
         if (o.invincible > 0) continue;
-        if (Math.hypot(o.x - cx, o.y - bh(o) / 2 - cy) <= s.spreadR) { o.venom = Math.min(s.max, (o.venom || 0) + s.spreadAdd); o.venomBy = p.id; if (!o.clone) hits++; }
+        if (Math.hypot(o.x - cx, o.y - bh(o) / 2 - cy) <= s.spreadR) {
+          o.venom = Math.min(s.max, (o.venom || 0) + s.spreadAdd); o.venomBy = p.id;
+          o.damage = Math.min(o.damage + s.burstDmg, 999); o.lastHitBy = p.id; o.lastHitAt = this.tickCount;
+          if (!o.clone) hits++;
+        }
       }
       p.skillCd = s.cd;
       this.ev({ k: 'venom', x: r0(cx), y: r0(cy), r: s.spreadR, h: hits, pid: p.id });
@@ -1392,6 +1396,8 @@ class Sim {
       p.x = nx; p.y = best.y; p.vx = 0; p.vy = 0;
       p.facing = Math.sign(best.x - p.x) || 1;
       p.ambushT = s.time; p.attack = null;
+      p.invincible = Math.max(p.invincible || 0, s.inv);                 // 순간이동 직후 잠깐 무적
+      best.hitstun = Math.max(best.hitstun, s.daze); best.attack = null;  // 상대는 뒤를 잡혀 잠깐 멍해짐
       p.skillCd = s.cd;
       this.ev({ k: 'ambush', x: r0(fromX), y: r0(fromY - bh(p) / 2), x2: r0(p.x), y2: r0(p.y - bh(p) / 2), pid: p.id });
     } else if (k === 'mark') {
@@ -1426,9 +1432,10 @@ class Sim {
         tgt.damage = Math.min(tgt.damage + s.dmg, 999);
         tgt.lastHitBy = p.id; tgt.lastHitAt = this.tickCount;
         if (tgt.rockT <= 0) {
-          const ux = cx - tgt.x, uy = cy - (tgt.y - bh(tgt) / 2), dist = Math.hypot(ux, uy) || 1;
-          const sp = Math.min(s.maxPull, dist * s.pullFoe);
-          tgt.vx = ux / dist * sp; tgt.vy = uy / dist * sp; tgt.grounded = false;
+          // 내 바로 앞으로 끌어옴 (벽 속이면 원래 자리)
+          const nx2 = p.x + (p.facing || 1) * s.front;
+          if (!this.solidAt(nx2, p.y - bh(tgt) / 2)) { tgt.x = nx2; tgt.y = p.y; }
+          tgt.vx = 0; tgt.vy = 0; tgt.grounded = p.grounded;
         }
         tgt.hitstun = Math.max(tgt.hitstun, s.stun); tgt.attack = null;
         if (tgt.clone) this.hitClone(tgt);
@@ -1436,7 +1443,7 @@ class Sim {
         const ux = hx - cx, uy = hy - cy, dist = Math.hypot(ux, uy) || 1;
         const sp = Math.min(s.maxPull, dist * s.pullSelf);
         p.vx = ux / dist * sp; p.vy = uy / dist * sp; p.grounded = false; p.attack = null;
-        p.jumpsLeft = Math.max(p.jumpsLeft, 1);
+        p.jumpsLeft = Math.max(p.jumpsLeft, maxJumps(p));
       }
       p.skillCd = s.cd;
       this.ev({ k: 'hook', x: r0(cx), y: r0(cy), hx: r0(hx), hy: r0(hy), h: kind, pid: p.id });
@@ -1554,7 +1561,8 @@ class Sim {
         if (d > s.radius) continue;
         const nx = d < 1 ? 1 : (ox - cx) / d, ny = d < 1 ? -0.5 : (oy - cy) / d;
         o.damage = Math.min(o.damage + s.dmg, 999);
-        if (o.rockT <= 0) { o.vx = nx * s.power * (o.buffT > 0 ? SKILLS.empower.kbMul : 1); o.vy = Math.min(ny * s.power, 0) - 320; o.grounded = false; }
+        const pw = (s.power + s.growth * o.damage) * (o.buffT > 0 ? SKILLS.empower.kbMul : 1) * (1 + SKILLS.venom.kbPer * (o.venom || 0));   // 퍼센트가 높을수록 멀리
+        if (o.rockT <= 0) { o.vx = nx * pw; o.vy = Math.min(ny * pw, 0) - 320; o.grounded = false; }
         o.hitstun = Math.max(o.hitstun, s.stun); o.attack = null;
         o.lastHitBy = m.owner; o.lastHitAt = this.tickCount;
         if (o.clone) this.hitClone(o);
@@ -2192,7 +2200,8 @@ class Sim {
         p.damage = Math.min(p.damage + p.venom * s.dmgPer, 999);
         if (p.venomBy) { p.lastHitBy = p.venomBy; p.lastHitAt = this.tickCount; }
         if (p.venom >= s.slowAt) p.slow = Math.max(p.slow || 0, s.slowT);
-        p.venom = Math.max(0, p.venom - 1);
+        p.venomN = (p.venomN || 0) + 1;
+        if (p.venomN % s.decayEvery === 0) p.venom = Math.max(0, p.venom - 1);   // 독은 1초에 1개씩 빠짐
       }
     }
     if (p.burnN > 0 && this.inWater(p)) { p.burnN = 0; this.ev({ k: 'fizz', x: r0(p.x), y: r0(p.y - bh(p) / 2) }); }   // 물에 들어가면 불이 꺼짐
@@ -2461,7 +2470,8 @@ class Sim {
     if (has(a, 'hulk')) kb *= 1 + SKILLS.hulk.power * hulkF(a);
     if (a.sunT > 0 && !opt.small) kb *= SKILLS.sun.kbMul;
     if (a.waveT > 0 && !opt.small) kb *= SKILLS.wave.kbMul;
-    if (opt.kbMul) kb *= opt.kbMul;                                       // 암습: 세게 밀어냄
+    if (opt.kbMul) kb *= opt.kbMul;
+    if (t.venom > 0) kb *= 1 + SKILLS.venom.kbPer * t.venom;               // 독침: 독 1개당 넉백 +2%                                       // 암습: 세게 밀어냄
     if (opt.chg) kb *= 1 + SKILLS.charge.kbPer * opt.chg;                // 충전 스택만큼 세게              // 파동: 팔에 감긴 파동으로 세게 침
     kb *= dopeMul(a, 'pow') * dopeMul(t, 'def');                          // 도핑: 힘 · 방어
     if (has(a, 'wind') && !opt.small) kb *= SKILLS.wind.kbMul;               // 바람: 더 날아감                      // 태양: 세게 침          // 헐크: 세게 침
@@ -2870,10 +2880,10 @@ function botThink(sim, b) {
         if (sk === 'ninja' && ready && (b.damage > 70 && best < 160 || b.hitstun > 0.2) && R < 0.06) use(sk);
         if (sk === 'gamble' && ready && R < 0.01) use(sk);
         if (sk === 'flash' && ready && best < 260 && R < 0.05) use(sk);
-        if (sk === 'venom' && ready && best < 170 && R < 0.05) use(sk);
-        if (sk === 'ambush' && ready && best > 200 && best < 460 && R < 0.05) use(sk);
-        if (sk === 'mark' && ready && best < 400 && R < 0.05) use(sk);
-        if (sk === 'hook' && ready && best > 150 && best < 420 && R < 0.05) use(sk);
+        if (sk === 'venom' && ready && best < 220 && R < 0.05) use(sk);
+        if (sk === 'ambush' && ready && best > 150 && best < 620 && R < 0.05) use(sk);
+        if (sk === 'mark' && ready && best < 580 && R < 0.05) use(sk);
+        if (sk === 'hook' && ready && best > 120 && best < 580 && Math.abs(dy) < 80 && R < 0.06) use(sk);
         if (sk === 'wave' && ready && best < 200 && R < 0.06) use(sk);
         if (sk === 'shotgun' && ready && (b.ammo === 0 || (b.ammo < SKILLS.shotgun.ammo && best > 380)) && R < 0.1) use(sk);
         if (sk === 'gem' && ready && best < 160 && R < 0.05) use(sk);
