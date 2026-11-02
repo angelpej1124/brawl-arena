@@ -98,7 +98,7 @@ const SKILLS = {
   flood:    { name: '홍수', cd: 12, rise: 120, riseSpeed: 140, hold: 15, recede: 22, fullHold: 10, drainTime: 5, breath: 10,
               moveMul: 0.55, jumpMul: 0.7, atkMul: 0.6, swim: 1.15, proj: 0.45, dash: 0.5, stunMul: 1.6, iceMul: 1.6 },
   turret:   { name: '터렛', cd: 12, max: 3, hp: 3, range: 560, fireEvery: 1.1, size: 1.3, bulletSpeed: 820, bulletLife: 0.9, dmg: 3, baseKB: 210, growthKB: 5 },
-  venom:    { name: '독침', cd: 6, perHit: 3, max: 15, tick: 0.5, dmgPer: 0.2, decayEvery: 2, slowAt: 6, slowT: 1.5, kbPer: 0.02, spreadR: 230, spreadAdd: 6, burstDmg: 4 },
+  venom:    { name: '독침', cd: 6, perHit: 3, max: 15, tick: 0.5, dmgPer: 0.2, decayEvery: 2, slowAt: 6, slowT: 1.5, kbPer: 0.02, spreadR: 230, spreadAdd: 6, burstDmg: 4, push: 420 },
   ambush:   { name: '암습', cd: 6, range: 650, time: 3, dmgMul: 2, kbMul: 1.7, behind: 50, inv: 0.35, daze: 0.35 },
   mark:     { name: '표식', cd: 5, range: 600, delay: 2, max: 3, radius: 190, dmg: 14, power: 600, growth: 7, stun: 0.5 },
   hook:     { name: '낚시', cd: 4, range: 600, pullSelf: 5, maxPull: 1300, dmg: 6, stun: 0.5, front: 46 },
@@ -1374,6 +1374,13 @@ class Sim {
         if (o.invincible > 0) continue;
         if (Math.hypot(o.x - cx, o.y - bh(o) / 2 - cy) <= s.spreadR) {
           o.venom = Math.min(s.max, (o.venom || 0) + s.spreadAdd); o.venomBy = p.id;
+          // 독이 터지면서 살짝 밀려남 (가까울수록 조금 더)
+          if (!(o.rockT > 0)) {
+            const dir = Math.sign(o.x - cx) || 1, d = Math.hypot(o.x - cx, o.y - bh(o) / 2 - cy);
+            const k2 = s.push * (1 - d / s.spreadR * 0.5) * (o.anchorT > 0 ? SKILLS.tentacle.anchorKB : 1);
+            o.vx = dir * k2; o.vy = Math.min(o.vy, -k2 * 0.45); o.grounded = false; o.hitstun = Math.max(o.hitstun, 0.15); o.attack = null;
+          }
+          this.ev({ k: 'venomhit', x: r0(o.x), y: r0(o.y - bh(o) / 2) });
           o.damage = Math.min(o.damage + s.burstDmg, 999); o.lastHitBy = p.id; o.lastHitAt = this.tickCount;
           if (!o.clone) hits++;
         }

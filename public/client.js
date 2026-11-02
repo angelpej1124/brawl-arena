@@ -65,7 +65,7 @@ const SKILLS = {
   flood:    { name: '홍수', desc: 'Q마다 아래에서 물이 차오름 (여러 번 쓰면 더 높이, 15초간 안 쓰면 천천히 빠짐). 화면 끝까지 꽉 차면 10초 뒤 5초 동안 전부 빠지고, 그동안은 다시 못 씀. 나는 물속을 자유롭게 헤엄치고, 다른 사람은 느려지고 공격·점프가 약해짐(물속 점프는 무한). 머리가 잠기면 숨방울 10개가 1초에 하나씩 줄고 다 떨어지면 가라앉음. 물속에선 불 무효·터렛 고장·번개 스턴↑·얼음 게이지↑·투사체와 돌진이 느려짐', cd: '쿨 12초' },
   ghost:    { name: '귀신', desc: '목숨을 다 잃으면 마지막 5초간 귀신이 됨 (중력·벽 무시, WASD 이동, 안 맞음). 그동안 한 명을 3번 때리면 그 사람도 장외 → 마지막 상대였다면 귀신이 승리 (패시브)', cd: '패시브' },
   starlight: { name: '별빛', desc: '별 카운트(처음 1개, 9초마다·죽을 때마다 +1, 최대 5)를 모두 써서 하늘에서 사선으로 별비를 쏟음. 별이 많을수록 별이 많고 크고 세게 밀어냄', cd: '별 1개 이상' },
-  venom:    { name: '독침', desc: '때리면 독 +3 (최대 15). 0.5초마다 독만큼 퍼센트가 오르고, 독 1개당 넉백을 2% 더 받음. 독 6개부터 느려짐. Q = 넓게 독 +6 퍼뜨리고 바로 4% 피해', cd: '쿨 6초' },
+  venom:    { name: '독침', desc: '때리면 독 +3 (최대 15). 0.5초마다 독만큼 퍼센트가 오르고, 독 1개당 넉백을 2% 더 받음. 독 6개부터 느려짐. Q = 초록 독안개가 터져서 주변 상대를 살짝 밀어내고 독 +6 + 4% 피해', cd: '쿨 6초' },
   ambush:   { name: '암습', desc: 'Q = 가장 가까운 상대 뒤로 순간이동 (잠깐 무적, 상대는 잠깐 멍해짐). 3초 안에 처음 때리는 공격이 피해 2배 · 넉백 1.7배', cd: '쿨 6초' },
   mark:     { name: '표식', desc: 'Q = 상대에게 표식을 붙임 (최대 3개). 2초 뒤 폭발해서 주변 상대에게 14% 피해 + 퍼센트가 높을수록 멀리 날려 보냄', cd: '쿨 5초' },
   hook:     { name: '낚시', desc: 'Q = 바라보는 쪽으로 긴 갈고리 (위·아래 살짝 조준). 상대에 걸면 내 바로 앞으로 끌어와서 잠깐 멍하게 함 → 바로 강공격! 벽·바닥에 걸면 그쪽으로 날아가고 점프가 다 회복됨', cd: '쿨 4초' },
@@ -1495,8 +1495,18 @@ function onEvent(ev) {
   } else if (ev.k === 'atomq') {
     particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.4, max: 0.4, r: 80, c: '90,216,255' });
   } else if (ev.k === 'venom') {
-    particles.push({ ring: true, fill: true, x: ev.x, y: ev.y, life: 0.5, max: 0.5, r: ev.r, c: '155,211,74', grow: true });
-    for (let i = 0; i < 16; i++) particles.push({ x: ev.x + (Math.random() - 0.5) * ev.r, y: ev.y + (Math.random() - 0.5) * 40, vx: 0, vy: -60 - Math.random() * 80, life: 0.7, max: 0.7, c: i % 2 ? '#9bd34a' : '#5e8a22', r: 4, nograv: true });
+    // 독침 Q: 진한 초록 독안개가 퍼지면서 터짐 (둔화의 파란 원과 구분)
+    particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.45, max: 0.45, r: ev.r, c: '70,230,90' });
+    particles.push({ ring: true, fill: true, x: ev.x, y: ev.y, life: 0.35, max: 0.35, r: ev.r * 0.8, c: '40,180,60', grow: true });
+    for (let i = 0; i < 26; i++) {
+      const a = Math.random() * Math.PI * 2, sp = 120 + Math.random() * 260;
+      particles.push({ x: ev.x, y: ev.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.6 - 40, life: 0.6 + Math.random() * 0.3, max: 0.9, c: i % 3 === 0 ? 'rgba(170,255,120,0.8)' : i % 3 === 1 ? 'rgba(60,200,70,0.75)' : 'rgba(30,120,40,0.7)', r: 6 + Math.random() * 8, nograv: true });
+    }
+    for (let i = 0; i < 10; i++) particles.push({ x: ev.x + (Math.random() - 0.5) * ev.r, y: ev.y + (Math.random() - 0.5) * 50, vx: 0, vy: -50 - Math.random() * 70, life: 0.9, max: 0.9, c: '#9dff6a', r: 3, nograv: true });
+    shake = Math.max(shake, 5);
+  } else if (ev.k === 'venomhit') {
+    // 독에 맞은 상대: 초록 독이 튐
+    for (let i = 0; i < 10; i++) { const a = Math.random() * Math.PI * 2, sp = 80 + Math.random() * 180; particles.push({ x: ev.x, y: ev.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 60, life: 0.5, max: 0.5, c: i % 2 ? '#7dff5a' : '#2fa83a', r: 4, nograv: true }); }
   } else if (ev.k === 'ambush') {
     for (let i = 0; i < 14; i++) {
       const a = Math.random() * Math.PI * 2, sp = 60 + Math.random() * 160;

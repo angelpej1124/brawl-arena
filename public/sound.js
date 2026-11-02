@@ -164,7 +164,7 @@
     pull: (o) => S.pull(o), push: (o) => S.push(o), quake: (o) => S.quake(o), rock: (o) => S.thud(o),
     wind: (o) => S.wind(o), windend: (o) => S.gust(o), fdash: (o, e) => { if (e.b === 3) { S.fire(o, true); S.spooky(o, 0.8, 260); } else S.fire(o, e.b); }, fly: (o) => S.whoosh(o, true), engine: (o) => S.whoosh(o, true),
     clone: (o) => S.poof(o), poof: (o) => S.poof(o), stealth: (o) => S.down(o), slow: (o) => S.down(o),
-    parry: (o) => S.ping(o), parryq: (o) => S.click(o), mineset: (o) => S.click(o), venom: (o) => S.click(o), ambush: (o) => S.ping(o), ambushhit: (o) => S.hit(o, 1), markset: (o) => S.click(o), markboom: (o) => S.thud(o), hook: (o) => S.ping(o), turret: (o, e) => { S.click(o); if (e && e.hw) { S.spooky(o, 1.0, 300); S.cackle({ ...o, delay: 0.25 }); } }, tbreak: (o) => S.thud(o),
+    parry: (o) => S.ping(o), parryq: (o) => S.click(o), mineset: (o) => S.click(o), venom: (o) => { noise('lowpass', 900, 300, 0.35, 0.6, o); noise('bandpass', 2200, 1200, 0.25, 0.25, { ...o, q: 2 }); }, venomhit: (o) => noise('bandpass', 1600, 700, 0.12, 0.3, { ...o, q: 3 }), ambush: (o) => S.ping(o), ambushhit: (o) => S.hit(o, 1), markset: (o) => S.click(o), markboom: (o) => S.thud(o), hook: (o) => S.ping(o), turret: (o, e) => { S.click(o); if (e && e.hw) { S.spooky(o, 1.0, 300); S.cackle({ ...o, delay: 0.25 }); } }, tbreak: (o) => S.thud(o),
     empower: (o) => S.power(o), charged: (o) => S.power(o), giant: (o) => S.power(o), sun: (o) => S.power(o), rubber: (o) => S.blink(o),
     error: (o) => S.glitch(o), invert: (o) => S.glitch(o), rewind: (o) => S.rewind(o), tsave: (o) => S.chime(o),
     infest: (o) => S.poof(o), unfest: (o) => S.poof(o), atomq: (o) => S.zap(o), homing: (o) => S.zap(o), bfq: (o) => S.zap(o),
