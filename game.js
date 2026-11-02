@@ -98,10 +98,10 @@ const SKILLS = {
   flood:    { name: '홍수', cd: 12, rise: 120, riseSpeed: 140, hold: 15, recede: 22, fullHold: 10, drainTime: 5, breath: 10,
               moveMul: 0.55, jumpMul: 0.7, atkMul: 0.6, swim: 1.15, proj: 0.45, dash: 0.5, stunMul: 1.6, iceMul: 1.6 },
   turret:   { name: '터렛', cd: 12, max: 3, hp: 3, range: 560, fireEvery: 1.1, size: 1.3, bulletSpeed: 820, bulletLife: 0.9, dmg: 3, baseKB: 210, growthKB: 5 },
-  venom:    { name: '독침', cd: 6, perHit: 3, max: 15, tick: 0.5, dmgPer: 0.2, decayEvery: 2, slowAt: 6, slowT: 1.5, kbPer: 0.02, spreadR: 230, spreadAdd: 6, burstDmg: 4, push: 420 },
+  venom:    { name: '독침', cd: 8, perHit: 3, max: 15, tick: 0.5, dmgPer: 0.2, decayEvery: 2, slowAt: 6, slowT: 1.5, kbPer: 0.02, spreadR: 230, spreadAdd: 6, burstDmg: 4, push: 420 },
   ambush:   { name: '암습', cd: 6, range: 650, time: 3, dmgMul: 2, kbMul: 1.7, behind: 50, inv: 0.35, daze: 0.35 },
-  mark:     { name: '표식', cd: 5, range: 600, delay: 2, max: 3, radius: 190, dmg: 14, power: 600, growth: 7, stun: 0.5 },
-  hook:     { name: '낚시', cd: 4, range: 600, pullSelf: 5, maxPull: 1300, dmg: 6, stun: 0.5, front: 46 },
+  mark:     { name: '표식', cd: 7, range: 600, delay: 2, max: 3, radius: 190, dmg: 14, power: 600, growth: 7, stun: 0.5 },
+  hook:     { name: '낚시', cd: 4, range: 600, pullSelf: 5, maxPull: 1300, dmg: 6, stun: 0.5, front: 46, bind: 2 },
 };
 const SKILL_IDS = Object.keys(SKILLS);
 
@@ -331,7 +331,7 @@ class Sim {
     if (p.skill2 === skill) p.skill2 = p.skill;   // 두 스킬을 서로 바꾼 것
     p.skill = skill; p.randS1 = false;
     p.skillCd = 0; p.skillCdB = 0; p.skillCd2 = 0; p.charged = false; p.stillT = 0; p.parHits = {};
-    p.venom = 0; p.venomT = 0; p.ambushT = 0; p.flyT = 0; p.rockT = 0; p.buffT = 0; p.stealth = 0; p.giantT = 0; p.rubberT = 0; p.engineT = 0; p.stunT = 0; p.hulkS = 1; p.sunT = 0; p.waveT = 0; p.dope = null; p.chargeMode = false; p.chargeN = 0; p.rushT = 0; p.rushCarry = []; p.hopT = 0; p.ammo = SKILLS.shotgun.ammo; p.gemT = 0;
+    p.venom = 0; p.venomT = 0; p.ambushT = 0; p.bindT = 0; p.flyT = 0; p.rockT = 0; p.buffT = 0; p.stealth = 0; p.giantT = 0; p.rubberT = 0; p.engineT = 0; p.stunT = 0; p.hulkS = 1; p.sunT = 0; p.waveT = 0; p.dope = null; p.chargeMode = false; p.chargeN = 0; p.rushT = 0; p.rushCarry = []; p.hopT = 0; p.ammo = SKILLS.shotgun.ammo; p.gemT = 0;
     this.clones.delete(id);
     this.removeTurrets(id);
     this.skillPicked(p);
@@ -347,7 +347,7 @@ class Sim {
     if (conflicts(skill, p.skill)) return '검사·궁수·닌자·방패·촉수·샷건은 공격 방식이 바뀌는 스킬이라 같이 쓸 수 없어요. (촉수와 비행도 불가)';
     if (p.parHost) this.endParasite(p, true);
     p.skill2 = skill; p.randS2 = false; p.skillCd = 0; p.skillCdB = 0; p.skillCd2 = 0; p.charged = false; p.stillT = 0; p.parHits = {};
-    p.venom = 0; p.venomT = 0; p.ambushT = 0; p.flyT = 0; p.rockT = 0; p.buffT = 0; p.stealth = 0; p.giantT = 0; p.rubberT = 0; p.engineT = 0; p.sunT = 0; p.waveT = 0; p.dope = null; p.chargeMode = false; p.chargeN = 0; p.rushT = 0; p.rushCarry = []; p.hopT = 0; p.ammo = SKILLS.shotgun.ammo; p.gemT = 0;
+    p.venom = 0; p.venomT = 0; p.ambushT = 0; p.bindT = 0; p.flyT = 0; p.rockT = 0; p.buffT = 0; p.stealth = 0; p.giantT = 0; p.rubberT = 0; p.engineT = 0; p.sunT = 0; p.waveT = 0; p.dope = null; p.chargeMode = false; p.chargeN = 0; p.rushT = 0; p.rushCarry = []; p.hopT = 0; p.ammo = SKILLS.shotgun.ammo; p.gemT = 0;
     this.clones.delete(id); this.removeTurrets(id);
     this.skillPicked(p);
     return null;
@@ -846,6 +846,7 @@ class Sim {
     if (p.dropThrough > 0) p.dropThrough -= dt;
     if (p.slow > 0) p.slow = Math.max(0, p.slow - dt);
     if (p.ambushT > 0) p.ambushT = Math.max(0, p.ambushT - dt);
+    if (p.bindT > 0) p.bindT = Math.max(0, p.bindT - dt);   // 낚싯줄에 묶임
     if (p.stealth > 0) p.stealth = Math.max(0, p.stealth - dt);
     if (p.flyT > 0) p.flyT = Math.max(0, p.flyT - dt);
     if (p.flyDownT > 0) p.flyDownT = Math.max(0, p.flyDownT - dt);
@@ -919,7 +920,7 @@ class Sim {
     const canFight = this.phase === 'playing' || this.phase === 'waiting';
     const flying = p.flyT > 0;
 
-    if (p.hitstun > 0 || p.stunT > 0 || p.iceT > 0) {
+    if (p.hitstun > 0 || p.stunT > 0 || p.iceT > 0 || p.bindT > 0) {
       if (p.hitstun > 0) p.hitstun -= dt;
       p.vx = approach(p.vx, 0, 500 * dt);
       p.drawT = 0; p.shCharge = 0;
@@ -1445,6 +1446,7 @@ class Sim {
           tgt.vx = 0; tgt.vy = 0; tgt.grounded = p.grounded;
         }
         tgt.hitstun = Math.max(tgt.hitstun, s.stun); tgt.attack = null;
+        tgt.bindT = Math.max(tgt.bindT || 0, s.bind);   // 줄에 감겨 2초 동안 못 움직임
         if (tgt.clone) this.hitClone(tgt);
       } else if (kind === 2) {
         const ux = hx - cx, uy = hy - cy, dist = Math.hypot(ux, uy) || 1;
@@ -2118,7 +2120,7 @@ class Sim {
     if (!p.attack) return;
     const atk = p.attack, def = ATTACKS[atk.type];
     atk.t += dt * dopeMul(p, 'atk') * (p.slow > 0 ? SKILLS.slow.attackMul : 1) * (this.inWater(p) && !has(p, 'flood') ? SKILLS.flood.atkMul : 1);
-    if (p.hitstun > 0 || p.stunT > 0 || p.iceT > 0) { p.attack = null; return; }
+    if (p.hitstun > 0 || p.stunT > 0 || p.iceT > 0 || p.bindT > 0) { p.attack = null; return; }
     const sword = has(p, 'sword') && !p.clone;
     // 검사 약공격: 보는 방향으로 돌진하며 벰
     if (sword && atk.type === 'light' && atk.t < def.startup + def.active) {
@@ -2617,7 +2619,7 @@ class Sim {
       dp: p.dope ? [DOPE_KINDS.indexOf(p.dope.k), p.dope.bad ? 1 : 0, Math.ceil(p.dope.t)] : 0,
       mk: (() => { let m = 0; for (const g of this.players.values()) if (g.ghostT > 0 && g.gMarks[p.id]) m = Math.max(m, g.gMarks[p.id]); return m; })(),
       vn: p.venom > 0 ? Math.round(p.venom) : undefined, ab: p.ambushT > 0 ? 1 : undefined,
-      mt: this.marks.some((m) => m.target === p) ? 1 : undefined,
+      mt: this.marks.some((m) => m.target === p) ? 1 : undefined, rp: p.bindT > 0 ? 1 : undefined,
     });
     return {
       ph: this.phase, tm: Math.ceil(this.timer), w: this.winner, wi: this.winnerId, wt: this.winTeam,
@@ -2670,7 +2672,7 @@ class Sim {
 // ---------------- 봇 ----------------
 function botThink(sim, b) {
   const inp = EMPTY_INPUT();
-  if (!b.alive || b.hitstun > 0 || b.stunT > 0 || b.iceT > 0 || b.fdashT > 0 || b.inside || b.frozen > 0) {
+  if (!b.alive || b.hitstun > 0 || b.stunT > 0 || b.iceT > 0 || b.bindT > 0 || b.fdashT > 0 || b.inside || b.frozen > 0) {
     if (b.inside) {
       // 기생 중인 봇: 숙주를 가까운 무대 끝으로 몰아 장외로 떨어뜨림 (자살시키기)
       const h = sim.players.get(b.parHost), st = sim.stage;
