@@ -45,7 +45,7 @@
     cloak:       { skill: 'stealth', name: '투명 망토', desc: '은신할 때 투명 망토를 뒤집어씀', color: '#8a9ab8' },
     manhole:     { skill: 'shield', name: '맨홀', desc: '방패 대신 맨홀 뚜껑으로 막고 던짐', color: '#5a5f68' },
     crown:       { skill: 'invert', name: '우왕좌왕', desc: '반전에 걸린 사람 머리 위에 악마 대신 왕관이 씌워짐', color: '#ffd23f' },
-    phoenix:     { skill: 'undying', name: '불사조', desc: '3번 죽고 난 뒤부터 등에 커다란 주황 불사조 날개가 생김', color: '#ff8a1a' },
+    phoenix:     { skill: 'undying', name: '불사조', desc: '처음부터 등에 주황 불사조 날개가 있고, 3번 죽은 뒤엔 날개가 더 커지고 불씨가 날림', color: '#ff8a1a' },
     hacker:      { skill: 'error', name: '해커', desc: '에러 효과가 쨍한 빨간색으로. 걸린 사람 머리 위에 빨간 HACKER 표시', color: '#ff1a2e' },
     haki:        { skill: 'freeze', name: '패왕색', desc: '검붉은 기운이 뿜어져 나오며 정지시킴', color: '#8a0a1a' },
     slime:       { skill: 'rubber', name: '슬라임', desc: '고무 능력을 쓰면 내 색깔 슬라임이 됨', color: '#7ee07a' },

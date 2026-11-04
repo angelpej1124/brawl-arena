@@ -1950,11 +1950,13 @@ function drawPlayer(p, time) {
     const wob = 1 + Math.sin(time / 70) * 0.06;
     ctx.scale(2 - wob, wob);
   }
-  if (hasK(p, 'undying') && skinOn(p, 'phoenix') && p.ms && p.ms - p.st >= 3) {
-    // 불사조: 3번 죽은 뒤부터 등에 커다란 주황 불꽃 날개
+  if (hasK(p, 'undying') && skinOn(p, 'phoenix')) {
+    // 불사조: 처음부터 등에 주황 불꽃 날개, 3번 죽은 뒤엔 더 크게 타오르며 불씨가 날림
+    const reborn = p.ms && p.ms - p.st >= 3, big = reborn ? 1.3 : 1;
     const flap = Math.sin(time / 140) * 0.18;
+    if (reborn && Math.random() < 0.3) particles.push({ x: p.x + (Math.random() - 0.5) * 80, y: p.y - PH * 0.7 + (Math.random() - 0.5) * 40, vx: (Math.random() - 0.5) * 40, vy: -60 - Math.random() * 60, life: 0.6, max: 0.6, c: Math.random() < 0.5 ? '#ffd36b' : '#ff7a1a', r: 3, nograv: true });
     for (const sd of [-1, 1]) {
-      ctx.save(); ctx.translate(sd * 6, -PH * 0.62); ctx.rotate(sd * (0.25 + flap)); ctx.scale(sd, 1);
+      ctx.save(); ctx.translate(sd * 6, -PH * 0.62); ctx.rotate(sd * (0.25 + flap)); ctx.scale(sd * big, big);
       for (let k = 0; k < 5; k++) {
         const fl = Math.sin(time / 70 + k) * 3;
         const wg = ctx.createLinearGradient(0, 0, 70, -40);
