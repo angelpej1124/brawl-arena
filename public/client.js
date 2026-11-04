@@ -69,6 +69,14 @@ const SKILLS = {
   ambush:   { name: '암습', desc: 'Q = 가장 가까운 상대 뒤로 순간이동 (잠깐 무적, 상대는 잠깐 멍해짐). 3초 안에 처음 때리는 공격이 피해 2배 · 넉백 1.7배', cd: '쿨 6초' },
   mark:     { name: '표식', desc: 'Q = 상대에게 표식을 붙임 (최대 3개). 2초 뒤 폭발해서 주변 상대에게 14% 피해 + 퍼센트가 높을수록 멀리 날려 보냄', cd: '쿨 7초' },
   hook:     { name: '낚시', desc: 'Q = 바라보는 쪽으로 긴 갈고리 (위·아래 살짝 조준). 상대에 걸면 내 바로 앞으로 끌어오고 줄로 감아서 2초 동안 못 움직이게 함 → 마음껏 때리기! 벽·바닥에 걸면 그쪽으로 날아가고 점프가 다 회복됨', cd: '쿨 4초' },
+  leech:    { name: '흡혈', desc: '때리면 준 피해의 30%만큼 내 퍼센트가 줄어듦. Q = 5초 동안 흡혈 두 배 (60%)', cd: '쿨 12초' },
+  disc:     { name: '원반', desc: 'Q = 앞으로 원반을 던짐. 끝까지 갔다가 나에게 돌아오면서, 갈 때·올 때 한 번씩 맞힘', cd: '쿨 5초' },
+  cloud:    { name: '구름', desc: 'Q = 4초 동안 밟을 수 있는 구름 발판. 땅에선 앞쪽 위에, 공중에선 발밑에 생김 (최대 2개)', cd: '쿨 7초' },
+  barrier:  { name: '결계', desc: 'Q = 3초 동안 나를 따라다니는 둥근 결계. 상대는 안으로 못 들어오고 튕겨 나가고, 상대가 쏜 화살·총알·참격도 막음', cd: '쿨 11초' },
+  hammer:   { name: '망치', desc: '큰 망치를 듦: 공격이 느린 대신 피해 1.5배·넉백 1.3배. 강공격은 땅을 찍어 양옆으로 충격파. Q = 큰 충격파 (공중에서 쓰면 내리꽂음)', cd: '쿨 8초' },
+  whip:     { name: '채찍', desc: '채찍을 듦: 약공격 사거리 2배. 강공격은 상대를 내 쪽으로 끌어당김. Q = 빙글 돌며 주변을 모두 후려침', cd: '쿨 7초' },
+  curse:    { name: '저주', desc: 'Q = 가까운 상대에게 5초 동안 저주. 저주받은 상대는 휘두를 때마다 자기 퍼센트가 3%씩 오름', cd: '쿨 9초' },
+  guard:    { name: '수호', desc: 'Q = 나와 가까운 아군에게 3초 동안 공격 한 번을 막는 보호막 (개인전에선 나만)', cd: '쿨 10초' },
 };
 const SKILL_COLOR = {
   slow: '#7fb8ff', blink: '#c77dff', stealth: '#7fe0c8', clone: '#ff9ecf', swap: '#b48cff', fly: '#9ad7ff',
@@ -77,16 +85,17 @@ const SKILL_COLOR = {
   sword: '#cfe3ff', blackflash: '#c0263a', lightning: '#ffe94a', undying: '#ffd27a',
   hulk: '#5fd35a', fire: '#ff5a1f', ice: '#8fdcff', turret: '#a7b2c4', error: '#39ff88', sun: '#ffc21a',
   venom: '#9bd34a', ambush: '#8b6bd6', mark: '#ff4d6d', hook: '#c8a878',
+  leech: '#c8102e', disc: '#ffb347', cloud: '#e8f4ff', barrier: '#7fd8ff', hammer: '#8a6a4a', whip: '#a0522d', curse: '#6a2c91', guard: '#ffd36b',
   wind: '#b8f2e6', archer: '#c98b4a', time: '#7c9cff', combo: '#ff5fa2', reflect: '#e0f0ff', invert: '#c2185b', atom: '#5ad8ff', mine: '#8a8f6a',
   ninja: '#5b6b8a', gamble: '#3fd07a', starlight: '#ffe27a', shield: '#c9a24a', tentacle: '#3a2a4a', ghost: '#d8d8f0', flash: '#fff6b0', flood: '#3a9ad8', wave: '#5fe0ff', dope: '#c06bff', portal: '#7a5cff', charge: '#3ccf6e', dash: '#ff8a3d', hop: '#7fe0ff', gem: '#5ef2ff', shotgun: '#8a6a4a',
 };
 // 더블 모드에서 같이 못 쓰는 조합 (서버 game.js와 같음)
-const WEAPONS = ['sword', 'archer', 'ninja', 'shield', 'tentacle', 'shotgun'];
+const WEAPONS = ['sword', 'archer', 'ninja', 'shield', 'tentacle', 'shotgun', 'hammer', 'whip'];
 const conflictsK = (a, b) => a !== b && ((WEAPONS.includes(a) && WEAPONS.includes(b)) || (a === 'tentacle' && b === 'fly') || (a === 'fly' && b === 'tentacle'));
 // 스킬 목록 순서 = 나온 순서 (새 스킬은 항상 맨 뒤에 추가)
 const SKILL_ORDER = ['slow', 'blink', 'stealth', 'clone', 'swap', 'fly', 'explode', 'freeze', 'rock', 'magnet', 'empower', 'parasite', 'quake', 'giant', 'rubber', 'engine',
   'sword', 'blackflash', 'lightning', 'undying', 'hulk', 'fire', 'ice', 'turret', 'error', 'sun', 'wind', 'archer', 'time', 'combo', 'reflect', 'invert', 'atom', 'mine',
-  'ninja', 'gamble', 'starlight', 'shield', 'tentacle', 'ghost', 'flash', 'flood', 'wave', 'dope', 'portal', 'charge', 'dash', 'hop', 'gem', 'shotgun', 'venom', 'ambush', 'mark', 'hook'];
+  'ninja', 'gamble', 'starlight', 'shield', 'tentacle', 'ghost', 'flash', 'flood', 'wave', 'dope', 'portal', 'charge', 'dash', 'hop', 'gem', 'shotgun', 'venom', 'ambush', 'mark', 'hook', 'leech', 'disc', 'cloud', 'barrier', 'hammer', 'whip', 'curse', 'guard'];
 const SKILL_IDS = [...SKILL_ORDER.filter((k) => SKILLS[k]), ...Object.keys(SKILLS).filter((k) => !SKILL_ORDER.includes(k))];
 const MAPS = window.BRAWL_MAPS;   // maps.js (서버와 같은 맵 정보)
 let STAGE = MAPS[0];               // 지금 판의 맵
@@ -1526,6 +1535,40 @@ function onEvent(ev) {
       particles.push({ x: ev.x + (ev.hx - ev.x) * t, y: ev.y + (ev.hy - ev.y) * t, vx: 0, vy: 0, life: 0.3, max: 0.3, c: '#c8a878', r: 3, nograv: true });
     }
     if (ev.h) particles.push({ ring: true, fill: false, x: ev.hx, y: ev.hy, life: 0.25, max: 0.25, r: 22, c: '200,168,120', grow: true });
+  } else if (ev.k === 'leech') {
+    // 흡혈: 맞은 상대에게서 내 쪽으로 빨간 방울이 빨려 옴
+    for (let i = 0; i < 6; i++) { const t = Math.random(); particles.push({ x: ev.x, y: ev.y, vx: (ev.x2 - ev.x) * (1.6 + t), vy: (ev.y2 - ev.y) * (1.6 + t) - 30, life: 0.4, max: 0.4, c: i % 2 ? '#ff2a4a' : '#9a0820', r: 3, nograv: true }); }
+  } else if (ev.k === 'leechon') {
+    particles.push({ ring: true, fill: true, x: ev.x, y: ev.y, life: 0.4, max: 0.4, r: 70, c: '200,16,46', grow: true });
+  } else if (ev.k === 'discthrow') {
+    particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.2, max: 0.2, r: 30, c: '255,179,71' });
+  } else if (ev.k === 'disccatch') {
+    for (let i = 0; i < 6; i++) particles.push({ x: ev.x, y: ev.y, vx: (Math.random() - 0.5) * 160, vy: (Math.random() - 0.5) * 160, life: 0.25, max: 0.25, c: '#ffd38a', r: 3, nograv: true });
+  } else if (ev.k === 'cloud') {
+    for (let i = 0; i < 10; i++) particles.push({ x: ev.x + (Math.random() - 0.5) * 140, y: ev.y, vx: (Math.random() - 0.5) * 60, vy: -20 - Math.random() * 40, life: 0.5, max: 0.5, c: 'rgba(255,255,255,0.8)', r: 7, nograv: true });
+  } else if (ev.k === 'barrier') {
+    particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.4, max: 0.4, r: ev.r, c: '127,216,255', grow: true });
+  } else if (ev.k === 'barrierblock') {
+    particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.2, max: 0.2, r: ev.r, c: '200,240,255' });
+  } else if (ev.k === 'hammerwave' || ev.k === 'hammerslam') {
+    // 망치: 땅을 따라 양옆으로 퍼지는 먼지 + 돌 조각
+    const big = ev.k === 'hammerslam';
+    particles.push({ ring: true, fill: true, x: ev.x, y: ev.y, life: big ? 0.45 : 0.3, max: big ? 0.45 : 0.3, r: ev.r, c: '150,120,90', grow: true });
+    for (let i = 0; i < (big ? 30 : 16); i++) { const dir = i % 2 ? 1 : -1; particles.push({ x: ev.x, y: ev.y - 4, vx: dir * (150 + Math.random() * ev.r * 2), vy: -80 - Math.random() * (big ? 360 : 200), life: 0.6, max: 0.6, c: i % 3 ? '#8a6a4a' : '#c8b49a', r: big ? 6 : 4 }); }
+    shake = Math.max(shake, big ? 16 : 8);
+  } else if (ev.k === 'whipspin') {
+    particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.3, max: 0.3, r: ev.r, c: '160,82,45', grow: true });
+    for (let i = 0; i < 18; i++) { const a = i / 18 * Math.PI * 2; particles.push({ x: ev.x + Math.cos(a) * ev.r * 0.8, y: ev.y + Math.sin(a) * ev.r * 0.8, vx: -Math.sin(a) * 300, vy: Math.cos(a) * 300, life: 0.25, max: 0.25, c: '#c27a46', r: 3, nograv: true }); }
+  } else if (ev.k === 'curse') {
+    for (let i = 0; i <= 12; i++) { const t = i / 12; particles.push({ x: ev.x + (ev.x2 - ev.x) * t, y: ev.y + (ev.y2 - ev.y) * t, vx: 0, vy: -20, life: 0.4, max: 0.4, c: '#8a3cc0', r: 4, nograv: true }); }
+    particles.push({ ring: true, fill: true, x: ev.x2, y: ev.y2, life: 0.4, max: 0.4, r: 40, c: '106,44,145', grow: true });
+  } else if (ev.k === 'cursebite') {
+    for (let i = 0; i < 6; i++) particles.push({ x: ev.x, y: ev.y, vx: (Math.random() - 0.5) * 120, vy: -60 - Math.random() * 80, life: 0.5, max: 0.5, c: '#b45cff', r: 3, nograv: true });
+  } else if (ev.k === 'guard') {
+    for (const [gx, gy] of ev.pts || []) particles.push({ ring: true, fill: true, x: gx, y: gy, life: 0.4, max: 0.4, r: 46, c: '255,211,107', grow: true });
+  } else if (ev.k === 'guardblock') {
+    particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.35, max: 0.35, r: 50, c: '255,230,150', grow: true });
+    for (let i = 0; i < 10; i++) { const a = Math.random() * Math.PI * 2; particles.push({ x: ev.x + Math.cos(a) * 40, y: ev.y + Math.sin(a) * 40, vx: Math.cos(a) * 200, vy: Math.sin(a) * 200, life: 0.3, max: 0.3, c: '#ffe9a0', r: 3, nograv: true }); }
   } else if (ev.k === 'mineset') {
     for (let i = 0; i < 6; i++) particles.push({ x: ev.x + (Math.random() - 0.5) * 20, y: ev.y, vx: (Math.random() - 0.5) * 120, vy: -Math.random() * 120, life: 0.3, max: 0.3, c: '#9a8a6a', r: 3 });
   } else if (ev.k === 'boom') {
@@ -1738,6 +1781,38 @@ function drawPotions(state, time) {
   }
 }
 // 포탈: 주인 색 테두리의 소용돌이 타원. 짝이 아직 없으면 흐리게 (탈 수 없음)
+// 원반 · 구름 발판 · 결계
+function drawSkillObjs(state, time) {
+  for (const [x, y, w, k] of state.cw || []) {
+    // 구름 발판: 몽글몽글한 구름 (사라질 때쯤 깜빡임)
+    ctx.globalAlpha = k < 0.25 ? 0.4 + 0.4 * Math.abs(Math.sin(time / 60)) : 0.95;
+    ctx.fillStyle = '#ffffff';
+    for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.arc(x + w * (0.12 + i * 0.19), y + 6 - (i % 2 ? 6 : 2), 16 + (i % 2) * 5, 0, Math.PI * 2); ctx.fill(); }
+    ctx.fillStyle = '#dbe9f7'; ctx.fillRect(x + 6, y + 8, w - 12, 8);
+    ctx.globalAlpha = 1;
+  }
+  for (const [x, y, r, owner, t] of state.gw || []) {
+    // 결계: 반투명 하늘색 원 + 회전하는 육각 무늬
+    const pl = state.p.find((q) => q.id === owner);
+    ctx.save(); ctx.translate(x, y);
+    ctx.globalAlpha = t < 0.6 ? 0.3 + 0.3 * Math.abs(Math.sin(time / 70)) : 1;
+    const g = ctx.createRadialGradient(0, 0, r * 0.6, 0, 0, r);
+    g.addColorStop(0, 'rgba(127,216,255,0.04)'); g.addColorStop(1, 'rgba(127,216,255,0.28)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = pl ? pl.c : '#7fd8ff'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.rotate(time / 900); ctx.strokeStyle = 'rgba(200,240,255,0.5)'; ctx.lineWidth = 1.5; ctx.beginPath();
+    for (let i = 0; i <= 6; i++) { const a = i * Math.PI / 3; ctx.lineTo(Math.cos(a) * r * 0.85, Math.sin(a) * r * 0.85); }
+    ctx.stroke(); ctx.restore(); ctx.globalAlpha = 1;
+  }
+  for (const [x, y, ret] of state.ds || []) {
+    // 원반: 빙글빙글 도는 주황 원반 (돌아올 땐 반대로 돎)
+    ctx.save(); ctx.translate(x, y); ctx.rotate((ret ? -1 : 1) * time / 40);
+    ctx.fillStyle = '#ffb347'; ctx.beginPath(); ctx.ellipse(0, 0, 22, 9, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#8a5a1a'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = '#fff3d6'; ctx.beginPath(); ctx.ellipse(0, 0, 7, 3, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+}
 function drawPortals(state, time) {
   for (const [x, y, o, done] of state.pt || []) {
     const pl = state.p.find((q) => q.id === o), col = pl ? pl.c : '#7a5cff';
@@ -2191,6 +2266,19 @@ function drawPlayer(p, time) {
   }
   // 암습 중: 보라색 테두리 (다음 공격이 세다는 표시)
   if (p.ab) { ctx.strokeStyle = 'rgba(180,140,255,0.8)'; ctx.lineWidth = 2; ctx.setLineDash([4, 4]); ctx.strokeRect(-PW / 2 - 5, -PH - 5, PW + 10, PH + 10); ctx.setLineDash([]); }
+  // 흡혈 Q 중: 몸 주위에 붉은 기운
+  if (p.lu) { ctx.strokeStyle = `rgba(200,16,46,${0.5 + 0.3 * Math.sin(time / 90)})`; ctx.lineWidth = 3; ctx.strokeRect(-PW / 2 - 4, -PH - 4, PW + 8, PH + 8); }
+  // 저주받음: 머리 위 보라 해골 + 보라 연기
+  if (p.cu) {
+    const sy = -PH - 26 + Math.sin(time / 150) * 2;
+    ctx.fillStyle = 'rgba(106,44,145,0.9)'; ctx.beginPath(); ctx.arc(0, sy, 9, 0, Math.PI * 2); ctx.fill(); ctx.fillRect(-5, sy + 5, 10, 6);
+    ctx.fillStyle = '#e6d0ff'; ctx.beginPath(); ctx.arc(-3.5, sy - 1, 2.4, 0, Math.PI * 2); ctx.arc(3.5, sy - 1, 2.4, 0, Math.PI * 2); ctx.fill();
+  }
+  // 수호 보호막: 몸을 감싼 금빛 방울
+  if (p.gd) {
+    ctx.strokeStyle = 'rgba(255,211,107,0.9)'; ctx.lineWidth = 3; ctx.fillStyle = 'rgba(255,230,150,0.15)';
+    ctx.beginPath(); ctx.ellipse(0, -PH / 2, PW / 2 + 14, PH / 2 + 14, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
   // 낚싯줄에 감김: 몸에 갈색 줄이 비스듬히 여러 번 감김 + 매듭
   if (p.rp) {
     ctx.strokeStyle = '#a07a48'; ctx.lineWidth = 3;
@@ -2359,6 +2447,29 @@ function drawPlayer(p, time) {
     if (gn) drawSoulWisp(fx, fy - 6, p.at === 2 ? 16 : 12, time, 1, 0.95, true);   // 영혼: 주먹에 얼굴 있는 도깨비불
   }
   if (hasK(p, 'ninja')) drawKunaiHand(p, f, fx, fy, time);
+  if (hasK(p, 'hammer')) {
+    // 망치: 나무 손잡이 + 큰 쇠머리, 강공격은 위에서 아래로 내려찍음
+    ctx.save(); ctx.translate(fx, fy); ctx.scale(f, 1);
+    let rot = -0.9;
+    if (p.at === 2) rot = p.ap === 1 ? -2.0 : p.ap === 2 ? 0.6 : 0.2;
+    else if (p.at === 1) rot = p.ap === 1 ? -1.3 : 0.1;
+    ctx.rotate(rot);
+    ctx.fillStyle = '#8a6a4a'; ctx.fillRect(-3, -30, 6, 34);
+    ctx.fillStyle = '#5a5a66'; ctx.fillRect(-14, -44, 28, 16);
+    ctx.fillStyle = '#8a8a96'; ctx.fillRect(-14, -44, 28, 4);
+    ctx.restore();
+  }
+  if (hasK(p, 'whip')) {
+    // 채찍: 공격 중엔 앞으로 쭉 뻗고, 평소엔 손에 둘둘 말려 있음
+    ctx.strokeStyle = '#a0522d'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+    if (p.at && p.ap === 2) {
+      const L = p.at === 2 ? 122 : 120, wv = Math.sin(time / 30) * 10;
+      ctx.beginPath(); ctx.moveTo(fx, fy); ctx.quadraticCurveTo(fx + f * L * 0.5, fy - 18 + wv, fx + f * L, fy + 4); ctx.stroke();
+      ctx.fillStyle = '#ffd38a'; ctx.beginPath(); ctx.arc(fx + f * L, fy + 4, 3, 0, Math.PI * 2); ctx.fill();
+    } else {
+      for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.ellipse(fx, fy + 10 + i * 2, 8 - i, 4, 0, 0, Math.PI * 2); ctx.stroke(); }
+    }
+  }
   if (hasK(p, 'shotgun') && skinOn(p, 'cannon')) {
     // 대포 스킨: 짧고 굵은 대포를 들고 있음 (때릴 땐 손잡이로)
     ctx.save(); ctx.translate(fx, fy); ctx.scale(f * 1.2, 1.2);
@@ -4263,6 +4374,7 @@ function drawWorld(now, dt, players, clonesI) {
   drawTramps(now);
   drawPotions(latest, now);
   drawPortals(latest, now);
+  drawSkillObjs(latest, now);
   drawSlashes(latest, now);
   drawTurrets(latest, now);
   for (const q of latest.p) if (q.ts) {
