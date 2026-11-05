@@ -27,7 +27,7 @@ const SKILLS = {
   rock:     { name: '바위', cd: 10, duration: 6, moveMul: 0.32, jumpMul: 0.7 },
   magnet:   { name: '자석', cd: 9, cd2: 9, radius: 330, power: 720 },     // Q 끌어당김, E 밀어냄
   empower:  { name: '강화', charge: 8, duration: 6, kbMul: 0.35, reachMul: 1.3, speedMul: 1.35, jumpMul: 1.2 },
-  parasite: { name: '기생', hitsNeeded: 3, duration: 5 },
+  parasite: { name: '기생', hitsNeeded: 5, duration: 5 },
   quake:    { name: '지진', cd: 11, duration: 3 },                        // 시전자 빼고 모두의 화면이 흔들림
   giant:    { name: '거인', cd: 13, duration: 9, size: 2, kbMul: 0.8, speedMul: 0.85, reachMul: 1.6 },
   rubber:   { name: '고무', cd: 12, duration: 7, reachMul: 2, jumpMul: 1.25 },
@@ -36,7 +36,7 @@ const SKILLS = {
   sword:    { name: '검사', cd: 13, heavyGap: 0.8, lightGap: 0.22, reachMul: 1.25, lunge: 520, fanR: 112, slashSpeed: 950, slashLife: 0.65, slashDmg: 9, slashKB: 380, slashGrowth: 12 },
   // 흑섬: Q 자체는 이펙트만. 공격이 맞는 순간과 같은 타이밍(±window초)이면 넉백 강화
   blackflash: { name: '흑섬', cd: 0, window: 0.1, mobWindow: 0.17, heavyKbMul: 1.45, stun: 0.7 },
-  lightning: { name: '번개', cd: 14, radius: 400, count: 2, damage: 10, stun: 3 },
+  lightning: { name: '번개', cd: 15, radius: 400, count: 2, damage: 10, stun: 3 },
   undying:  { name: '불사', lives: 5 },                                   // 목숨 5개 (패시브)
   // 헐크: 퍼센트(맞은 정도)가 높을수록 커지고 강해짐 (패시브). maxAt% 에서 최대
   hulk:     { name: '헐크', maxAt: 110, size: 0.9, reach: 0.8, power: 1.8, slow: 0.25, tough: 0.5, grow: 1.1 },
@@ -44,14 +44,14 @@ const SKILLS = {
   fire:     { name: '화염', cd: 9, burnHits: 2, dashBurn: 4, burnEvery: 0.4, burnKB: 170, burnDmg: 1,
               dashSpeed: 950, dashTime: 0.32, dashDmg: 8, dashKB: 420, dashGrowth: 10 },
   // 얼음: 때리면 상대 얼음 게이지가 참. 100이 되면 2초 얼어붙음 (얼어도 공격은 맞음). Q는 5초 눈보라
-  ice:      { name: '얼음', cd: 12, blizzard: 4, fillLight: 16, fillHeavy: 28, blizRate: 24, freeze: 2, decay: 6 },
+  ice:      { name: '얼음', cd: 13, blizzard: 4, fillLight: 12, fillHeavy: 21, blizRate: 18, freeze: 2, decay: 6 },
   // 터렛: 최대 3개. 가까운 적에게 총알 발사, 4번 맞으면 부서짐
   // 에러: 나를 뺀 모두의 화면이 끊기고 조작이 제멋대로 (5초)
   error:    { name: '에러', cd: 12, duration: 5 },             // 랜덤한 적 1명
   // 태양: 6초간 빨라지고, 평타에 불이 붙고(화염처럼 2번 더 밀림), 넉백이 세짐
   sun:      { name: '태양', cd: 11, duration: 6, speedMul: 1.35, kbMul: 1.3, burnHits: 2 },
   // 바람: 공격 넉백 1.3배. Q는 앞으로 나아가며 휩쓸어 가는 소용돌이
-  wind:     { name: '바람', cd: 12, kbMul: 1.3, speed: 520, life: 1.6, w: 70, h: 170, dmg: 5, throwKB: 720 },
+  wind:     { name: '바람', cd: 14, kbMul: 1.3, speed: 520, life: 1.6, w: 70, h: 170, dmg: 5, throwKB: 720 },
   // 궁수: 강공격을 누르고 있으면 시위를 당김 (full초면 최대), 놓으면 발사. Q는 다음 화살을 유도 화살로
   archer:   { name: '궁수', heavyGap: 0.5, cd: 13, full: 1, minSpeed: 650, maxSpeed: 1400, gravity: 520, homingSpeed: 760, homingLife: 3, turn: 7 },
   // 시간: 모든 것을 10초 전으로 (시간 스킬 쿨타임은 제외)

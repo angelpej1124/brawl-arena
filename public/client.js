@@ -30,17 +30,17 @@ const SKILLS = {
   giant:    { name: '거인', desc: '9초간 2배로 커짐. 넉백·속도 조금↓, 사거리↑', cd: '쿨 13초' },
   rubber:   { name: '고무', desc: '7초간 사거리 2배, 점프가 더 높아짐', cd: '쿨 12초' },
   engine:   { name: '엔진', desc: '6초간 빨라짐. 빠를수록 때릴 때 넉백이 커짐', cd: '쿨 11초' },
-  parasite: { name: '기생', desc: '3번 때린 상대 몸에 들어가 5초 조종. 다시 Q로 나옴', cd: '3번 때리면 준비' },
+  parasite: { name: '기생', desc: '5번 때린 상대 몸에 들어가 5초 조종. 다시 Q로 나옴', cd: '5번 때리면 준비' },
   sword:    { name: '검사', desc: '공격이 검으로 바뀌고 사거리↑. 약공격은 돌진 베기, 강공격은 주변 부채꼴 베기, Q는 날아가는 참격. 공격 사이에 딜레이가 있음', cd: '쿨 13초' },
   blackflash: { name: '흑섬', desc: '공격이 맞는 순간에 맞춰 Q를 누르면 넉백↑ (강공격은 0.7초 스턴까지). 타이밍이 틀리면 아무 일도 없음', cd: '쿨타임 없음' },
-  lightning: { name: '번개', desc: '가까운 적 2명에게 번개를 내리쳐 3초 스턴', cd: '쿨 14초' },
+  lightning: { name: '번개', desc: '가까운 적 2명에게 번개를 내리쳐 3초 스턴', cd: '쿨 15초' },
   undying:  { name: '불사', desc: '목숨이 5개가 됨 (패시브)', cd: '패시브' },
   hulk:     { name: '헐크', desc: '퍼센트가 오를수록(110%에서 최대) 몸·사거리↑, 날리는 힘 최대 2.8배, 속도·받는 넉백↓. 퍼센트가 내려가면 다시 작아짐 (패시브)', cd: '패시브' },
   fire:     { name: '화염', desc: '공격에 불이 붙어 맞은 상대가 2번 더 밀림. Q는 불태우며 돌진 (맞으면 4번 더 밀림)', cd: '쿨 9초' },
-  ice:      { name: '얼음', desc: '때리면 상대 얼음 게이지가 참. 가득 차면 2초 얼어붙음. Q는 4초 눈보라 (모두의 게이지가 계속 참)', cd: '쿨 12초' },
+  ice:      { name: '얼음', desc: '때리면 상대 얼음 게이지가 참. 가득 차면 2초 얼어붙음. Q는 4초 눈보라 (모두의 게이지가 계속 참)', cd: '쿨 13초' },
   error:    { name: '에러', desc: '랜덤한 적 1명의 화면이 5초간 끊기고 조작이 제멋대로 됨 (걸린 사람은 깨진 화면 효과)', cd: '쿨 12초' },
   sun:      { name: '태양', desc: '6초간 태양의 힘: 빨라지고, 평타에 불이 붙고, 넉백이 세짐', cd: '쿨 11초' },
-  wind:     { name: '바람', desc: '공격에 바람이 붙어 더 날아감. Q는 앞으로 나아가며 휩쓸어 가는 소용돌이', cd: '쿨 12초' },
+  wind:     { name: '바람', desc: '공격에 바람이 붙어 더 날아감. Q는 앞으로 나아가며 휩쓸어 가는 소용돌이', cd: '쿨 14초' },
   archer:   { name: '궁수', desc: '강공격을 누르고 있으면 시위를 당김(1초면 최대), 놓으면 발사. Q는 다음 화살이 벽을 피해 쫓아가는 유도 화살', cd: '쿨 13초' },
   time:     { name: '시간', desc: '첫 Q로 지금 순간을 저장, 다시 Q를 누르면 모두 그 순간으로 되돌림 (위치·퍼센트·내 목숨·상대 쿨타임·맞은 효과 등). 내 쿨타임과 콤보·충전·별빛 같은 스택은 그대로, 상대가 그사이 잃은 목숨은 안 돌아옴. 탈락하면 못 씀', cd: '되돌린 뒤 쿨 20초' },
   combo:    { name: '콤보', desc: '때릴 때마다 콤보가 쌓임. Q는 콤보만큼 강하고 넓은 스매시 (죽어도 유지, 스매시하면 초기화)', cd: '콤보 1 이상' },
@@ -3453,7 +3453,7 @@ function skillStatus(p) {
   if (k === 'tentacle' && p.an) return { ready: true, text: `지탱 ${p.an[0]}s` };
   if (k === 'ghost') return p.gh ? { ready: true, text: `귀신 ${p.gh}s` } : { ready: true, text: '패시브' };
   if (k === 'starlight') { const n = p.scn ? p.scn[0] : 0; return { ready: n >= 1 && !(p.cd > 0), text: '★'.repeat(n) + '☆'.repeat(5 - n) }; }
-  if (k === 'parasite') return p.ins ? { ready: true, text: `기생 중 ${p.pt}s` } : { ready: p.pr > 0, text: p.pr > 0 ? `가능 ${p.pr}명` : '3번 때리기' };
+  if (k === 'parasite') return p.ins ? { ready: true, text: `기생 중 ${p.pt}s` } : { ready: p.pr > 0, text: p.pr > 0 ? `가능 ${p.pr}명` : '5번 때리기' };
   return { ready: !(p.cd > 0), text: t(p.cd) };
 }
 function drawHUD(state, players) {
@@ -4316,7 +4316,7 @@ const PV_SPEC = {
   rock: { dplan: [P(196, 'l', '', 4), P(200, 'a'), P(232, 'h')], cap: '바위 중엔 맞아도 안 날아가요' },
   magnet: { plan: (b) => pvSetQ(b.filter((x) => x.t < 150), P(150, 's', 'Q 당기기'), P(250, 'e', 'E 밀기')), noMove: [150, 250] },
   empower: { setup: (sim, me) => { me.charged = true; }, cap: '가만히 8초 서 있으면 충전돼요 (영상에선 충전된 상태)' },
-  parasite: { setup: (sim, me, du) => { me.parHits[du.id] = 3; }, plan: (b) => pvSetQ(b.filter((x) => x.t < 150), P(150, 's', 'Q 기생 → 상대를 조종'), P(165, 'l', '내 키로 상대가 움직여요', 80), P(280, 's', 'Q 나오기')), noMove: [150, 290] },
+  parasite: { setup: (sim, me, du) => { me.parHits[du.id] = 5; }, plan: (b) => pvSetQ(b.filter((x) => x.t < 150), P(150, 's', 'Q 기생 → 상대를 조종'), P(165, 'l', '내 키로 상대가 움직여요', 80), P(280, 's', 'Q 나오기')), noMove: [150, 290] },
   sword: { plan: (b) => b.map((x) => (x.key === 'a' ? { ...x, label: '약공격 = 돌진 베기' } : x.key === 'h' ? { ...x, label: '강공격 = 부채꼴 베기' } : x.key === 's' ? { ...x, label: 'Q 참격' } : x)) },
   blackflash: { plan: () => [P(50, 'a', '약공격'), P(53, 's', '맞는 순간 Q = 흑섬!'), P(100, 'h', '강공격'), P(112, 's', '맞는 순간 Q = 흑섬!'), P(200, 'a', '약공격'), P(222, 'h', '강공격')] },
   undying: { plan: pvNoQ, cap: '패시브: 목숨이 5개' },
