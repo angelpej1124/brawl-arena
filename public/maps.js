@@ -292,6 +292,53 @@
       respawn: { x: 800, y: 130 },
       theme: { sky: ['#1a0a2a', '#4a1a6a', '#ff5fa2'], hill: '#2a1040', grass: '#3af0ff', grassHi: '#c0fcff', dirt: '#3a2a5a', plat: '#ffe14a', platHi: '#fff6b0', orb: 'rgba(255,200,255,', stars: true },
     },
+    // ---------------- 얼음 맵 (ice: true 인 땅·발판·빗면은 미끄러움: 움직이던 방향으로 쭉 밀려남) ----------------
+    {
+      id: 'icerink', name: '빙판 경기장', width: 1600, height: 900,
+      // 바닥 전체가 빙판: 멈추기 어려워서 양쪽 끝으로 미끄러져 떨어지기 쉬움. 위 발판은 일반 땅(가운데만 얼음)
+      solids: [{ x: 220, y: 690, w: 1160, h: 80, ice: true }],
+      platforms: [{ x: 380, y: 540, w: 190 }, { x: 1030, y: 540, w: 190 }, { x: 700, y: 420, w: 200, ice: true }, { x: 470, y: 300, w: 150 }, { x: 980, y: 300, w: 150 }],
+      spawns: [{ x: 400, y: 690 }, { x: 1200, y: 690 }, { x: 800, y: 420 }, { x: 600, y: 690 }, { x: 1000, y: 690 }, { x: 475, y: 540 }],
+      respawn: { x: 800, y: 130 },
+      theme: { sky: ['#0a1e3a', '#2a5a8a', '#a8d8f0'], hill: '#1a3a5a', grass: '#e8f8ff', grassHi: '#ffffff', dirt: '#5a88a8', plat: '#d8f0ff', platHi: '#ffffff', orb: 'rgba(220,245,255,', stars: true, snow: true },
+    },
+    {
+      id: 'iceberg', name: '떠다니는 빙산', width: 1600, height: 900,
+      // 양쪽 빙산은 미끄럽고, 가운데 낮은 섬만 단단한 땅. 작은 얼음 발판을 건너 싸움
+      solids: [{ x: 200, y: 660, w: 280, h: 70, ice: true }, { x: 660, y: 720, w: 280, h: 70 }, { x: 1120, y: 660, w: 280, h: 70, ice: true }],
+      platforms: [{ x: 500, y: 570, w: 130, ice: true }, { x: 970, y: 570, w: 130, ice: true }, { x: 720, y: 460, w: 160 }, { x: 260, y: 500, w: 160 }, { x: 1180, y: 500, w: 160 }, { x: 740, y: 310, w: 120, ice: true }],
+      spawns: [{ x: 340, y: 660 }, { x: 1260, y: 660 }, { x: 800, y: 720 }, { x: 720, y: 720 }, { x: 880, y: 720 }, { x: 800, y: 460 }],
+      respawn: { x: 800, y: 140 },
+      theme: { sky: ['#04182c', '#14507a', '#6cc0e8'], hill: '#0c3050', grass: '#eafaff', grassHi: '#ffffff', dirt: '#4a8ab0', plat: '#c0ecff', platHi: '#ffffff', orb: 'rgba(200,240,255,', stars: false, water: '#0f4f78', snow: true },
+    },
+    {
+      id: 'iceslide', name: '얼음 미끄럼틀', width: 1600, height: 900,
+      // 양쪽 높은 언덕에서 가운데로 얼음 비탈: 내려오면 쭉 미끄러져 가운데를 지나 반대편까지
+      solids: [{ x: 180, y: 520, w: 240, h: 260 }, { x: 620, y: 720, w: 360, h: 60, ice: true }, { x: 1180, y: 520, w: 240, h: 260 }],
+      slopes: [{ x1: 420, y1: 520, x2: 620, y2: 720, ice: true }, { x1: 980, y1: 720, x2: 1180, y2: 520, ice: true }],
+      platforms: [{ x: 240, y: 390, w: 150 }, { x: 1210, y: 390, w: 150 }, { x: 720, y: 560, w: 160 }, { x: 520, y: 420, w: 130 }, { x: 950, y: 420, w: 130 }, { x: 735, y: 290, w: 130 }],
+      spawns: [{ x: 300, y: 520 }, { x: 1300, y: 520 }, { x: 800, y: 720 }, { x: 700, y: 720 }, { x: 900, y: 720 }, { x: 800, y: 560 }],
+      respawn: { x: 800, y: 130 },
+      theme: { sky: ['#14244a', '#4a6aa8', '#d0e4f8'], hill: '#2a3e68', grass: '#f4f8ff', grassHi: '#ffffff', dirt: '#6a7c9a', plat: '#cfe6fa', platHi: '#ffffff', orb: 'rgba(240,248,255,', stars: false, snow: true },
+    },
+    {
+      id: 'icecave', name: '얼음 동굴', width: 1600, height: 900,
+      // 미끄러운 동굴 바닥 + 단단한 얼음 기둥 두 개 (기둥에 부딪혀 멈출 수 있음)
+      solids: [{ x: 220, y: 700, w: 1160, h: 80, ice: true }, { x: 540, y: 560, w: 50, h: 140 }, { x: 1010, y: 560, w: 50, h: 140 }],
+      platforms: [{ x: 300, y: 470, w: 180 }, { x: 1120, y: 470, w: 180 }, { x: 710, y: 430, w: 180, ice: true }, { x: 520, y: 300, w: 140 }, { x: 940, y: 300, w: 140 }],
+      spawns: [{ x: 380, y: 700 }, { x: 1220, y: 700 }, { x: 800, y: 700 }, { x: 565, y: 560 }, { x: 1035, y: 560 }, { x: 800, y: 430 }],
+      respawn: { x: 800, y: 140 },
+      theme: { sky: ['#06101e', '#14304a', '#2a5070'], hill: '#0c2236', grass: '#bfe8ff', grassHi: '#f0faff', dirt: '#3a5a78', plat: '#9fd8f5', platHi: '#e8f8ff', orb: 'rgba(160,220,255,', stars: false },
+    },
+    {
+      id: 'snowfort', name: '눈 요새', width: 1600, height: 900,
+      // 양쪽 눈 요새는 단단한 눈, 가운데 낮은 얼음 해자는 미끄러움. 해자에 빠지면 벽을 넘어 올라와야 함
+      solids: [{ x: 200, y: 600, w: 300, h: 180 }, { x: 1100, y: 600, w: 300, h: 180 }, { x: 500, y: 720, w: 600, h: 60, ice: true }],
+      platforms: [{ x: 250, y: 470, w: 150 }, { x: 1200, y: 470, w: 150 }, { x: 700, y: 560, w: 200, ice: true }, { x: 730, y: 390, w: 140 }, { x: 420, y: 340, w: 130 }, { x: 1050, y: 340, w: 130 }],
+      spawns: [{ x: 330, y: 600 }, { x: 1270, y: 600 }, { x: 800, y: 720 }, { x: 650, y: 720 }, { x: 950, y: 720 }, { x: 800, y: 560 }],
+      respawn: { x: 800, y: 130 },
+      theme: { sky: ['#1a2238', '#4a5a80', '#e0e8f4'], hill: '#2a3450', grass: '#f8faff', grassHi: '#ffffff', dirt: '#8a96ac', plat: '#e4ecf8', platHi: '#ffffff', orb: 'rgba(255,255,255,', stars: false, snow: true },
+    },
   ];
   // 계산해 두는 값 (봇·분신이 땅 끝을 알기 위해)
   for (const m of MAPS) {

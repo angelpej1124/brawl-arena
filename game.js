@@ -6,7 +6,7 @@
 const CONFIG = {
   TICK_RATE: 60, SEND_EVERY: 2, MAX_PLAYERS: 6, STOCKS: 3,
   COUNTDOWN: 3, RESULT_TIME: 5, RESPAWN_INVINCIBLE: 2,
-  GRAVITY: 2300, MAX_FALL: 1300, RUN_SPEED: 400, GROUND_ACCEL: 4200, AIR_ACCEL: 1800,
+  GRAVITY: 2300, MAX_FALL: 1300, RUN_SPEED: 400, GROUND_ACCEL: 4200, AIR_ACCEL: 1800, ICE_ACCEL: 420, ICE_FRICTION: 110,
   JUMP_SPEED: 860, DOUBLE_JUMP_SPEED: 760, EXTRA_JUMPS: 1, PLAYER_W: 40, PLAYER_H: 60,
 };
 const ATTACKS = {
@@ -937,13 +937,16 @@ class Sim {
 
     if (p.hitstun > 0 || p.stunT > 0 || p.iceT > 0 || p.bindT > 0) {
       if (p.hitstun > 0) p.hitstun -= dt;
-      p.vx = approach(p.vx, 0, 500 * dt);
+      p.vx = approach(p.vx, 0, (p.grounded && p.onIce ? CONFIG.ICE_FRICTION : 500) * dt);
       p.drawT = 0; p.shCharge = 0;
     } else {
       const attacking = p.attack !== null;
       const heavyLock = attacking && p.attack.type === 'heavy';
       const speed = CONFIG.RUN_SPEED * moveMul * (heavyLock && p.grounded ? 0.25 : 1);
-      p.vx = approach(p.vx, dir * speed, (p.grounded ? CONFIG.GROUND_ACCEL : CONFIG.AIR_ACCEL) * Math.min(1, moveMul) * dt);
+      const iceNow = p.grounded && p.onIce && !(p.ghostT > 0);
+      // 얼음: 누르는 쪽으로는 천천히 붙고, 손을 떼면 거의 안 멈추고 미끄러짐
+      const acc = iceNow ? (dir === 0 ? CONFIG.ICE_FRICTION : CONFIG.ICE_ACCEL) : p.grounded ? CONFIG.GROUND_ACCEL : CONFIG.AIR_ACCEL;
+      p.vx = approach(p.vx, dir * speed, acc * Math.min(1, moveMul) * dt);
       if (dir !== 0 && !attacking) p.facing = dir;
       if (pressed('u') && !flying && !(p.anchorT > 0) && !(p.ghostT > 0) && !drown && !swimmer) {
         if (p.grounded) {
@@ -2226,10 +2229,10 @@ class Sim {
       }
     }
     const prevY = p.y;
-    p.y += p.vy * dt; p.grounded = false;
+    p.y += p.vy * dt; p.grounded = false; p.onIce = false;
     for (const s of this.stage.solids) {
       if (p.x + hw <= s.x || p.x - hw >= s.x + s.w) continue;
-      if (p.vy >= 0 && prevY <= s.y && p.y >= s.y) { p.y = s.y; p.vy = 0; p.grounded = true; }
+      if (p.vy >= 0 && prevY <= s.y && p.y >= s.y) { p.y = s.y; p.vy = 0; p.grounded = true; p.onIce = !!s.ice; }
       else if (p.vy < 0 && prevY - h >= s.y + s.h && p.y - h < s.y + s.h) { p.y = s.y + s.h + h; p.vy = 0; }
     }
     // 빗면: 위에서 내려오거나 걸어 올라가면 표면에 섬, 내리막에선 표면에 붙어서 걸음, 아래에서 올라오면 막힘
@@ -2241,16 +2244,16 @@ class Sim {
       if (p.y >= sy && prevDepth <= 6) {
         // 위에서 닿았거나 비탈을 따라 밀려 올라감 (위로 날아가는 중이면 표면을 타고 미끄러져 올라감)
         p.y = sy;
-        if (p.vy >= 0) { p.vy = 0; p.grounded = true; }
+        if (p.vy >= 0) { p.vy = 0; p.grounded = true; p.onIce = !!sl.ice; }
       }
-      else if (wasGrounded && p.vy >= 0 && p.y < sy && sy - p.y <= tol + 4) { p.y = sy; p.vy = 0; p.grounded = true; }
+      else if (wasGrounded && p.vy >= 0 && p.y < sy && sy - p.y <= tol + 4) { p.y = sy; p.vy = 0; p.grounded = true; p.onIce = !!sl.ice; }
       else if (p.vy < 0 && prevY - h >= slopeBase(sl) && p.y - h < slopeBase(sl)) { p.y = slopeBase(sl) + h; p.vy = 0; }
     }
     // 발판 위에 서 있던 사람은 맞아서 경직돼도 (충전 모드 움찔 등) 발판 위에 그대로 섬
     if (p.dropThrough <= 0 && (p.hitstun <= 0.05 || wasGrounded)) {
       for (const pl of this.platformsNow()) {
         if (p.x + hw * 0.5 <= pl.x || p.x - hw * 0.5 >= pl.x + pl.w) continue;
-        if (p.vy >= 0 && prevY <= pl.y && p.y >= pl.y) { p.y = pl.y; p.vy = 0; p.grounded = true; }
+        if (p.vy >= 0 && prevY <= pl.y && p.y >= pl.y) { p.y = pl.y; p.vy = 0; p.grounded = true; p.onIce = !!pl.ice; }
       }
     }
     // 트램펄린: 위에서 밟으면 높이 튕겨 오름 (↓를 누르고 있으면 살짝만)
@@ -2810,7 +2813,7 @@ class Sim {
       dp: p.dope ? [DOPE_KINDS.indexOf(p.dope.k), p.dope.bad ? 1 : 0, Math.ceil(p.dope.t)] : 0,
       mk: (() => { let m = 0; for (const g of this.players.values()) if (g.ghostT > 0 && g.gMarks[p.id]) m = Math.max(m, g.gMarks[p.id]); return m; })(),
       vn: p.venom > 0 ? Math.round(p.venom) : undefined, ab: p.ambushT > 0 ? 1 : undefined,
-      mt: this.marks.some((m) => m.target === p) ? 1 : undefined, rp: p.bindT > 0 ? 1 : undefined, lu: p.leechT > 0 ? 1 : undefined, cu: p.curseT > 0 ? 1 : undefined, gd: p.guardT > 0 ? 1 : undefined,
+      mt: this.marks.some((m) => m.target === p) ? 1 : undefined, rp: p.bindT > 0 ? 1 : undefined, oi: p.grounded && p.onIce && Math.abs(p.vx) > 60 ? 1 : undefined, lu: p.leechT > 0 ? 1 : undefined, cu: p.curseT > 0 ? 1 : undefined, gd: p.guardT > 0 ? 1 : undefined,
     });
     return {
       ph: this.phase, tm: Math.ceil(this.timer), w: this.winner, wi: this.winnerId, wt: this.winTeam,
@@ -2971,6 +2974,11 @@ function botThink(sim, b) {
   // 땅 끝에서 멈추기 (건너편에 갈 땅이 가까우면 점프)
   const edgeGuard = () => {
     if (!b.grounded) return;
+    // 얼음 위: 미끄러지는 쪽 앞이 낭떠러지면 반대로 눌러 브레이크
+    if (b.onIce && Math.abs(b.vx) > 80) {
+      const sd = Math.sign(b.vx), stopDist = (b.vx * b.vx) / (2 * CONFIG.ICE_ACCEL) + 30;
+      if (!sim.surfaceBelow(b.x + sd * Math.min(stopDist, 600), b.y) || !sim.surfaceBelow(b.x + sd * 40, b.y)) { inp.l = sd > 0 ? 1 : 0; inp.r = sd < 0 ? 1 : 0; return; }
+    }
     const dir = inp.r ? 1 : inp.l ? -1 : 0;
     if (!dir || sim.surfaceBelow(b.x + dir * 34, b.y)) return;
     const gapLand = [...st.solids, ...st.platforms].some((s) => (dir > 0 ? s.x > b.x && s.x - b.x < 260 : b.x > s.x + s.w && b.x - (s.x + s.w) < 260) && s.y <= b.y + 40);

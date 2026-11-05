@@ -1718,6 +1718,14 @@ function drawBackground(time) {
       ctx.stroke();
     }
   }
+  if (th.snow && !reduceMotion) {
+    // 눈 내림: 천천히 흔들리며 떨어지는 눈송이
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    for (let i = 0; i < 70; i++) {
+      const sp = 30 + (i % 7) * 9, x = ((i * 233) % W) + Math.sin(time / 900 + i) * 25, y = ((i * 131) + time * sp / 1000) % (H + 40) - 20;
+      ctx.beginPath(); ctx.arc(x, y, 1.5 + (i % 3), 0, Math.PI * 2); ctx.fill();
+    }
+  }
   ctx.restore();
 }
 function drawStage() {
@@ -1755,6 +1763,38 @@ function drawStage() {
     ctx.fillStyle = 'rgba(0,0,0,0.25)'; roundRect(p.x + 4, p.y + 6, p.w, 14, 7); ctx.fill();
     ctx.fillStyle = th.plat; roundRect(p.x, p.y, p.w, 14, 7); ctx.fill();
     ctx.fillStyle = th.platHi; ctx.fillRect(p.x + 8, p.y + 2, p.w - 16, 3);
+  }
+  drawIce();
+}
+// 얼음(미끄러운 곳): 하늘색 반투명 빙판 + 고드름 + 천천히 지나가는 반짝임
+function drawIce() {
+  const t = performance.now();
+  const iceGrad = (x, y) => { const g = ctx.createLinearGradient(x, y - 6, x, y + 12); g.addColorStop(0, 'rgba(235,252,255,0.95)'); g.addColorStop(1, 'rgba(120,200,240,0.85)'); return g; };
+  const shine = (x, y, w) => {
+    ctx.save(); ctx.beginPath(); ctx.rect(x, y - 8, w, 18); ctx.clip();
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 3;
+    const off = (t / 12) % (w + 200) - 100;
+    for (const d of [0, 26]) { ctx.beginPath(); ctx.moveTo(x + off + d, y + 10); ctx.lineTo(x + off + d + 14, y - 8); ctx.stroke(); }
+    ctx.restore();
+  };
+  for (const s of STAGE.solids) {
+    if (!s.ice) continue;
+    ctx.fillStyle = iceGrad(s.x, s.y); roundRect(s.x - 6, s.y - 6, s.w + 12, 18, 8); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(s.x + 4, s.y - 3); ctx.lineTo(s.x + s.w - 4, s.y - 3); ctx.stroke();
+    ctx.fillStyle = 'rgba(160,220,250,0.55)'; for (let x = s.x + 20; x < s.x + s.w - 10; x += 46) { ctx.beginPath(); ctx.moveTo(x, s.y + 12); ctx.lineTo(x + 6, s.y + 26); ctx.lineTo(x + 12, s.y + 12); ctx.fill(); }   // 고드름
+    shine(s.x - 6, s.y - 2, s.w + 12);
+  }
+  for (const sl of STAGE.slopes || []) {
+    if (!sl.ice) continue;
+    ctx.lineCap = 'round'; ctx.strokeStyle = 'rgba(190,236,255,0.95)'; ctx.lineWidth = 16; ctx.beginPath(); ctx.moveTo(sl.x1, sl.y1 + 4); ctx.lineTo(sl.x2, sl.y2 + 4); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(sl.x1 + 4, sl.y1); ctx.lineTo(sl.x2 - 4, sl.y2); ctx.stroke();
+    ctx.lineCap = 'butt';
+  }
+  for (const p of STAGE.platforms) {
+    if (!p.ice) continue;
+    ctx.fillStyle = iceGrad(p.x, p.y); roundRect(p.x, p.y - 2, p.w, 16, 7); ctx.fill();
+    ctx.fillStyle = 'rgba(160,220,250,0.6)'; for (let x = p.x + 14; x < p.x + p.w - 8; x += 34) { ctx.beginPath(); ctx.moveTo(x, p.y + 13); ctx.lineTo(x + 4, p.y + 24); ctx.lineTo(x + 8, p.y + 13); ctx.fill(); }
+    shine(p.x, p.y + 4, p.w);
   }
 }
 
@@ -2299,6 +2339,7 @@ function drawPlayer(p, time) {
     }
   }
   // 독침: 몸에서 독 방울이 올라감 (쌓인 만큼 많이)
+  if (p.oi && Math.random() < 0.35) particles.push({ x: p.x + (Math.random() - 0.5) * 20, y: p.y - 2, vx: -Math.sign(p.vx || 1) * (40 + Math.random() * 80), vy: -30 - Math.random() * 40, life: 0.35, max: 0.35, c: Math.random() < 0.5 ? '#ffffff' : '#bfe8ff', r: 2.5 });   // 얼음 위에서 미끄러지면 얼음 가루
   // 점프 스킨: 용수철(발밑)은 땅에서 눌려 있고 뛸 때 늘어남 / 날개(등 뒤)는 공중에서 펄럭임
   if (skinOn(p, 'spring')) {
     const len = p.g ? 4 : Math.min(18, 6 + Math.max(0, -p.vy) / 40);
