@@ -6,7 +6,7 @@
 const CONFIG = {
   TICK_RATE: 60, SEND_EVERY: 2, MAX_PLAYERS: 6, STOCKS: 3,
   COUNTDOWN: 3, RESULT_TIME: 5, RESPAWN_INVINCIBLE: 2,
-  GRAVITY: 2300, MAX_FALL: 1300, RUN_SPEED: 400, GROUND_ACCEL: 4200, AIR_ACCEL: 1800, ICE_ACCEL: 420, ICE_FRICTION: 110,
+  GRAVITY: 2300, MAX_FALL: 1300, RUN_SPEED: 400, GROUND_ACCEL: 4200, AIR_ACCEL: 1800, ICE_ACCEL: 420, ICE_FRICTION: 110, SNOW_ACCEL: 1500, SNOW_FRICTION: 260,
   JUMP_SPEED: 860, DOUBLE_JUMP_SPEED: 760, EXTRA_JUMPS: 1, PLAYER_W: 40, PLAYER_H: 60,
 };
 const ATTACKS = {
@@ -466,15 +466,18 @@ class Sim {
     const won = this.voteWinner(), voted = won && MAPS.find((m) => m.id === won);
     const others = MAPS.filter((m) => m !== this.stage);
     // 사람이 혼자면 방장이 고른 맵 (사람이 2명 이상이 되면 다시 투표로)
-    const picked = this.humanCount() === 1 && this.picked && MAPS.find((m) => m.id === this.picked);
-    this.applyStage(picked || voted || others[Math.floor(Math.random() * others.length)] || MAPS[0]);
-    if (voted && !picked) this.ev({ k: 'voted', n: voted.name });
+    const solo = this.humanCount() === 1;
+    const picked = solo && this.picked && this.picked !== 'random' && MAPS.find((m) => m.id === this.picked);
+    const rnd = solo && this.picked === 'random';   // 방장이 '랜덤'을 고르면 투표 없이 매판 무작위
+    this.applyStage(picked || (!rnd && voted) || others[Math.floor(Math.random() * others.length)] || MAPS[0]);
+    if (voted && !picked && !rnd) this.ev({ k: 'voted', n: voted.name });
   }
   humanCount() { let n = 0; for (const p of this.players.values()) if (!p.bot && !p.dummy) n++; return n; }
   // 방장이 혼자일 때 맵 고르기: 대기실에서 바로 그 맵으로 바뀌고, 다음 판도 그 맵
   pickHostMap(mapId) {
     if (this.phase !== 'waiting') return '대기 중일 때만 맵을 고를 수 있어요.';
     if (this.humanCount() !== 1) return '봇·더미 말고 사람이 혼자일 때만 맵을 직접 고를 수 있어요.';
+    if (mapId === 'random') { this.picked = 'random'; return null; }   // 랜덤: 지금 맵은 그대로, 시작할 때 무작위
     const map = MAPS.find((m) => m.id === mapId);
     if (!map) return '없는 맵이에요.';
     this.picked = map.id;
@@ -954,7 +957,7 @@ class Sim {
 
     if (p.hitstun > 0 || p.stunT > 0 || p.iceT > 0 || p.bindT > 0) {
       if (p.hitstun > 0) p.hitstun -= dt;
-      p.vx = approach(p.vx, 0, (p.grounded && p.onIce ? CONFIG.ICE_FRICTION : 500) * dt);
+      p.vx = approach(p.vx, 0, (p.grounded && p.onIce ? CONFIG.ICE_FRICTION : p.grounded && this.stage.icy ? CONFIG.SNOW_FRICTION : 500) * dt);
       p.drawT = 0; p.shCharge = 0;
     } else {
       const attacking = p.attack !== null;
@@ -962,7 +965,9 @@ class Sim {
       const speed = CONFIG.RUN_SPEED * moveMul * (heavyLock && p.grounded ? 0.25 : 1);
       const iceNow = p.grounded && p.onIce && !(p.ghostT > 0);
       // 얼음: 누르는 쪽으로는 천천히 붙고, 손을 떼면 거의 안 멈추고 미끄러짐
-      const acc = iceNow ? (dir === 0 ? CONFIG.ICE_FRICTION : CONFIG.ICE_ACCEL) : p.grounded ? CONFIG.GROUND_ACCEL : CONFIG.AIR_ACCEL;
+      // 얼음이 있는 맵은 얼음이 아닌 땅도 살짝 미끄러움 (얼음을 지나와도 바로 안 멈춤)
+      const snowNow = p.grounded && !iceNow && this.stage.icy;
+      const acc = iceNow ? (dir === 0 ? CONFIG.ICE_FRICTION : CONFIG.ICE_ACCEL) : snowNow ? CONFIG.SNOW_ACCEL : p.grounded ? CONFIG.GROUND_ACCEL : CONFIG.AIR_ACCEL;
       p.vx = approach(p.vx, dir * speed, acc * Math.min(1, moveMul) * dt);
       if (dir !== 0 && !attacking) p.facing = dir;
       if (pressed('u') && !flying && !(p.anchorT > 0) && !(p.ghostT > 0) && !drown && !swimmer) {
@@ -1598,7 +1603,12 @@ class Sim {
       if (o.x + hw > s.x && o.x - hw < s.x + s.w && o.y > s.y && o.y - h < s.y + s.h && o.y - s.y < h) o.y = s.y;
     }
   }
-  platformsNow() { return this.clouds.length ? [...this.stage.platforms, ...this.clouds] : this.stage.platforms; }   // 구름 발판도 발판처럼
+  // 구름 발판은 쓴 사람(과 같은 팀)만 밟을 수 있음. p가 없으면(봇 지형 판단 등) 모든 구름
+  platformsNow(p) {
+    if (!this.clouds.length) return this.stage.platforms;
+    const mine = p ? this.clouds.filter((c) => !this.foe({ id: c.owner }, p)) : this.clouds;
+    return mine.length ? [...this.stage.platforms, ...mine] : this.stage.platforms;
+  }
   parrying(o) { return !o.clone && o.parryT > 0 && o.alive && !o.inside; }
   parried(o, x, y) {
     o.parryT = 0; o.invincible = Math.max(o.invincible, 0.3);
@@ -2230,7 +2240,7 @@ class Sim {
     return best;
   }
   onPlatform(p) {
-    return this.platformsNow().some((pl) => Math.abs(p.y - pl.y) < 1 && p.x > pl.x && p.x < pl.x + pl.w);
+    return this.platformsNow(p).some((pl) => Math.abs(p.y - pl.y) < 1 && p.x > pl.x && p.x < pl.x + pl.w);
   }
   moveAndCollide(p, dt) {
     const hw = bw(p) / 2, h = bh(p), slopes = this.stage.slopes || [];
@@ -2289,7 +2299,7 @@ class Sim {
     }
     // 발판 위에 서 있던 사람은 맞아서 경직돼도 (충전 모드 움찔 등) 발판 위에 그대로 섬
     if (p.dropThrough <= 0 && (p.hitstun <= 0.05 || wasGrounded)) {
-      for (const pl of this.platformsNow()) {
+      for (const pl of this.platformsNow(p)) {
         if (p.x + hw * 0.5 <= pl.x || p.x - hw * 0.5 >= pl.x + pl.w) continue;
         if (p.vy >= 0 && prevY <= pl.y && p.y >= pl.y) { p.y = pl.y; p.vy = 0; p.grounded = true; p.onIce = !!pl.ice; }
       }
@@ -2864,7 +2874,7 @@ class Sim {
       fz: this.flashes.map((f) => ({ x: f.x, y: f.y, r: f.r, a: Math.round(Math.min(1, f.t / 0.6) * 100) / 100, o: f.owner, tm: f.team })),
       wa: this.water ? [r0(this.water.y), this.water.lava ? 1 : 0, this.water.choco ? 1 : 0] : 0,
       ds: this.discs.length ? this.discs.map((d) => [r0(d.x), r0(d.y), d.ret ? 1 : 0]) : undefined,
-      cw: this.clouds.length ? this.clouds.map((c) => [r0(c.x), r0(c.y), c.w, Math.round(c.t / c.max * 100) / 100]) : undefined,
+      cw: this.clouds.length ? this.clouds.map((c) => [r0(c.x), r0(c.y), c.w, Math.round(c.t / c.max * 100) / 100, c.owner]) : undefined,
       gw: this.barriers.length ? this.barriers.map((b) => [r0(b.x || 0), r0(b.y || 0), b.r, b.owner, Math.round(b.t * 10) / 10]) : undefined,
       pt: this.portals.map((o) => [r0(o.x), r0(o.y), o.owner, this.portals.some((q) => q.pair === o.pair && q !== o) ? 1 : 0]),
       po: this.potions.map((q) => [r0(q.x), r0(q.y), DOPE_KINDS.indexOf(q.kind), q.owner]),
@@ -3014,8 +3024,8 @@ function botThink(sim, b) {
   const edgeGuard = () => {
     if (!b.grounded) return;
     // 얼음 위: 미끄러지는 쪽 앞이 낭떠러지면 반대로 눌러 브레이크
-    if (b.onIce && Math.abs(b.vx) > 80) {
-      const sd = Math.sign(b.vx), stopDist = (b.vx * b.vx) / (2 * CONFIG.ICE_ACCEL) + 30;
+    if ((b.onIce || st.icy) && Math.abs(b.vx) > 80) {
+      const sd = Math.sign(b.vx), stopDist = (b.vx * b.vx) / (2 * (b.onIce ? CONFIG.ICE_ACCEL : CONFIG.SNOW_ACCEL)) + 30;
       if (!sim.surfaceBelow(b.x + sd * Math.min(stopDist, 600), b.y) || !sim.surfaceBelow(b.x + sd * 40, b.y)) { inp.l = sd > 0 ? 1 : 0; inp.r = sd < 0 ? 1 : 0; return; }
     }
     const dir = inp.r ? 1 : inp.l ? -1 : 0;

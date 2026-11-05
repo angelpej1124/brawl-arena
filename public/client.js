@@ -71,7 +71,7 @@ const SKILLS = {
   hook:     { name: '낚시', desc: 'Q = 바라보는 쪽으로 긴 갈고리 (위·아래 살짝 조준). 상대에 걸면 내 바로 앞으로 끌어오고 줄로 감아서 2초 동안 못 움직이게 함 → 마음껏 때리기! 벽·바닥에 걸면 그쪽으로 날아가고 점프가 다 회복됨', cd: '쿨 4초' },
   leech:    { name: '흡혈', desc: '때리면 준 피해의 30%만큼 내 퍼센트가 줄어듦. Q = 5초 동안 흡혈 두 배 (60%)', cd: '쿨 12초' },
   disc:     { name: '원반', desc: 'Q = 앞으로 원반을 던짐. 끝까지 갔다가 나에게 돌아오면서, 갈 때·올 때 한 번씩 맞힘', cd: '쿨 5초' },
-  cloud:    { name: '구름', desc: 'Q = 4초 동안 밟을 수 있는 구름 발판. 땅에선 앞쪽 위에, 공중에선 발밑에 생김 (최대 2개)', cd: '쿨 7초' },
+  cloud:    { name: '구름', desc: 'Q = 4초 동안 나와 우리 팀만 밟을 수 있는 구름 발판. 땅에선 앞쪽 위에, 공중에선 발밑에 생김 (최대 2개)', cd: '쿨 7초' },
   barrier:  { name: '결계', desc: 'Q = 3초 동안 나를 따라다니는 둥근 결계. 상대는 안으로 못 들어오고 튕겨 나가고, 상대가 쏜 화살·총알·참격도 막음', cd: '쿨 11초' },
   hammer:   { name: '망치', desc: '큰 망치를 듦: 공격이 느린 대신 피해 1.5배·넉백 1.3배. 강공격은 땅을 찍어 양옆으로 충격파. Q = 큰 충격파 (공중에서 쓰면 내리꽂음)', cd: '쿨 8초' },
   whip:     { name: '채찍', desc: '채찍을 듦: 약공격 사거리 2배. 강공격은 상대를 내 쪽으로 끌어당김. Q = 빙글 돌며 주변을 모두 후려침', cd: '쿨 7초' },
@@ -1871,9 +1871,11 @@ function drawPotions(state, time) {
 // 포탈: 주인 색 테두리의 소용돌이 타원. 짝이 아직 없으면 흐리게 (탈 수 없음)
 // 원반 · 구름 발판 · 결계
 function drawSkillObjs(state, time) {
-  for (const [x, y, w, k] of state.cw || []) {
-    // 구름 발판: 몽글몽글한 구름 (사라질 때쯤 깜빡임)
-    ctx.globalAlpha = k < 0.25 ? 0.4 + 0.4 * Math.abs(Math.sin(time / 60)) : 0.95;
+  const meQ = state.p.find((q) => q.id === myId), myTm = meQ ? meQ.tm : 0;
+  for (const [x, y, w, k, o] of state.cw || []) {
+    // 구름 발판: 몽글몽글한 구름 (사라질 때쯤 깜빡임). 남의 팀 구름은 밟을 수 없어서 흐릿하게
+    const ow = state.p.find((q) => q.id === o), mine = o === myId || (myTm && ow && ow.tm === myTm);
+    ctx.globalAlpha = (k < 0.25 ? 0.4 + 0.4 * Math.abs(Math.sin(time / 60)) : 0.95) * (mine ? 1 : 0.3);
     ctx.fillStyle = '#ffffff';
     for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.arc(x + w * (0.12 + i * 0.19), y + 6 - (i % 2 ? 6 : 2), 16 + (i % 2) * 5, 0, Math.PI * 2); ctx.fill(); }
     ctx.fillStyle = '#dbe9f7'; ctx.fillRect(x + 6, y + 8, w - 12, 8);
@@ -4059,6 +4061,18 @@ function renderPick(m) {
   if (voteKey !== 'pick') {
     voteKey = 'pick'; box.textContent = ''; box.classList.add('pick'); $('voteLbl').innerHTML = PICK_LBL;
     box.setAttribute('aria-label', '맵 고르기');
+    // 맨 앞: 랜덤 (시작할 때마다 무작위 맵)
+    {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'vote-card'; b.dataset.id = 'random';
+      const cv = document.createElement('canvas'); cv.width = 128; cv.height = 72;
+      const c2 = cv.getContext('2d'), g = c2.createLinearGradient(0, 0, 128, 72); g.addColorStop(0, '#3a2a6a'); g.addColorStop(1, '#ff7ac8');
+      c2.fillStyle = g; c2.fillRect(0, 0, 128, 72); c2.font = '40px sans-serif'; c2.textAlign = 'center'; c2.textBaseline = 'middle'; c2.fillText('🎲', 64, 38);
+      const nm = document.createElement('b'); nm.textContent = '랜덤';
+      const sm = document.createElement('small');
+      b.append(cv, nm, sm);
+      b.addEventListener('click', (e) => { e.currentTarget.blur(); send({ t: 'pickmap', map: 'random' }); });
+      box.append(b);
+    }
     for (const map of MAPS) {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'vote-card'; b.dataset.id = map.id;
       const cv = document.createElement('canvas'); cv.width = 128; cv.height = 72; drawMapThumb(cv, map);
@@ -4072,7 +4086,7 @@ function renderPick(m) {
   box.querySelectorAll('.vote-card').forEach((b) => {
     const on = b.dataset.id === m.pk;
     b.classList.toggle('mine', on); b.setAttribute('aria-pressed', String(on));
-    b.querySelector('small').textContent = on ? '선택됨' : '';
+    b.querySelector('small').textContent = on ? (b.dataset.id === 'random' ? '선택됨 · 판마다 무작위' : '선택됨') : '';
   });
 }
 function renderVote(m) {
