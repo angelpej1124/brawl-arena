@@ -157,7 +157,7 @@
   const MAP = {
     hit: (o, e) => S.hit(o, e.p), bflash: (o) => S.bflash(o), burn: (o, e) => { S.burn(o, e.b); if (e.b === 3) S.spooky(o, 0.3, 500); }, ko: (o) => S.ko(o),
     jump: (o) => S.jump(o, false), jump2: (o) => S.jump(o, true), slash: (o) => S.slash(o),
-    explode: (o) => S.boom(o), boom: (o) => S.boom(o), smash: (o) => S.boom(o),
+    explode: (o) => S.boom(o), boom: (o, e) => { S.boom(o); if (e && e.bn) tone('sine', 900, 300, 0.35, 0.25, o); }, smash: (o, e) => { if (e && e.nt) { const n = Math.min(8, 3 + Math.floor((e.n || 1) / 5)); [523, 659, 784, 1047, 784, 988, 1175, 1319].slice(0, n).forEach((f, i) => tone('triangle', f, f, 0.16, 0.22, { ...o, at: (o.at || now()) + i * 0.07 })); return; } S.boom(o); },
     freeze: (o) => S.freeze(o), iced: (o) => S.ice(o), blizzard: (o) => S.whoosh(o, false),
     tshot: (o) => { S.spooky(o, 0.35, 420); noise('lowpass', 900, 200, 0.12, 0.3, o); },
     bolt: (o, ev) => { S.bolt(o); if (ev && ev.th) { tone('sine', 55, 28, 1.4, 0.7, o); noise('lowpass', 300, 80, 1.3, 0.6, { ...o, atk: 0.05 }); } }, thunk: (o) => S.thud(o), blink: (o) => S.blink(o), swap: (o) => S.blink(o),
@@ -201,7 +201,7 @@
     boing: (o) => { tone('sine', 180, 520, 0.18, 0.3, o); tone('triangle', 360, 900, 0.15, 0.1, o); },
     fizz: (o) => noise('highpass', 3000, 6000, 0.5, 0.3, { ...o, atk: 0.02 }),
     block: (o) => { tone('square', 900, 700, 0.08, 0.12, o); noise('bandpass', 3000, 2000, 0.1, 0.35, { ...o, q: 3 }); tone('sine', 1300, 1250, 0.3, 0.1, o); },
-    shblock: (o) => S.click(o), shthrow: (o) => S.whoosh(o, true), shclang: (o) => { tone('triangle', 700, 500, 0.2, 0.25, o); noise('bandpass', 2500, 1500, 0.12, 0.35, { ...o, q: 2 }); },
+    shblock: (o, e) => { if (e && e.pot) { tone('triangle', 1400, 1350, 0.6, 0.3, o); tone('sine', 2800, 2700, 0.4, 0.12, o); return; } S.click(o); }, shthrow: (o) => S.whoosh(o, true), shclang: (o) => { tone('triangle', 700, 500, 0.2, 0.25, o); noise('bandpass', 2500, 1500, 0.12, 0.35, { ...o, q: 2 }); },
     shpick: (o) => S.click(o), shback: (o) => S.chime(o),
     tentacle: (o) => { noise('lowpass', 900, 300, 0.12, 0.35, o); tone('sine', 220, 120, 0.12, 0.2, o); },
     anchor: (o) => S.thud(o),

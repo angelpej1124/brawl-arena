@@ -975,7 +975,7 @@ class Sim {
         if (pressed('h')) { if (p.anchorT > 0) fire(p.tents[0].cd <= 0 ? 0 : 1); else fire(p.tents[2].cd <= 0 ? 2 : 3); }
       } else if (canFight && !attacking && !(p.drawT > 0) && has(p, 'shield') && !p.clone && p.shieldHeld && pressed('a')) {
         // 방패 막기
-        if (!(p.blockGapT > 0)) { p.blockT = SKILLS.shield.blockTime; p.blockGapT = SKILLS.shield.blockTime + SKILLS.shield.blockGap; this.ev({ k: 'shblock', x: r0(p.x), y: r0(p.y - bh(p) / 2), pid: p.id }); }
+        if (!(p.blockGapT > 0)) { p.blockT = SKILLS.shield.blockTime; p.blockGapT = SKILLS.shield.blockTime + SKILLS.shield.blockGap; this.ev({ k: 'shblock', x: r0(p.x), y: r0(p.y - bh(p) / 2), pid: p.id , pot: skinOn(p, 'potlid') ? 1 : 0 }); }
       } else if (canFight && !attacking && !(p.drawT > 0)) {
         if (pressed('a') && !(p.lGap > 0)) {
           p.attack = { type: 'light', t: 0, hit: new Set(), victims: [] };
@@ -1357,9 +1357,9 @@ class Sim {
       if (this.water && this.water.drain) { this.deny(p, '물이 다 빠질 때까지 홍수를 다시 쓸 수 없어요'); return; }
       if (!this.water) this.water = { y: bottom, target: bottom, lastFill: 0, lava: false };
       this.water.target = Math.max(top, Math.min(this.water.target, bottom) - s.rise - (this.water.target >= bottom ? bottom - this.stage.floor - 20 : 0));
-      this.water.lastFill = this.time; this.water.lava = skinOn(p, 'lava');
+      this.water.lastFill = this.time; this.water.lava = skinOn(p, 'lava'); this.water.choco = skinOn(p, 'choco');
       p.skillCd = s.cd;
-      this.ev({ k: 'flood', x: r0(p.x), y: r0(this.water.target), pid: p.id, lava: this.water.lava ? 1 : 0 });
+      this.ev({ k: 'flood', x: r0(p.x), y: r0(this.water.target), pid: p.id, lava: this.water.lava ? 1 : 0, ch: this.water.choco ? 1 : 0 });
     } else if (k === 'tentacle') {
       // 아래 촉수 2개(K·L)로 땅을 짚음: 8초간 중력 없이 이동. 가장 낮은 땅 높이 아래로는 못 내려감
       const s = SKILLS.tentacle;
@@ -1763,7 +1763,7 @@ class Sim {
         o.attack = null; o.lastHitBy = m.owner; o.lastHitAt = this.tickCount;
         if (o.clone) this.hitClone(o);
       }
-      this.ev({ k: 'boom', x: r0(m.x), y: r0(m.y - 10), r: s.radius, c: owner ? owner.color : '#fff' });
+      this.ev({ k: 'boom', x: r0(m.x), y: r0(m.y - 10), r: s.radius, c: owner ? owner.color : '#fff', bn: owner && skinOn(owner, 'banana') ? 1 : 0 });
     }
   }
   // ---------------- 콤보 스매시 ----------------
@@ -1783,7 +1783,7 @@ class Sim {
     }
     for (const t of [...this.turrets]) if (this.foe(p, t) && Math.hypot(t.x - cx, t.y - 22 - cy) <= R) this.hitTurret(t, p);
     p.combo = 0;
-    this.ev({ k: 'smash', x: r0(cx), y: r0(cy), r: r0(R), n, h: hits, pid: p.id });
+    this.ev({ k: 'smash', x: r0(cx), y: r0(cy), r: r0(R), n, h: hits, pid: p.id, nt: skinOn(p, 'notes') ? 1 : 0 });
   }
   // ---------------- 궁수 화살 ----------------
   fireArrow(p) {
@@ -1983,7 +1983,7 @@ class Sim {
     if (!this.starBits.length) return;
     for (const b of this.starBits) {
       { const k = this.waterK(b.y); b.t -= dt; b.x += b.vx * dt * k; b.y += b.vy * dt * k; }
-      if (this.solidAt(b.x, b.y + b.r * 0.5) || b.y > this.stage.blast.bottom) { b.t = 0; this.ev({ k: 'starpop', x: r0(b.x), y: r0(b.y) }); continue; }
+      if (this.solidAt(b.x, b.y + b.r * 0.5) || b.y > this.stage.blast.bottom) { b.t = 0; this.ev({ k: 'starpop', x: r0(b.x), y: r0(b.y), pid: b.owner }); continue; }
       if (this.phase === 'countdown' || this.phase === 'ended') continue;
       const owner = this.players.get(b.owner); if (!owner) { b.t = 0; continue; }
       const def = { damage: 3 + Math.round(b.n * 0.8), baseKB: 170 + b.n * 75, growthKB: 4 + b.n * 1.4, lift: 0.25 };
@@ -1994,7 +1994,7 @@ class Sim {
           b.hit.add(o.id);
           this.applyHit(owner, o, def, b.n >= 4 ? 'heavy' : 'light', { dir: Math.sign(b.vx) || 1 });
           if (o.clone) this.hitClone(o);
-          b.t = 0; this.ev({ k: 'starpop', x: r0(b.x), y: r0(b.y) });
+          b.t = 0; this.ev({ k: 'starpop', x: r0(b.x), y: r0(b.y), pid: b.owner });
           break;
         }
       }
@@ -2139,7 +2139,7 @@ class Sim {
     const s = SKILLS.blackflash;
     p.skillCd = s.cd;
     p.bfAt = this.time;
-    this.ev({ k: 'bfq', x: r0(p.x), y: r0(p.y - bh(p) / 2), pid: p.id, g: skinOn(p, 'oneforall') ? 1 : 0 });
+    this.ev({ k: 'bfq', x: r0(p.x), y: r0(p.y - bh(p) / 2), pid: p.id, g: skinOn(p, 'oneforall') ? 1 : 0, gx: skinOn(p, 'galaxy') ? 1 : 0 });
     const atk = p.attack;
     if (!atk || atk.black) return;
     const def = ATTACKS[atk.type];
@@ -2656,7 +2656,7 @@ class Sim {
     if (black) {
       const s = SKILLS.blackflash;
       if (type === 'heavy') t.stunT = Math.max(t.stunT || 0, s.stun);
-      this.ev({ k: 'bflash', x: r0(t.x), y: r0(t.y - bh(t) / 2), p: type === 'heavy' ? 2 : 1, g: skinOn(a, 'oneforall') ? 1 : 0, ax: r0(a.x), ay: r0(a.y - bh(a) / 2) });
+      this.ev({ k: 'bflash', x: r0(t.x), y: r0(t.y - bh(t) / 2), p: type === 'heavy' ? 2 : 1, g: skinOn(a, 'oneforall') ? 1 : 0, gx: skinOn(a, 'galaxy') ? 1 : 0, ax: r0(a.x), ay: r0(a.y - bh(a) / 2) });
     }
     if (t.rockT > 0) {
       // 바위: 넉백과 경직 없음
@@ -2820,16 +2820,16 @@ class Sim {
       ar: this.arrows.map((a) => ({ x: r0(a.x), y: r0(a.y), vx: r0(a.vx), vy: r0(a.vy), h: a.homing ? 1 : 0, de: a.de ? 1 : undefined, lf: a.lf ? 1 : undefined, el: a.el || undefined, s: a.big !== 1 ? Math.round(a.big * 10) / 10 : undefined, ku: a.ku || undefined, sw: a.sw || undefined, vp: a.vp || undefined, sg: a.sg || undefined })),
       lg: this.logs.map((l) => ({ x: r0(l.x), y: r0(l.y), sn: l.sn, vp: l.vp, t: Math.round(l.t * 10) / 10, s: l.big !== 1 ? Math.round(l.big * 10) / 10 : undefined })),
       fz: this.flashes.map((f) => ({ x: f.x, y: f.y, r: f.r, a: Math.round(Math.min(1, f.t / 0.6) * 100) / 100, o: f.owner, tm: f.team })),
-      wa: this.water ? [r0(this.water.y), this.water.lava ? 1 : 0] : 0,
+      wa: this.water ? [r0(this.water.y), this.water.lava ? 1 : 0, this.water.choco ? 1 : 0] : 0,
       ds: this.discs.length ? this.discs.map((d) => [r0(d.x), r0(d.y), d.ret ? 1 : 0]) : undefined,
       cw: this.clouds.length ? this.clouds.map((c) => [r0(c.x), r0(c.y), c.w, Math.round(c.t / c.max * 100) / 100]) : undefined,
       gw: this.barriers.length ? this.barriers.map((b) => [r0(b.x || 0), r0(b.y || 0), b.r, b.owner, Math.round(b.t * 10) / 10]) : undefined,
       pt: this.portals.map((o) => [r0(o.x), r0(o.y), o.owner, this.portals.some((q) => q.pair === o.pair && q !== o) ? 1 : 0]),
       po: this.potions.map((q) => [r0(q.x), r0(q.y), DOPE_KINDS.indexOf(q.kind), q.owner]),
       shw: this.shields.map((q) => ({ x: r0(q.x), y: r0(q.y), vx: q.ground ? 0 : r0(q.vx), vy: q.ground ? 0 : r0(q.vy), g: q.ground ? 1 : 0, o: q.owner, s: q.big !== 1 ? Math.round(q.big * 10) / 10 : undefined })),
-      sb: this.starBits.map((b) => { const o = this.players.get(b.owner); return { x: r0(b.x), y: r0(b.y), vx: r0(b.vx), vy: r0(b.vy), r: Math.round(b.r), m: o && skinOn(o, 'meteor') ? 1 : undefined }; }),
+      sb: this.starBits.map((b) => { const o = this.players.get(b.owner); return { x: r0(b.x), y: r0(b.y), vx: r0(b.vx), vy: r0(b.vy), r: Math.round(b.r), m: o && skinOn(o, 'meteor') ? 1 : o && skinOn(o, 'hearts') ? 2 : undefined }; }),
       wd: this.winds.map((w) => { const o = this.players.get(w.owner); return { i: w.id, x: r0(w.x), y: r0(w.y), vx: w.vx, r: o && skinOn(o, 'firetornado') ? 1 : 0 }; }),
-      mn: this.mines.map((m) => { const o = this.players.get(m.owner); return { x: r0(m.x), y: r0(m.y), c: m.color, a: m.arm > 0 ? 0 : 1, sk: o && skinOn(o, 'ginkgo') ? 'g' : o && skinOn(o, 'blocks') ? 'b' : undefined }; }),
+      mn: this.mines.map((m) => { const o = this.players.get(m.owner); return { x: r0(m.x), y: r0(m.y), c: m.color, a: m.arm > 0 ? 0 : 1, sk: o && skinOn(o, 'ginkgo') ? 'g' : o && skinOn(o, 'blocks') ? 'b' : o && skinOn(o, 'banana') ? 'n' : undefined }; }),
       tr: this.turrets.map((t) => { const o = this.players.get(t.owner); return { i: t.id, x: r0(t.x), y: r0(t.y), a: Math.round(t.aim * 100) / 100, hp: t.hp, c: t.color, o: t.owner, fg: o && skinOn(o, 'frog') ? 1 : o && skinOn(o, 'llama') ? 2 : o && skinOn(o, 'pumpkin') ? 3 : 0 }; }),
       bl: this.bullets.map((b) => { const o = this.players.get(b.owner), c = o ? o.color : '#fff'; return b.tg ? { tg: 1, ox: r0(b.ox), oy: r0(b.oy), x: r0(b.x), y: r0(b.y), vx: 0, vy: 0, c } : { x: r0(b.x), y: r0(b.y), vx: r0(b.vx), vy: r0(b.vy), c, sp: o && skinOn(o, 'llama') ? 1 : undefined, pk: o && skinOn(o, 'pumpkin') ? 1 : undefined }; }),
       bz: this.blizzards.length ? Math.ceil(Math.max(...this.blizzards.map((b) => b.t)) * 10) / 10 : 0,
