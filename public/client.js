@@ -4050,9 +4050,36 @@ function drawMapThumb(cv, map) {
   for (const t of map.tramps || []) { c2.fillStyle = '#ff3b4a'; c2.fillRect(t.x * sx, t.y * sy - 2, t.w * sx, 3); }
 }
 let voteKey = '';
+const VOTE_LBL = '다음 맵 투표 <small>(눌러서 투표 · 시작할 때 가장 많은 표)</small>';
+const PICK_LBL = '맵 고르기 <small>(사람이 나 혼자일 때는 방장이 직접 골라요 · 누르면 바로 바뀜)</small>';
+// 혼자(봇·더미 제외)인 방장: 모든 맵 중에서 직접 고름
+function renderPick(m) {
+  const row = $('voteRow'), box = $('voteCards');
+  row.hidden = false;
+  if (voteKey !== 'pick') {
+    voteKey = 'pick'; box.textContent = ''; box.classList.add('pick'); $('voteLbl').innerHTML = PICK_LBL;
+    box.setAttribute('aria-label', '맵 고르기');
+    for (const map of MAPS) {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'vote-card'; b.dataset.id = map.id;
+      const cv = document.createElement('canvas'); cv.width = 128; cv.height = 72; drawMapThumb(cv, map);
+      const nm = document.createElement('b'); nm.textContent = map.name;
+      const sm = document.createElement('small');
+      b.append(cv, nm, sm);
+      b.addEventListener('click', (e) => { e.currentTarget.blur(); send({ t: 'pickmap', map: map.id }); });
+      box.append(b);
+    }
+  }
+  box.querySelectorAll('.vote-card').forEach((b) => {
+    const on = b.dataset.id === m.pk;
+    b.classList.toggle('mine', on); b.setAttribute('aria-pressed', String(on));
+    b.querySelector('small').textContent = on ? '선택됨' : '';
+  });
+}
 function renderVote(m) {
+  if (m.pk && m.host === myId) return renderPick(m);
   const mv = m.mv, row = $('voteRow');
   row.hidden = !mv;
+  if (voteKey === 'pick') { voteKey = ''; $('voteCards').classList.remove('pick'); $('voteLbl').innerHTML = VOTE_LBL; $('voteCards').setAttribute('aria-label', '다음 맵 투표'); }
   if (!mv) return;
   const [cands, votes] = mv, mine = votes[myId];
   const cnt = cands.map((c, i) => Object.values(votes).filter((v) => v === i).length);
@@ -4102,7 +4129,7 @@ function updateRoomPanel(m) {
   const prof = account.profile;
   const key = [me.c, me.sk, me.sk2, me.rd, host, JSON.stringify(me.rs || 0), ready, need, m.p.length, [...taken].join(), (prof && prof.owned.join()) || '',
     prof ? (prof.skins || []).join() + JSON.stringify(prof.skinSel || {}) : '', m.p.filter((p) => p.b).map((p) => p.id + p.sk + (p.sk2 || '') + JSON.stringify(p.rs || 0) + (p.bd ?? '')).join(),
-    md.join(), m.p.map((p) => p.id + ':' + p.tm + ':' + p.n).join(), JSON.stringify(m.mv || 0)].join('|');
+    md.join(), m.p.map((p) => p.id + ':' + p.tm + ':' + p.n).join(), JSON.stringify(m.mv || 0), m.pk || '', m.host || ''].join('|');
   if (key === panelKey) return;
   panelKey = key;
   document.querySelectorAll('.sw').forEach((b) => {

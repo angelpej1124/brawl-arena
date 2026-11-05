@@ -465,13 +465,30 @@ class Sim {
   pickMap() {
     const won = this.voteWinner(), voted = won && MAPS.find((m) => m.id === won);
     const others = MAPS.filter((m) => m !== this.stage);
-    this.stage = voted || others[Math.floor(Math.random() * others.length)] || MAPS[0];
-    if (voted) this.ev({ k: 'voted', n: voted.name });
+    // 사람이 혼자면 방장이 고른 맵 (사람이 2명 이상이 되면 다시 투표로)
+    const picked = this.humanCount() === 1 && this.picked && MAPS.find((m) => m.id === this.picked);
+    this.applyStage(picked || voted || others[Math.floor(Math.random() * others.length)] || MAPS[0]);
+    if (voted && !picked) this.ev({ k: 'voted', n: voted.name });
+  }
+  humanCount() { let n = 0; for (const p of this.players.values()) if (!p.bot && !p.dummy) n++; return n; }
+  // 방장이 혼자일 때 맵 고르기: 대기실에서 바로 그 맵으로 바뀌고, 다음 판도 그 맵
+  pickHostMap(mapId) {
+    if (this.phase !== 'waiting') return '대기 중일 때만 맵을 고를 수 있어요.';
+    if (this.humanCount() !== 1) return '봇·더미 말고 사람이 혼자일 때만 맵을 직접 고를 수 있어요.';
+    const map = MAPS.find((m) => m.id === mapId);
+    if (!map) return '없는 맵이에요.';
+    this.picked = map.id;
+    if (this.stage !== map) this.applyStage(map, false);
+    return null;
+  }
+  // 맵을 바꾸고 모두 그 맵의 시작 위치로
+  applyStage(map, newRound = true) {
+    this.stage = map; this.water = null;
     this.clearField();
     this.list().forEach((p, i) => {
       p.mapMid = this.stage.width / 2; p.hulkS = 1;
       if (p.parHost) this.endParasite(p, true);
-      if (p.randS1 || p.randS2) { this.rollRandomSkills(p); if (!p.bot) this.ev({ k: 'randskill', only: p.id, s: p.skill, s2: p.skill2 || '' }); }   // 랜덤 스킬: 판마다 새로
+      if (newRound && (p.randS1 || p.randS2)) { this.rollRandomSkills(p); if (!p.bot) this.ev({ k: 'randskill', only: p.id, s: p.skill, s2: p.skill2 || '' }); }   // 랜덤 스킬: 판마다 새로
       const sp = this.stage.spawns[i % this.stage.spawns.length];
       const keep = { wins: p.wins, inMatch: p.inMatch, stocks: p.stocks };
       p.reset(sp.x, sp.y); Object.assign(p, keep);
@@ -1419,7 +1436,7 @@ class Sim {
       const nx = best.x - (best.facing || 1) * s.behind;
       if (this.solidAt(nx, best.y - bh(p) / 2)) { this.deny(p, '그 자리엔 숨을 수 없어요'); return; }
       const fromX = p.x, fromY = p.y;
-      p.x = nx; p.y = best.y; p.vx = 0; p.vy = 0;
+      p.x = nx; p.y = best.y; p.vx = 0; p.vy = 0; this.settle(p);
       p.facing = Math.sign(best.x - p.x) || 1;
       p.ambushT = s.time; p.attack = null;
       p.invincible = Math.max(p.invincible || 0, s.inv);                 // 순간이동 직후 잠깐 무적
@@ -1526,7 +1543,7 @@ class Sim {
         if (tgt.rockT <= 0) {
           // 내 바로 앞으로 끌어옴 (벽 속이면 원래 자리)
           const nx2 = p.x + (p.facing || 1) * s.front;
-          if (!this.solidAt(nx2, p.y - bh(tgt) / 2)) { tgt.x = nx2; tgt.y = p.y; }
+          if (!this.solidAt(nx2, p.y - bh(tgt) / 2)) { tgt.x = nx2; tgt.y = p.y; this.settle(tgt); }
           tgt.vx = 0; tgt.vy = 0; tgt.grounded = p.grounded;
         }
         tgt.hitstun = Math.max(tgt.hitstun, s.stun); tgt.attack = null;
@@ -1569,6 +1586,18 @@ class Sim {
     }
   }
   // ---------------- 반사 ----------------
+  // 순간이동·끌어오기 직후: 발이 땅·빗면 속이면 그 자리 표면 위로 올림
+  settle(o) {
+    const hw = bw(o) / 2, h = bh(o);
+    for (const sl of this.stage.slopes || []) {
+      if (o.x < sl.x1 || o.x > sl.x2) continue;
+      const sy = slopeY(sl, o.x);
+      if (o.y > sy && o.y <= slopeBase(sl) + 2) { o.y = sy; o.vy = Math.min(o.vy, 0); }
+    }
+    for (const s of this.stage.solids) {
+      if (o.x + hw > s.x && o.x - hw < s.x + s.w && o.y > s.y && o.y - h < s.y + s.h && o.y - s.y < h) o.y = s.y;
+    }
+  }
   platformsNow() { return this.clouds.length ? [...this.stage.platforms, ...this.clouds] : this.stage.platforms; }   // 구름 발판도 발판처럼
   parrying(o) { return !o.clone && o.parryT > 0 && o.alive && !o.inside; }
   parried(o, x, y) {
@@ -2222,9 +2251,16 @@ class Sim {
     const stepMax = 18 + gradUnder * hw * 1.15;
     for (const s of this.stage.solids) {
       if (p.y > s.y && p.y - h < s.y + s.h && p.x + hw > s.x && p.x - hw < s.x + s.w) {
-        // 낮은 턱(빗면 끝 등)은 걸어서 넘어감
-        if (wasGrounded && p.y - s.y <= stepMax && !this.stage.solids.some((o) => o !== s && p.x + hw > o.x && p.x - hw < o.x + o.w && s.y > o.y && s.y - h < o.y + o.h)) { p.y = s.y; continue; }
-        if (p.vx > 0 || p.x < s.x + s.w / 2) p.x = s.x - hw; else p.x = s.x + s.w + hw;
+        const depth = p.y - s.y;
+        const roomAbove = !this.stage.solids.some((o) => o !== s && p.x + hw > o.x && p.x - hw < o.x + o.w && s.y > o.y && s.y - h < o.y + o.h);
+        const wasLeft = prevX + hw <= s.x + 1, wasRight = prevX - hw >= s.x + s.w - 1;
+        // 낮은 턱(빗면 끝 등)은 걸어서 넘어감. 공중에서 떨어지다 발끝만 살짝 걸린 경우도 위로 올려 줌 (빗면 꼭대기 모서리에서 안 걸리게)
+        if (roomAbove && (wasGrounded ? depth <= stepMax : depth <= 16 && p.vy >= -60)) { p.y = s.y; if (!wasGrounded && p.vy > 0) p.vy = 0; continue; }
+        // 이미 블록 안에 파묻혀 있었으면(순간이동·끌려옴 등) 옆으로 멀리 보내지 말고 위로 꺼냄
+        if (roomAbove && !wasLeft && !wasRight) { p.y = s.y; p.vy = Math.min(p.vy, 0); continue; }
+        // 옆으로 밀어낼 땐 들어오기 전 쪽으로 (예전엔 오른쪽으로 가면 무조건 블록 왼쪽 끝으로 보내서 넓은 땅에선 뒤로 '뿅' 순간이동했음)
+        const toLeft = wasLeft ? true : wasRight ? false : (p.x + hw) - s.x <= (s.x + s.w) - (p.x - hw);
+        p.x = toLeft ? s.x - hw : s.x + s.w + hw;
         p.vx = 0;
       }
     }
@@ -2248,6 +2284,8 @@ class Sim {
       }
       else if (wasGrounded && p.vy >= 0 && p.y < sy && sy - p.y <= tol + 4) { p.y = sy; p.vy = 0; p.grounded = true; p.onIce = !!sl.ice; }
       else if (p.vy < 0 && prevY - h >= slopeBase(sl) && p.y - h < slopeBase(sl)) { p.y = slopeBase(sl) + h; p.vy = 0; }
+      // 빗면 속(표면 아래 ~ 바닥)에 파묻혀 있으면 표면 위로 꺼냄 (낚시·암습·넉백으로 끼는 것 방지)
+      else if (p.y > sy + 1 && p.y <= slopeBase(sl) + 2 && !(p.vy < 0 && prevY - h >= slopeBase(sl))) { p.y = sy; if (p.vy > 0) p.vy = 0; p.grounded = true; p.onIce = !!sl.ice; }
     }
     // 발판 위에 서 있던 사람은 맞아서 경직돼도 (충전 모드 움찔 등) 발판 위에 그대로 섬
     if (p.dropThrough <= 0 && (p.hitstun <= 0.05 || wasGrounded)) {
@@ -2818,6 +2856,7 @@ class Sim {
     return {
       ph: this.phase, tm: Math.ceil(this.timer), w: this.winner, wi: this.winnerId, wt: this.winTeam,
       md: [this.teamMode ? 1 : 0, this.doubleMode ? 1 : 0], s: this.tickCount, mp: this.stage.id,
+      pk: this.phase === 'waiting' && this.humanCount() === 1 ? (this.picked || this.stage.id) : undefined,
       mv: this.phase === 'waiting' && this.mapVote ? [this.mapVote.cands, Object.fromEntries(Object.entries(this.mapVote.votes).filter(([pid]) => this.players.has(pid)).map(([pid, m]) => [pid, this.mapVote.cands.indexOf(m)]))] : 0,
       ev: this.recent.slice(-10),
       ar: this.arrows.map((a) => ({ x: r0(a.x), y: r0(a.y), vx: r0(a.vx), vy: r0(a.vy), h: a.homing ? 1 : 0, de: a.de ? 1 : undefined, lf: a.lf ? 1 : undefined, el: a.el || undefined, s: a.big !== 1 ? Math.round(a.big * 10) / 10 : undefined, ku: a.ku || undefined, sw: a.sw || undefined, vp: a.vp || undefined, sg: a.sg || undefined })),

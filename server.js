@@ -547,6 +547,11 @@ server.on('upgrade', (req, sock) => {
         const err = room.sim.setMode(!!m.team, !!m.dbl);
         if (err) return notice(err);
         if (room.sim.doubleMode) for (const cid of room.clients.keys()) room.giveSkill2(cid);
+      } else if (m.t === 'pickmap' && room) {
+        // 사람이 혼자(봇·더미 제외)일 때 방장이 맵을 직접 고름
+        if (id !== room.hostId) return notice('맵은 방장만 고를 수 있어요.');
+        const err = room.sim.pickHostMap(String(m.map || ''));
+        if (err) return notice(err);
       } else if (m.t === 'team' && room) {
         if (id !== room.hostId) return notice('팀은 방장만 정할 수 있어요.');
         room.sim.setTeam(String(m.id || ''), m.team);
