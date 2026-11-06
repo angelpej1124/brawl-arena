@@ -88,7 +88,7 @@ const SKILLS = {
   // 점프: 기본 3단 점프 (패시브). Q = 3초 동안 공중에서 무한 점프
   hop:      { name: '점프', cd: 14, duration: 3 },
   // 보석: 판 중에 때릴 때마다 진짜 보석 +1 (강공격 +2). Q = 5초 동안 2배. 한 판 최대 cap개 (판이 끝나면 계정에 들어감)
-  gem:      { name: '보석', cd: 12, duration: 5, cap: 60 },
+  gem:      { name: '보석', cd: 11, duration: 5, cap: 60 },
   // 샷건: 약공격 = 총으로 때리기, 강공격 = 바로 산탄 발사 (탄 5발, 발사 간격 0.5초). Q = 장전 (쿨 5초)
   shotgun:  { name: '샷건', cd: 5, ammo: 5, gap: 0.5, pellets: 5, spread: 0.34, speed: 1250, life: 0.24, dmg: 3, baseKB: 260, growthKB: 7 },
   wave:     { name: '파동', cd: 13, duration: 7, radius: 230, kb: 460, kbMul: 1.45, speedMul: 1.3, jumpMul: 1.25, reachMul: 2 },
@@ -104,7 +104,7 @@ const SKILLS = {
   leech:    { name: '흡혈', cd: 12, rate: 0.3, boost: 0.6, time: 5 },
   disc:     { name: '원반', cd: 5, speed: 950, out: 520, back: 1100, life: 3, r: 26, dmg: 7, baseKB: 380, growthKB: 9 },
   cloud:    { name: '구름', cd: 7, w: 150, life: 4, max: 2 },
-  barrier:  { name: '결계', cd: 11, r: 170, time: 3, push: 560 },
+  barrier:  { name: '결계', cd: 12, r: 130, time: 2, push: 560 },
   hammer:   { name: '망치', cd: 8, speedMul: 0.75, dmgMul: 1.5, kbMul: 1.3, reachMul: 1.15, waveR: 230, waveDmg: 6, waveKB: 520, slamR: 300, slamDmg: 10, slamKB: 820, slamFall: 1600 },
   whip:     { name: '채찍', cd: 7, lightReach: 2.1, heavyReach: 1.7, dmgMul: 0.85, pullKB: 0.55, spinR: 210, spinDmg: 8, spinKB: 650 },
   curse:    { name: '저주', cd: 9, range: 420, time: 5, selfDmg: 3 },
