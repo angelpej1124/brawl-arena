@@ -164,6 +164,19 @@
   .snd-btn.off { opacity: .5; text-decoration: line-through; }
   .snd-row .set-btn { border: 1px solid #3d3670; border-radius: 999px; padding: 4px 12px; background: transparent; color: var(--muted); cursor: pointer; font-size: 12px; }
   .set-card { width: min(440px, 100%); }
+  .snd-row .bug-btn { border: 1px solid #3d3670; border-radius: 999px; padding: 4px 12px; background: transparent; color: var(--muted); cursor: pointer; font-size: 12px; }
+  .bug-card { width: min(480px, 100%); }
+  .bug-card textarea { width: 100%; box-sizing: border-box; background: #14112a; color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 10px; font: inherit; font-size: 14px; resize: vertical; min-height: 120px; }
+  .bug-foot { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; color: var(--muted); margin: 6px 0 10px; }
+  #bugMsg { text-align: right; }
+  .adm-reports { max-height: 340px; overflow-y: auto; }
+  .adm-reports li { display: block; }
+  .adm-reports li.done { opacity: 0.5; }
+  .adm-reports .rep-h { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); }
+  .adm-reports .rep-t { white-space: pre-wrap; word-break: break-word; margin: 4px 0; font-size: 13.5px; }
+  .adm-reports .rep-c { font-size: 11px; color: var(--muted); word-break: break-all; }
+  .adm-reports .rep-b { display: flex; gap: 6px; margin-top: 6px; }
+  .adm-reports .rep-b button { border: 1px solid var(--line); background: transparent; color: var(--text); border-radius: 8px; padding: 3px 10px; font: inherit; font-size: 12px; cursor: pointer; }
   .set-h { margin: 14px 0 6px; font-size: 15px; color: var(--text); }
   .set-h small { font-weight: 400; font-size: 12px; color: var(--muted); }
   .set-sub { font-size: 13px; color: var(--accent); margin: 10px 0 2px; font-weight: 700; }
@@ -264,6 +277,9 @@
   /* 혼자일 때 방장 맵 고르기: 모든 맵을 작은 카드로, 창 안에서 스크롤 */
   .vote-cards.pick { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); max-height: 236px; overflow-y: auto; padding-right: 4px; }
   .vote-cards.pick .vote-card b { font-size: 12px; }
+  .map-size { font-style: normal; font-size: 10.5px; font-weight: 700; border-radius: 5px; padding: 0 4px; margin-right: 4px; vertical-align: 1px; color: #14112a; }
+  .map-size.s-S { background: #7fe0a0; } .map-size.s-M { background: #ffd36b; } .map-size.s-L { background: #ff8a8a; }
+  .vote-cards.pick .size-h { grid-column: 1 / -1; font-size: 12.5px; font-weight: 700; color: var(--muted); margin-top: 4px; }
   .vote-card { background: #1c1838; border: 2px solid var(--line); border-radius: 10px; padding: 5px; color: var(--text); font: inherit; cursor: pointer;
     display: flex; flex-direction: column; gap: 4px; align-items: stretch; touch-action: manipulation; min-width: 0; }
   .vote-card canvas { width: 100%; aspect-ratio: 16 / 9; border-radius: 6px; display: block; }
@@ -410,7 +426,7 @@
     <div class="card">
       <h1>난투 아레나</h1>
       <p class="sub">서로 때려서 날려버리고, 마지막까지 살아남으세요</p>
-      <div class="snd-row"><button class="snd-btn" data-snd="bgm" type="button">음악</button><button class="snd-btn" data-snd="sfx" type="button">효과음</button><button class="set-btn" type="button">⚙ 설정</button></div>
+      <div class="snd-row"><button class="snd-btn" data-snd="bgm" type="button">음악</button><button class="snd-btn" data-snd="sfx" type="button">효과음</button><button class="set-btn" type="button">⚙ 설정</button><button class="bug-btn" type="button">🐞 버그 제보</button></div>
 
       <section id="authBox" aria-label="로그인">
         <div class="tabs" role="tablist">
@@ -526,6 +542,9 @@
         <button class="sub-btn adm-warn" id="admWarn" type="button">닉네임 경고</button>
         <p class="hint" id="admMsg" role="status"></p>
       </div>
+      <span class="lbl adm-rooms-h">버그 제보 <small id="admRepCount"></small> <button class="adm-refresh" id="admRepRefresh" type="button">새로고침</button></span>
+      <ul class="rank adm-list adm-reports" id="admReports"></ul>
+      <p class="hint" id="admRepMsg" role="status"></p>
       <span class="lbl adm-rooms-h">방 관리 <button class="adm-refresh" id="admRoomsRefresh" type="button">새로고침</button></span>
       <ul class="rank adm-list" id="admRooms"></ul>
       <p class="hint" id="admRoomMsg" role="status"></p>
@@ -542,6 +561,7 @@
   <button class="snd-btn" data-snd="bgm" type="button">음악</button>
   <button class="snd-btn" data-snd="sfx" type="button">효과음</button>
   <button class="set-btn" type="button" title="설정">⚙</button>
+  <button class="bug-btn" type="button" title="버그 제보" aria-label="버그 제보">🐞</button>
   <button id="exitBtn">나가기</button>
 </div>
 <div id="net" hidden></div>
@@ -560,6 +580,7 @@
       <div class="tgls" id="modeTgls" role="group" aria-labelledby="modeLbl">
         <button type="button" data-f="0" aria-pressed="false" title="같은 팀끼리는 공격·스킬이 안 통해요">팀</button>
         <button type="button" data-f="1" aria-pressed="false" title="스킬 2개 (Q · E)">더블</button>
+        <button type="button" data-f="2" aria-pressed="false" title="판 중에 맵 곳곳에 아이템이 생겨요 (목숨 · 데미지 · 방어 · 효과 제거)">아이템</button>
       </div>
       <span class="rp-note" id="modeNote"></span>
     </div>
@@ -602,6 +623,15 @@
   </div>
 </div>
 <div id="tEditBar" hidden><span>버튼을 끌어서 옮기세요</span><button type="button" id="tEditReset">처음대로</button><button type="button" id="tEditDone">완료</button></div>
+<div id="bugModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="bugTitle">
+  <div class="modal-card bug-card">
+    <div class="modal-head"><b id="bugTitle">🐞 버그 제보</b><button class="modal-x" id="bugClose" type="button" aria-label="닫기">✕</button></div>
+    <p class="hint">어떤 상황에서 무슨 문제가 생겼는지 적어 주세요. 보내면 관리자가 확인해요. (지금 방·맵·스킬 정보도 같이 보내져요)</p>
+    <textarea id="bugText" maxlength="1000" rows="6" placeholder="예) 얼음 동굴에서 낚시로 상대를 당겼는데 상대가 기둥 속에 끼었어요"></textarea>
+    <div class="bug-foot"><span id="bugCount">0 / 1000</span><span id="bugMsg" role="status"></span></div>
+    <button class="play" id="bugSend" type="button">보내기</button>
+  </div>
+</div>
 <div id="setModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="setTitle">
   <div class="modal-card set-card">
     <div class="modal-head"><b id="setTitle">설정</b><button class="modal-x" id="setClose" type="button" aria-label="닫기">✕</button></div>

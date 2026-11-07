@@ -22,6 +22,7 @@ function normalize() {
   store = store && typeof store === 'object' ? store : {};
   store.accounts = store.accounts || {};
   store.sessions = store.sessions || {};
+  store.reports = Array.isArray(store.reports) ? store.reports : [];   // 버그 제보
 }
 
 async function init() {
@@ -652,7 +653,36 @@ setInterval(() => {
   if (changed) save();
 }, 3600000).unref();
 
+// ---------------- 버그 제보 ----------------
+// 누구나(게스트도) 보낼 수 있음. 30초에 1번 · 하루 20번까지. 최근 300개만 보관. 관리자 화면에서 확인·처리·삭제
+const REPORT_KEEP = 300, reportRate = new Map();
+function addReport({ key, name, text, ctx, who }) {
+  text = String(text || '').replace(/\r/g, '').trim();
+  if (text.length < 5) return { error: '5글자 이상 써 주세요.' };
+  if (text.length > 1000) return { error: '1000글자까지 쓸 수 있어요.' };
+  const now = Date.now(), hist = (reportRate.get(who) || []).filter((t) => now - t < 86400000);
+  if (hist.length && now - hist[hist.length - 1] < 30000) return { error: `${Math.ceil((30000 - (now - hist[hist.length - 1])) / 1000)}초 뒤에 다시 보낼 수 있어요.` };
+  if (hist.length >= 20) return { error: '오늘은 제보를 더 보낼 수 없어요. 내일 다시 보내 주세요.' };
+  hist.push(now); reportRate.set(who, hist);
+  const c = ctx && typeof ctx === 'object' ? ctx : {};
+  const clean = {};
+  for (const k of ['room', 'map', 'mode', 'skill', 'phase', 'screen', 'ua']) if (c[k] != null) clean[k] = String(c[k]).slice(0, k === 'ua' ? 160 : 40);
+  const r = { id: now.toString(36) + Math.random().toString(36).slice(2, 6), at: now, nick: key ? nickOf(key) : null, guest: key ? null : String(name || '게스트').slice(0, 12), text, ctx: clean, done: false };
+  store.reports.unshift(r);
+  if (store.reports.length > REPORT_KEEP) store.reports.length = REPORT_KEEP;
+  save();
+  return { ok: true, report: r };
+}
+function adminReports() { return store.reports; }
+function adminReportSet(id, { done, del }) {
+  const i = store.reports.findIndex((r) => r.id === id);
+  if (i < 0) return { error: '이미 지워진 제보예요.' };
+  if (del) store.reports.splice(i, 1); else store.reports[i].done = !!done;
+  save();
+  return { ok: true };
+}
 module.exports = {
+  addReport, adminReports, adminReportSet, isAdminKey: (k) => isAdmin(k),
   onShutdown, onecardRecord, gemsOf, takeGems, giveGems, pokerStat, onecardRanking, pokerRanking,
   init, storage: () => storageName, signup, login, logout, fromToken, profileOf, nickOf, isTaken,
   keyOf, owns, ownedOf, chessRecord, chessBotRecord, chessRanking, setSkill, record, buySkin, equipSkin, skinsOf, adminWarn, changeNick, ranking, cleanNick, gacha, buySkill, shopInfo, shopDaily, shopBuy, todayShop, patchSeen, patchClaim, isAdmin, adminList, adminUpdate,

@@ -125,6 +125,18 @@ async function api(req, res, urlPath) {
       for (const room of rooms.values()) for (const [cid, c] of room.clients) if (c.accountKey === key) { const p = room.sim.players.get(cid); if (p) p.skins = accounts.skinsOf(key); }
       return sendJson(res, 200, r);
     }
+    // 버그 제보: 로그인 안 해도 보낼 수 있음. 접속 중인 관리자에게 바로 알림
+    if (req.method === 'POST' && urlPath === '/api/report') {
+      const key = accounts.fromToken(bearer(req));
+      const b = await readBody(req);
+      const r = accounts.addReport({ key, name: b.name, text: b.text, ctx: b.ctx, who: key || 'ip:' + clientIp(req) });
+      if (r.error) return sendJson(res, 400, { error: r.error });
+      console.log(`[버그 제보] ${r.report.nick || r.report.guest + ' (게스트)'}: ${r.report.text.slice(0, 80).replace(/\n/g, ' ')}`);
+      for (const room of rooms.values()) for (const c of room.clients.values()) {
+        if (c.accountKey && accounts.isAdmin(c.accountKey)) c.socket.send(JSON.stringify({ t: 'report', report: r.report }));
+      }
+      return sendJson(res, 200, { ok: true });
+    }
     if (urlPath.startsWith('/api/admin/')) {
       const key = accounts.fromToken(bearer(req));
       if (!key || !accounts.isAdmin(key)) return sendJson(res, 403, { error: '관리자만 쓸 수 있어요.' });
@@ -153,6 +165,14 @@ async function api(req, res, urlPath) {
           const p = r.sim.players.get(cid); if (p) p.skins = accounts.skinsOf(tkey);
         }
         return sendJson(res, 200, { profile });
+      }
+      // 버그 제보 목록 · 처리 표시 · 삭제
+      if (req.method === 'GET' && urlPath === '/api/admin/reports') return sendJson(res, 200, { reports: accounts.adminReports() });
+      if (req.method === 'POST' && urlPath === '/api/admin/report') {
+        const b = await readBody(req);
+        const r = accounts.adminReportSet(String(b.id || ''), { done: !!b.done, del: !!b.del });
+        if (r.error) return sendJson(res, 404, { error: r.error });
+        return sendJson(res, 200, { ok: true });
       }
       // 방 목록 (공개·비공개 전부)
       if (req.method === 'GET' && urlPath === '/api/admin/rooms') {
@@ -544,7 +564,7 @@ server.on('upgrade', (req, sock) => {
         if (err) return notice(err);
       } else if (m.t === 'mode' && room) {
         if (id !== room.hostId) return notice('모드는 방장만 바꿀 수 있어요.');
-        const err = room.sim.setMode(!!m.team, !!m.dbl);
+        const err = room.sim.setMode(!!m.team, !!m.dbl, m.item === undefined ? undefined : !!m.item);
         if (err) return notice(err);
         if (room.sim.doubleMode) for (const cid of room.clients.keys()) room.giveSkill2(cid);
       } else if (m.t === 'pickmap' && room) {

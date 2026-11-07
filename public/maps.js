@@ -345,6 +345,12 @@
     m.width = m.width || 1280; m.height = m.height || 720; m.slopes = m.slopes || []; m.tramps = m.tramps || [];
     m.zoom = 1280 / m.width;
     m.icy = [...m.solids, ...m.platforms, ...m.slopes].some((q) => q.ice);   // 얼음이 있는 맵: 얼음 아닌 땅도 살짝 미끄러움
+    // 크기 등급: 실제 땅·발판이 펼쳐진 가로 폭으로 소(S) · 중(M) · 대(L). 맵에 size를 직접 적으면 그걸 씀
+    if (!m.size) {
+      const xs = [...m.solids, ...m.platforms].flatMap((q) => [q.x, q.x + q.w]).concat(m.slopes.flatMap((q) => [q.x1, q.x2]));
+      const span = Math.max(...xs) - Math.min(...xs);
+      m.size = span < 1100 ? 'S' : span <= 1220 ? 'M' : 'L';
+    }
     // 빗면 높은 쪽 끝이 다른 빗면·땅과 이어져 있지 않으면 절벽(벽)으로 취급
     const joined = (sl, x, y) => m.slopes.some((o) => o !== sl && ((o.x1 === x && o.y1 === y) || (o.x2 === x && o.y2 === y))) || m.solids.some((s) => s.y === y && s.x <= x && s.x + s.w >= x);
     for (const sl of m.slopes) { sl.wallL = sl.y1 < sl.y2 && !joined(sl, sl.x1, sl.y1); sl.wallR = sl.y2 < sl.y1 && !joined(sl, sl.x2, sl.y2); }   // 큰 맵은 화면에 맞게 작게 그림

@@ -6,7 +6,7 @@
 const CONFIG = {
   TICK_RATE: 60, SEND_EVERY: 2, MAX_PLAYERS: 6, STOCKS: 3,
   COUNTDOWN: 3, RESULT_TIME: 5, RESPAWN_INVINCIBLE: 2,
-  GRAVITY: 2300, MAX_FALL: 1300, RUN_SPEED: 400, GROUND_ACCEL: 4200, AIR_ACCEL: 1800, ICE_ACCEL: 420, ICE_FRICTION: 110, SNOW_ACCEL: 1500, SNOW_FRICTION: 260,
+  GRAVITY: 2300, MAX_FALL: 1300, RUN_SPEED: 400, GROUND_ACCEL: 4200, AIR_ACCEL: 1800, ITEM_EVERY: { S: 7, M: 10, L: 12 }, ITEM_LIFE: 18, ITEM_MAX: 3, ICE_ACCEL: 420, ICE_FRICTION: 110, SNOW_ACCEL: 1500, SNOW_FRICTION: 260,
   JUMP_SPEED: 860, DOUBLE_JUMP_SPEED: 760, EXTRA_JUMPS: 1, PLAYER_W: 40, PLAYER_H: 60,
 };
 const ATTACKS = {
@@ -138,6 +138,14 @@ const skinOn = (p, id) => activeSkins(p).includes(id);
 const iceSkin = (p) => (skinOn(p, 'sand') ? 'sand' : skinOn(p, 'aurora') ? 'aurora' : skinOn(p, 'shadowice') ? 'shadow' : null);
 const skinFx = (p) => { for (const id of activeSkins(p)) if (SKIN_DB[id] && SKIN_DB[id].fx) return SKIN_DB[id].fx; return undefined; };
 // 더블 모드에서 같이 쓸 수 없는 조합 (둘 다 무기를 바꾸는 스킬)
+// 아이템전 아이템: 목숨 · 데미지(4초 2배) · 방어(5초 받는 피해 절반) · 효과 제거
+const ITEMS = {
+  life:  { name: '목숨', msg: '목숨 +1' },
+  power: { name: '데미지', msg: '4초 동안 피해 2배!', time: 4 },
+  armor: { name: '방어', msg: '5초 동안 받는 피해 절반!', time: 5 },
+  clean: { name: '효과 제거', msg: '나쁜 효과 모두 제거 · 피해 -10%' },
+};
+const ITEM_TYPES = Object.keys(ITEMS);
 const WEAPONS = ['sword', 'archer', 'ninja', 'shield', 'tentacle', 'shotgun', 'hammer', 'whip'];   // 공격 방식을 바꾸는 스킬끼리는 더블 모드에서 같이 못 씀
 const CONFLICTS = [...WEAPONS.flatMap((a, i) => WEAPONS.slice(i + 1).map((b) => [a, b])), ['tentacle', 'fly']];
 // 빗면 { x1, y1, x2, y2 }: 윗면이 기울어진 땅 (아래로는 큰 쪽 y까지 꽉 참)
@@ -239,6 +247,7 @@ class Sim {
     this.mines = [];         // 지뢰
     this.marks = [];         // 표식 (폭발 대기)
     this.discs = []; this.clouds = []; this.barriers = [];   // 원반 · 구름 발판 · 결계
+    this.items = []; this.itemT = 0; this.itemMode = false;   // 아이템전
     this.logs = [];          // 닌자 통나무(눈사람)
     this.shields = [];       // 던진 방패
     this.flashes = [];       // 섬광 자국 { owner, x, y, r, t }
@@ -268,8 +277,9 @@ class Sim {
     return !this.teamMode || this.teamOf(a) !== this.teamOf(b);
   }
   // ---------------- 방 모드 (방장이 설정) ----------------
-  setMode(team, dbl) {
+  setMode(team, dbl, item) {
     if (this.phase !== 'waiting') return '모드는 게임 시작 전에만 바꿀 수 있어요.';
+    if (item !== undefined) this.itemMode = !!item;   // 아이템전
     if (team && !this.teamMode) this.list().forEach((p, i) => { p.team = (i % 2) + 1; });
     this.teamMode = !!team;
     if (!!dbl !== this.doubleMode) {
@@ -340,7 +350,7 @@ class Sim {
     if (p.skill2 === skill) p.skill2 = p.skill;   // 두 스킬을 서로 바꾼 것
     p.skill = skill; p.randS1 = false;
     p.skillCd = 0; p.skillCdB = 0; p.skillCd2 = 0; p.charged = false; p.stillT = 0; p.parHits = {};
-    p.venom = 0; p.venomT = 0; p.ambushT = 0; p.bindT = 0; p.leechT = 0; p.curseT = 0; p.guardT = 0; p.slamT = 0; p.flyT = 0; p.rockT = 0; p.buffT = 0; p.stealth = 0; p.giantT = 0; p.rubberT = 0; p.engineT = 0; p.stunT = 0; p.hulkS = 1; p.sunT = 0; p.waveT = 0; p.dope = null; p.chargeMode = false; p.chargeN = 0; p.rushT = 0; p.rushCarry = []; p.hopT = 0; p.ammo = SKILLS.shotgun.ammo; p.gemT = 0;
+    p.venom = 0; p.venomT = 0; p.ambushT = 0; p.bindT = 0; p.leechT = 0; p.curseT = 0; p.guardT = 0; p.slamT = 0; p.itemDmgT = 0; p.itemDefT = 0; p.flyT = 0; p.rockT = 0; p.buffT = 0; p.stealth = 0; p.giantT = 0; p.rubberT = 0; p.engineT = 0; p.stunT = 0; p.hulkS = 1; p.sunT = 0; p.waveT = 0; p.dope = null; p.chargeMode = false; p.chargeN = 0; p.rushT = 0; p.rushCarry = []; p.hopT = 0; p.ammo = SKILLS.shotgun.ammo; p.gemT = 0;
     this.clones.delete(id);
     this.removeTurrets(id);
     this.skillPicked(p);
@@ -356,7 +366,7 @@ class Sim {
     if (conflicts(skill, p.skill)) return '검사·궁수·닌자·방패·촉수·샷건은 공격 방식이 바뀌는 스킬이라 같이 쓸 수 없어요. (촉수와 비행도 불가)';
     if (p.parHost) this.endParasite(p, true);
     p.skill2 = skill; p.randS2 = false; p.skillCd = 0; p.skillCdB = 0; p.skillCd2 = 0; p.charged = false; p.stillT = 0; p.parHits = {};
-    p.venom = 0; p.venomT = 0; p.ambushT = 0; p.bindT = 0; p.leechT = 0; p.curseT = 0; p.guardT = 0; p.slamT = 0; p.flyT = 0; p.rockT = 0; p.buffT = 0; p.stealth = 0; p.giantT = 0; p.rubberT = 0; p.engineT = 0; p.sunT = 0; p.waveT = 0; p.dope = null; p.chargeMode = false; p.chargeN = 0; p.rushT = 0; p.rushCarry = []; p.hopT = 0; p.ammo = SKILLS.shotgun.ammo; p.gemT = 0;
+    p.venom = 0; p.venomT = 0; p.ambushT = 0; p.bindT = 0; p.leechT = 0; p.curseT = 0; p.guardT = 0; p.slamT = 0; p.itemDmgT = 0; p.itemDefT = 0; p.flyT = 0; p.rockT = 0; p.buffT = 0; p.stealth = 0; p.giantT = 0; p.rubberT = 0; p.engineT = 0; p.sunT = 0; p.waveT = 0; p.dope = null; p.chargeMode = false; p.chargeN = 0; p.rushT = 0; p.rushCarry = []; p.hopT = 0; p.ammo = SKILLS.shotgun.ammo; p.gemT = 0;
     this.clones.delete(id); this.removeTurrets(id);
     this.skillPicked(p);
     return null;
@@ -501,7 +511,7 @@ class Sim {
   }
   clearField() {
     this.clones.clear(); this.smokes = []; this.slashes = [];
-    this.turrets = []; this.bullets = []; this.blizzards = []; this.arrows = []; this.winds = []; this.timeSaves = new Map(); this.mines = []; this.marks = []; this.discs = []; this.clouds = []; this.barriers = []; this.logs = []; this.starRain = []; this.starBits = []; this.shields = []; this.flashes = []; this.water = null; this.potions = []; this.portals = [];
+    this.turrets = []; this.bullets = []; this.blizzards = []; this.arrows = []; this.winds = []; this.timeSaves = new Map(); this.mines = []; this.marks = []; this.discs = []; this.clouds = []; this.barriers = []; this.items = []; this.itemT = 0; this.logs = []; this.starRain = []; this.starBits = []; this.shields = []; this.flashes = []; this.water = null; this.potions = []; this.portals = [];
   }
   removeTurrets(id) {
     this.turrets = this.turrets.filter((t) => t.owner !== id);
@@ -775,6 +785,7 @@ class Sim {
     this.updateMines(targets, dt);
     this.updateMarks(dt);
     this.updateDiscs(dt); this.updateClouds(dt); this.updateBarriers(dt);
+    this.updateItems(dt);
     this.updateArrows(targets, dt);
     this.updateLogs(dt);
     this.updateStars(targets, dt);
@@ -880,6 +891,8 @@ class Sim {
     if (p.leechT > 0) p.leechT = Math.max(0, p.leechT - dt);
     if (p.curseT > 0) p.curseT = Math.max(0, p.curseT - dt);
     if (p.guardT > 0) p.guardT = Math.max(0, p.guardT - dt);
+    if (p.itemDmgT > 0) p.itemDmgT = Math.max(0, p.itemDmgT - dt);
+    if (p.itemDefT > 0) p.itemDefT = Math.max(0, p.itemDefT - dt);
     // 망치 Q를 공중에서 쓰면 내리꽂다가 땅에 닿는 순간 충격파
     if (p.slamT > 0) { p.slamT = Math.max(0, p.slamT - dt); if (p.grounded) { p.slamT = 0; this.hammerSlam(p); } }
     if (p.stealth > 0) p.stealth = Math.max(0, p.stealth - dt);
@@ -1675,6 +1688,65 @@ class Sim {
     }
   }
   // ---------------- 지뢰 ----------------
+  // ---------------- 아이템전 ----------------
+  // 아이템이 생길 수 있는 자리: 땅·발판·빗면 위 (맵마다 한 번 계산해서 저장)
+  itemSpots() {
+    const st = this.stage;
+    if (st._itemSpots) return st._itemSpots;
+    const out = [];
+    const ok = (x, y) => x > st.blast.left + 60 && x < st.blast.right - 60 && !this.solidAt(x, y) && !this.solidAt(x, y + 20) && !(st.slopes || []).some((sl) => x > sl.x1 && x < sl.x2 && y + 26 > slopeY(sl, x));
+    for (const q of [...st.solids, ...st.platforms]) {
+      if (q.w < 50) continue;
+      for (let x = q.x + 30; x <= q.x + q.w - 30; x += 70) if (ok(x, q.y - 34)) out.push([x, q.y - 34]);
+    }
+    for (const sl of st.slopes || []) for (let k = 1; k < 4; k++) { const x = sl.x1 + (sl.x2 - sl.x1) * k / 4; if (ok(x, slopeY(sl, x) - 40)) out.push([x, slopeY(sl, x) - 40]); }
+    return (st._itemSpots = out.length ? out : st.spawns.map((sp) => [sp.x, sp.y - 34]));
+  }
+  updateItems(dt) {
+    if (!this.itemMode || this.phase !== 'playing') { if (this.items.length && this.phase !== 'playing') this.items = []; return; }
+    for (const it of this.items) it.t -= dt;
+    this.items = this.items.filter((it) => it.t > 0);
+    // 맵 크기별로 소 7초 · 중 10초 · 대 12초마다 하나씩
+    this.itemT += dt;
+    const every = CONFIG.ITEM_EVERY[this.stage.size] || CONFIG.ITEM_EVERY.M;
+    if (this.itemT >= every) {
+      this.itemT = 0;
+      if (this.items.length < CONFIG.ITEM_MAX) {
+        const spots = this.itemSpots().filter(([x, y]) => this.items.every((it) => Math.hypot(it.x - x, it.y - y) > 140));
+        if (spots.length) {
+          const [x, y] = spots[Math.floor(Math.random() * spots.length)], type = ITEM_TYPES[Math.floor(Math.random() * ITEM_TYPES.length)];
+          this.items.push({ id: ++this.evSeq, type, x, y, t: CONFIG.ITEM_LIFE });
+          this.ev({ k: 'itemspawn', x: r0(x), y: r0(y), it: type });
+        }
+      }
+    }
+    // 먹기: 몸이 닿으면 (분신·기생 중·귀신은 못 먹음)
+    for (const p of this.players.values()) {
+      if (!p.alive || p.inside || p.ghostT > 0 || !p.inMatch) continue;
+      const hit = this.items.find((it) => Math.abs(it.x - p.x) < bw(p) / 2 + 22 && it.y > p.y - bh(p) - 22 && it.y < p.y + 22);
+      if (!hit) continue;
+      this.items = this.items.filter((it) => it !== hit);
+      this.useItem(p, hit.type);
+      this.ev({ k: 'itemget', x: r0(hit.x), y: r0(hit.y), it: hit.type, pid: p.id, n: p.name });
+    }
+  }
+  useItem(p, type) {
+    if (type === 'life') {
+      const max = has(p, 'undying') ? SKILLS.undying.lives : CONFIG.STOCKS;
+      if (p.stocks < max) p.stocks++;          // 목숨이 최대면 그대로
+    } else if (type === 'power') p.itemDmgT = ITEMS.power.time;
+    else if (type === 'armor') p.itemDefT = ITEMS.armor.time;
+    else if (type === 'clean') this.cleanse(p);
+  }
+  // 효과 제거: 해로운 효과 전부 + 쌓인 피해 10% 감소
+  cleanse(p) {
+    p.slow = 0; p.venom = 0; p.venomT = 0; p.stunT = 0; p.bindT = 0; p.invT = 0; p.errT = 0; p.quakeT = 0;
+    p.burnN = 0; p.burnT = 0; p.iceG = 0; p.iceT = 0; p.blindT = 0; p.curseT = 0; p.frozen = 0; p.hitstun = Math.min(p.hitstun, 0.05);
+    this.marks = this.marks.filter((m) => m.target !== p);                     // 표식
+    for (const g of this.players.values()) if (g.gMarks && g.gMarks[p.id]) delete g.gMarks[p.id];   // 귀신 표시
+    if (p.controller) { const par = this.players.get(p.controller); if (par && par.parHost === p.id) this.endParasite(par); }   // 기생당한 상태
+    p.damage = Math.max(0, p.damage - 10);
+  }
   // 망치 충격파 (Q)
   hammerSlam(p) {
     const s = SKILLS.hammer;
@@ -2653,6 +2725,9 @@ class Sim {
       this.ev({ k: 'guardblock', x: r0(t.x), y: r0(t.y - bh(t) / 2) });
       return;
     }
+    // 아이템: 데미지(때리는 쪽 2배) · 방어(맞는 쪽 절반)
+    if (a.itemDmgT > 0) def = { ...def, damage: def.damage * 2 };
+    if (t.itemDefT > 0) def = { ...def, damage: def.damage * 0.5 };
     // 암습: 숨어서 처음 때리는 공격은 세게 (넉백도 더 셈)
     if (a.ambushT > 0 && !a.clone) {
       const s = SKILLS.ambush;
@@ -2861,11 +2936,11 @@ class Sim {
       dp: p.dope ? [DOPE_KINDS.indexOf(p.dope.k), p.dope.bad ? 1 : 0, Math.ceil(p.dope.t)] : 0,
       mk: (() => { let m = 0; for (const g of this.players.values()) if (g.ghostT > 0 && g.gMarks[p.id]) m = Math.max(m, g.gMarks[p.id]); return m; })(),
       vn: p.venom > 0 ? Math.round(p.venom) : undefined, ab: p.ambushT > 0 ? 1 : undefined,
-      mt: this.marks.some((m) => m.target === p) ? 1 : undefined, rp: p.bindT > 0 ? 1 : undefined, oi: p.grounded && p.onIce && Math.abs(p.vx) > 60 ? 1 : undefined, lu: p.leechT > 0 ? 1 : undefined, cu: p.curseT > 0 ? 1 : undefined, gd: p.guardT > 0 ? 1 : undefined,
+      mt: this.marks.some((m) => m.target === p) ? 1 : undefined, rp: p.bindT > 0 ? 1 : undefined, oi: p.grounded && p.onIce && Math.abs(p.vx) > 60 ? 1 : undefined, lu: p.leechT > 0 ? 1 : undefined, ia: p.itemDmgT > 0 ? 1 : undefined, ig2: p.itemDefT > 0 ? 1 : undefined, cu: p.curseT > 0 ? 1 : undefined, gd: p.guardT > 0 ? 1 : undefined,
     });
     return {
       ph: this.phase, tm: Math.ceil(this.timer), w: this.winner, wi: this.winnerId, wt: this.winTeam,
-      md: [this.teamMode ? 1 : 0, this.doubleMode ? 1 : 0], s: this.tickCount, mp: this.stage.id,
+      md: [this.teamMode ? 1 : 0, this.doubleMode ? 1 : 0, this.itemMode ? 1 : 0], s: this.tickCount, mp: this.stage.id,
       pk: this.phase === 'waiting' && this.humanCount() === 1 ? (this.picked || this.stage.id) : undefined,
       mv: this.phase === 'waiting' && this.mapVote ? [this.mapVote.cands, Object.fromEntries(Object.entries(this.mapVote.votes).filter(([pid]) => this.players.has(pid)).map(([pid, m]) => [pid, this.mapVote.cands.indexOf(m)]))] : 0,
       ev: this.recent.slice(-10),
@@ -2873,6 +2948,7 @@ class Sim {
       lg: this.logs.map((l) => ({ x: r0(l.x), y: r0(l.y), sn: l.sn, vp: l.vp, t: Math.round(l.t * 10) / 10, s: l.big !== 1 ? Math.round(l.big * 10) / 10 : undefined })),
       fz: this.flashes.map((f) => ({ x: f.x, y: f.y, r: f.r, a: Math.round(Math.min(1, f.t / 0.6) * 100) / 100, o: f.owner, tm: f.team })),
       wa: this.water ? [r0(this.water.y), this.water.lava ? 1 : 0, this.water.choco ? 1 : 0] : 0,
+      it: this.items.length ? this.items.map((q) => [r0(q.x), r0(q.y), q.type, q.t < 3 ? 1 : 0]) : undefined,
       ds: this.discs.length ? this.discs.map((d) => [r0(d.x), r0(d.y), d.ret ? 1 : 0]) : undefined,
       cw: this.clouds.length ? this.clouds.map((c) => [r0(c.x), r0(c.y), c.w, Math.round(c.t / c.max * 100) / 100, c.owner]) : undefined,
       gw: this.barriers.length ? this.barriers.map((b) => [r0(b.x || 0), r0(b.y || 0), b.r, b.owner, Math.round(b.t * 10) / 10]) : undefined,
@@ -3256,6 +3332,18 @@ function botThink(sim, b) {
       if (pot.y > b.y + 40 && b.grounded && Math.abs(pot.x - b.x) < 80) inp.d = 1;
     }
   }
+  // 아이템전: 상대보다 가까운 아이템이 있으면 먹으러 감 (목숨이 꽉 찼으면 목숨은 무시)
+  if (sim.itemMode && sim.items.length && b.grounded !== undefined) {
+    let itm = null, idd = 1e9, fd2 = 1e9;
+    const maxSt = has(b, 'undying') ? SKILLS.undying.lives : CONFIG.STOCKS;
+    for (const q of sim.items) { if (q.type === 'life' && b.stocks >= maxSt) continue; const d = Math.hypot(q.x - b.x, q.y - b.y); if (d < idd) { idd = d; itm = q; } }
+    for (const o of sim.players.values()) if (sim.foe(b, o) && o.alive) fd2 = Math.min(fd2, Math.hypot(o.x - b.x, o.y - b.y));
+    if (itm && idd < 700 && (idd < fd2 * 0.9 || fd2 > 260)) {
+      inp.l = itm.x < b.x - 10 ? 1 : 0; inp.r = itm.x > b.x + 10 ? 1 : 0;
+      if (itm.y < b.y - 60 && (b.grounded || b.vy > 0)) wantJump = true;
+      if (itm.y > b.y + 40 && b.grounded && Math.abs(itm.x - b.x) < 80 && sim.onPlatform(b)) inp.d = 1;
+    }
+  }
   // 물속(홍수 사용자 아님): 숨이 모자라면 계속 위로 헤엄쳐 올라감
   if (sim.water && !has(b, 'flood') && sim.headUnder(b) && b.breath < 7) wantJump = true;
   if (wantJump && !b.prevInput.u) inp.u = 1;
@@ -3333,4 +3421,4 @@ function cloneThink(sim, c, owner) {
   return inp;
 }
 
-module.exports = { Sim, MAPS, COLORS, CONFIG, SKILLS, SKILL_IDS, BOT_NAMES, TEAMS, validSkill, cleanInput, EMPTY_INPUT, slotsOf, conflicts };
+module.exports = { Sim, MAPS, COLORS, CONFIG, SKILLS, SKILL_IDS, BOT_NAMES, TEAMS, validSkill, cleanInput, EMPTY_INPUT, slotsOf, conflicts , ITEMS};

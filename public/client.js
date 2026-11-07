@@ -290,7 +290,7 @@ function renderAccount() {
   selectSkill(account.skill, false);
   // 관리자
   $('adminCard').hidden = !(p && p.admin);
-  if (p && p.admin && !adminLoaded) { adminLoaded = true; adminSearch(); adminRooms(); }
+  if (p && p.admin && !adminLoaded) { adminLoaded = true; adminSearch(); adminRooms(); adminReports(); }
 }
 
 // ---------------- 스킬 뽑기 ----------------
@@ -492,6 +492,65 @@ async function adminRooms() {
   } catch (e) { $('admRoomMsg').style.color = 'var(--danger)'; $('admRoomMsg').textContent = e.message; }
 }
 $('admRoomsRefresh').addEventListener('click', adminRooms);
+// ---------- 관리자: 버그 제보 목록 ----------
+async function adminReports() {
+  const ul = $('admReports');
+  try {
+    const r = await api('/api/admin/reports');
+    ul.textContent = '';
+    const todo = r.reports.filter((x) => !x.done).length;
+    $('admRepCount').textContent = r.reports.length ? `(${r.reports.length}건 · 안 본 것 ${todo})` : '';
+    for (const rp of r.reports) {
+      const li = document.createElement('li'); if (rp.done) li.className = 'done';
+      const h = document.createElement('div'); h.className = 'rep-h';
+      const who = document.createElement('b'); who.textContent = rp.nick || `${rp.guest} (게스트)`;
+      const d = new Date(rp.at), when = document.createElement('span');
+      when.textContent = `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}${rp.done ? ' · 처리됨' : ''}`;
+      h.append(who, when);
+      const t = document.createElement('div'); t.className = 'rep-t'; t.textContent = rp.text;
+      const c = document.createElement('div'); c.className = 'rep-c';
+      const cx = rp.ctx || {};
+      c.textContent = [cx.room && '방 ' + cx.room, cx.map && '맵 ' + cx.map, cx.mode && '모드 ' + cx.mode, cx.skill && '스킬 ' + cx.skill, cx.phase, cx.screen, cx.ua].filter(Boolean).join(' · ');
+      const bb = document.createElement('div'); bb.className = 'rep-b';
+      const done = document.createElement('button'); done.type = 'button'; done.textContent = rp.done ? '다시 안 본 것으로' : '처리됨';
+      done.addEventListener('click', async () => { try { await api('/api/admin/report', { id: rp.id, done: !rp.done }); } catch (e) { $('admRepMsg').textContent = e.message; } adminReports(); });
+      const del = document.createElement('button'); del.type = 'button'; del.textContent = '삭제';
+      del.addEventListener('click', async () => { if (!confirm('이 제보를 삭제할까요?')) return; try { await api('/api/admin/report', { id: rp.id, del: true }); } catch (e) { $('admRepMsg').textContent = e.message; } adminReports(); });
+      bb.append(done, del);
+      li.append(h, t, c, bb); ul.append(li);
+    }
+    if (!r.reports.length) { const li = document.createElement('li'); li.textContent = '아직 들어온 제보가 없어요.'; ul.append(li); }
+  } catch (e) { $('admRepMsg').textContent = e.message; }
+}
+$('admRepRefresh').addEventListener('click', adminReports);
+setInterval(() => { if (!$('adminCard').hidden && !$('lobby').hidden) adminReports(); }, 20000);
+// ---------- 버그 제보 창 ----------
+function openBug() { $('bugMsg').textContent = ''; $('bugModal').hidden = false; setTimeout(() => $('bugText').focus(), 30); }
+function closeBug() { $('bugModal').hidden = true; }
+for (const b of document.querySelectorAll('.bug-btn')) b.addEventListener('click', (e) => { e.currentTarget.blur(); openBug(); });
+$('bugClose').addEventListener('click', closeBug);
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('bugModal').hidden) closeBug(); });
+$('bugModal').addEventListener('click', (e) => { if (e.target === $('bugModal')) closeBug(); });
+$('bugText').addEventListener('input', () => { $('bugCount').textContent = `${$('bugText').value.length} / 1000`; });
+$('bugText').addEventListener('keydown', (e) => e.stopPropagation());   // 쓰는 동안 게임 키 안 눌리게
+$('bugSend').addEventListener('click', async () => {
+  const text = $('bugText').value.trim(), msg = $('bugMsg');
+  if (text.length < 5) { msg.style.color = 'var(--danger)'; msg.textContent = '5글자 이상 써 주세요.'; return; }
+  const me = latest && latest.p ? latest.p.find((q) => q.id === myId) : null;
+  const ctx = {
+    room: $('roomLabel') && !$('bar').hidden ? $('roomLabel').textContent : '', map: latest && latest.mp && !$('bar').hidden ? latest.mp : '',
+    mode: latest && latest.md ? ['팀', '더블', '아이템'].filter((_, i) => latest.md[i]).join('+') || '개인전' : '', skill: me ? [me.sk, me.sk2].filter(Boolean).join('+') : '',
+    phase: latest ? latest.ph : '', screen: `${innerWidth}x${innerHeight}`, ua: navigator.userAgent,
+  };
+  $('bugSend').disabled = true;
+  try {
+    await api('/api/report', { text, name: account.profile ? '' : (cleanNick($('gNick').value) || '게스트'), ctx });
+    $('bugText').value = ''; $('bugCount').textContent = '0 / 1000';
+    msg.style.color = 'var(--ok)'; msg.textContent = '보냈어요! 고마워요 🙏';
+    setTimeout(() => { if (msg.textContent.startsWith('보냈어요')) closeBug(); }, 1400);
+  } catch (e) { msg.style.color = 'var(--danger)'; msg.textContent = e.message; }
+  $('bugSend').disabled = false;
+});
 setInterval(() => { if (!$('adminCard').hidden && !$('lobby').hidden) adminRooms(); }, 10000);
 let admTimer = null;
 $('admQ').addEventListener('input', () => { clearTimeout(admTimer); admTimer = setTimeout(adminSearch, 300); });
@@ -994,6 +1053,10 @@ function onMessage(m) {
     pingMs = Math.round(performance.now() - m.c);
   } else if (m.t === 'notice') {
     banners.push({ text: m.msg, life: 2, max: 2, small: true, color: '#ff9b9b' });
+  } else if (m.t === 'report') {
+    // 관리자: 새 버그 제보 알림
+    banners.push({ text: `🐞 새 버그 제보 · ${m.report.nick || m.report.guest}`, life: 3, max: 3, small: true, color: '#ffd36b' });
+    if (adminLoaded) adminReports();
   } else if (m.t === 'profile') {
     account.profile = m.profile;
     renderAccount();
@@ -1611,6 +1674,15 @@ function onEvent(ev) {
   } else if (ev.k === 'guardblock') {
     particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.35, max: 0.35, r: 50, c: '255,230,150', grow: true });
     for (let i = 0; i < 10; i++) { const a = Math.random() * Math.PI * 2; particles.push({ x: ev.x + Math.cos(a) * 40, y: ev.y + Math.sin(a) * 40, vx: Math.cos(a) * 200, vy: Math.sin(a) * 200, life: 0.3, max: 0.3, c: '#ffe9a0', r: 3, nograv: true }); }
+  } else if (ev.k === 'itemspawn') {
+    const [c1] = ITEM_LOOK[ev.it] || ITEM_LOOK.life;
+    particles.push({ ring: true, x: ev.x, y: ev.y, life: 0.5, max: 0.5, r: 40, c: '255,255,255', grow: true });
+    for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2; particles.push({ x: ev.x, y: ev.y, vx: Math.cos(a) * 120, vy: Math.sin(a) * 120, life: 0.4, max: 0.4, c: c1, r: 3, nograv: true }); }
+  } else if (ev.k === 'itemget') {
+    const [c1, , ic] = ITEM_LOOK[ev.it] || ITEM_LOOK.life, MSG = { life: '목숨 +1', power: '데미지 2배!', armor: '방어!', clean: '효과 제거!' };
+    for (let i = 0; i < 16; i++) { const a = Math.random() * Math.PI * 2, sp = 120 + Math.random() * 220; particles.push({ x: ev.x, y: ev.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.5, max: 0.5, c: i % 2 ? c1 : '#ffffff', r: 4, nograv: true }); }
+    particles.push({ txt: `${ic} ${MSG[ev.it] || ''}`, sz: 22, x: ev.x, y: ev.y - 20, vx: 0, vy: -60, life: 1.1, max: 1.1, c: c1, nograv: true });
+    if (ev.pid === myId) banners.push({ text: `${ic} ${MSG[ev.it] || ''}`, life: 1.2, max: 1.2, small: true, color: c1 });
   } else if (ev.k === 'mineset') {
     for (let i = 0; i < 6; i++) particles.push({ x: ev.x + (Math.random() - 0.5) * 20, y: ev.y, vx: (Math.random() - 0.5) * 120, vy: -Math.random() * 120, life: 0.3, max: 0.3, c: '#9a8a6a', r: 3 });
   } else if (ev.k === 'boom' && ev.bn) {
@@ -1869,8 +1941,25 @@ function drawPotions(state, time) {
   }
 }
 // 포탈: 주인 색 테두리의 소용돌이 타원. 짝이 아직 없으면 흐리게 (탈 수 없음)
+// 아이템전 아이템: 동그란 아이콘 (목숨 ❤ · 데미지 ⚔ · 방어 🛡 · 효과 제거 ✨)
+const ITEM_LOOK = { life: ['#ff4d6d', '#ffd0da', '❤'], power: ['#ff8a1e', '#ffe0b0', '⚔'], armor: ['#3f8cff', '#cfe2ff', '🛡'], clean: ['#2fd18a', '#d6ffe9', '✨'] };
+function drawItems(state, time) {
+  for (const [x, y, type, blink] of state.it || []) {
+    const [c1, c2, ic] = ITEM_LOOK[type] || ITEM_LOOK.life, by = y + Math.sin(time / 260 + x) * 4;
+    if (blink && Math.floor(time / 120) % 2) continue;   // 곧 사라질 때 깜빡임
+    ctx.save(); ctx.translate(x, by);
+    const glow = ctx.createRadialGradient(0, 0, 10, 0, 0, 34); glow.addColorStop(0, c1 + '66'); glow.addColorStop(1, c1 + '00');
+    ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(0, 0, 34, 0, Math.PI * 2); ctx.fill();
+    const g = ctx.createRadialGradient(-6, -7, 2, 0, 0, 20); g.addColorStop(0, c2); g.addColorStop(1, c1);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, 19, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.font = '19px "Black Han Sans", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#ffffff'; ctx.fillText(ic, 0, 1.5);
+    ctx.restore();
+  }
+}
 // 원반 · 구름 발판 · 결계
 function drawSkillObjs(state, time) {
+  drawItems(state, time);
   const meQ = state.p.find((q) => q.id === myId), myTm = meQ ? meQ.tm : 0;
   for (const [x, y, w, k, o] of state.cw || []) {
     // 구름 발판: 몽글몽글한 구름 (사라질 때쯤 깜빡임). 남의 팀 구름은 밟을 수 없어서 흐릿하게
@@ -2384,6 +2473,9 @@ function drawPlayer(p, time) {
   }
   // 암습 중: 보라색 테두리 (다음 공격이 세다는 표시)
   if (p.ab) { ctx.strokeStyle = 'rgba(180,140,255,0.8)'; ctx.lineWidth = 2; ctx.setLineDash([4, 4]); ctx.strokeRect(-PW / 2 - 5, -PH - 5, PW + 10, PH + 10); ctx.setLineDash([]); }
+  // 아이템: 데미지 2배 중 주황 불꽃 테두리 · 방어 중 파란 방울
+  if (p.ia) { ctx.strokeStyle = `rgba(255,138,30,${0.6 + 0.3 * Math.sin(time / 70)})`; ctx.lineWidth = 3; ctx.setLineDash([6, 4]); ctx.strokeRect(-PW / 2 - 6, -PH - 6, PW + 12, PH + 12); ctx.setLineDash([]); }
+  if (p.ig2) { ctx.strokeStyle = 'rgba(63,140,255,0.85)'; ctx.lineWidth = 3; ctx.fillStyle = 'rgba(120,180,255,0.14)'; ctx.beginPath(); ctx.ellipse(0, -PH / 2, PW / 2 + 16, PH / 2 + 16, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
   // 흡혈 Q 중: 몸 주위에 붉은 기운
   if (p.lu) { ctx.strokeStyle = `rgba(200,16,46,${0.5 + 0.3 * Math.sin(time / 90)})`; ctx.lineWidth = 3; ctx.strokeRect(-PW / 2 - 4, -PH - 4, PW + 8, PH + 8); }
   // 저주받음: 머리 위 보라 해골 + 보라 연기
@@ -3998,9 +4090,9 @@ let myReady = false;
   $('modeTgls').querySelectorAll('button').forEach((b) => b.addEventListener('click', (e) => {
     e.currentTarget.blur();
     if (!latest || !latest.md) return;
-    const md = [latest.md[0] || 0, latest.md[1] || 0], f = +b.dataset.f;
+    const md = [latest.md[0] || 0, latest.md[1] || 0, latest.md[2] || 0], f = +b.dataset.f;
     md[f] = md[f] ? 0 : 1;
-    send({ t: 'mode', team: !!md[0], dbl: !!md[1] });
+    send({ t: 'mode', team: !!md[0], dbl: !!md[1], item: !!md[2] });
   }));
   $('rpFold').addEventListener('click', (e) => {
     const folded = $('roomPanel').classList.toggle('folded');
@@ -4052,6 +4144,7 @@ function drawMapThumb(cv, map) {
   for (const t of map.tramps || []) { c2.fillStyle = '#ff3b4a'; c2.fillRect(t.x * sx, t.y * sy - 2, t.w * sx, 3); }
 }
 let voteKey = '';
+const SIZE_KO = { S: '소', M: '중', L: '대' };   // 맵 크기 등급
 const VOTE_LBL = '다음 맵 투표 <small>(눌러서 투표 · 시작할 때 가장 많은 표)</small>';
 const PICK_LBL = '맵 고르기 <small>(사람이 나 혼자일 때는 방장이 직접 골라요 · 누르면 바로 바뀜)</small>';
 // 혼자(봇·더미 제외)인 방장: 모든 맵 중에서 직접 고름
@@ -4073,7 +4166,8 @@ function renderPick(m) {
       b.addEventListener('click', (e) => { e.currentTarget.blur(); send({ t: 'pickmap', map: 'random' }); });
       box.append(b);
     }
-    for (const map of MAPS) {
+    for (const map of [...MAPS].sort((a, b) => 'SML'.indexOf(a.size) - 'SML'.indexOf(b.size))) {
+      if (!box.querySelector('.size-h.s-' + map.size)) { const hd = document.createElement('div'); hd.className = 'size-h s-' + map.size; hd.textContent = `${SIZE_KO[map.size]} 맵`; box.append(hd); }
       const b = document.createElement('button'); b.type = 'button'; b.className = 'vote-card'; b.dataset.id = map.id;
       const cv = document.createElement('canvas'); cv.width = 128; cv.height = 72; drawMapThumb(cv, map);
       const nm = document.createElement('b'); nm.textContent = map.name;
@@ -4106,6 +4200,7 @@ function renderVote(m) {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'vote-card'; b.dataset.i = i;
       const cv = document.createElement('canvas'); cv.width = 160; cv.height = 90; drawMapThumb(cv, map);
       const nm = document.createElement('b'); nm.textContent = map.name;
+      const sz = document.createElement('i'); sz.className = 'map-size s-' + map.size; sz.textContent = SIZE_KO[map.size] || ''; nm.prepend(sz);
       const sm = document.createElement('small');
       b.append(cv, nm, sm);
       b.addEventListener('click', (e) => { e.currentTarget.blur(); send({ t: 'vote', map: id }); });
