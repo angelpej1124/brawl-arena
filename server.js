@@ -217,21 +217,51 @@ async function api(req, res, urlPath) {
   }
 }
 
-// ---------- 진단 (사이트 접속 문제 조사용) ----------
-// 요청이 서버까지 실제로 오는지 · 응답이 끝나는지 · 서버가 멈추는지를 로그로 남김. 환경 변수 DIAG=off 로 끌 수 있음
+// ---------- 잠들지 않게 (Render 무료 서버) ----------
+// Render 무료 서버는 15분 동안 요청이 없으면 잠들고, 다음 요청이 오면 깨어나야 함.
+// 2026-11-07 오후부터 잠든 뒤 다시 깨어나지 못해 사이트가 흰 화면으로 멈추는 문제가 생김 (같은 계정의 다른 서비스도 똑같음)
+// → 공개 주소로 4분마다 /health 를 불러서 잠들지 않게 함. 환경 변수 KEEP_AWAKE=off 로 끌 수 있음
+const KEEP_EVERY = (Number(process.env.KEEP_EVERY_SEC) || 240) * 1000;
+function keepAwake(base) {
+  if (!base || process.env.KEEP_AWAKE === 'off') return;
+  let fails = 0;
+  setInterval(() => {
+    const t0 = Date.now();
+    const rq = (base.startsWith('https') ? https : http).get(base + '/health', { headers: { 'user-agent': 'brawl-keepawake' } }, (rs) => {
+      rs.resume();
+      rs.on('end', () => {
+        if (rs.statusCode !== 200) console.log(`[깨어 있기] /health → ${rs.statusCode}`);
+        else if (fails) { console.log(`[깨어 있기] 다시 정상 (${fails}번 실패 뒤)`); fails = 0; }
+      });
+    });
+    rq.setTimeout(20000, () => rq.destroy(new Error('20초 안에 응답 없음')));
+    rq.on('error', (e) => { fails++; console.log(`[깨어 있기] 실패 ${fails}번째 · ${e.message} · ${Date.now() - t0}ms`); });
+  }, KEEP_EVERY);
+}
+
+// ---------- 진단 ----------
+// 첫 화면 접속 · 오류 · 느린 응답 · 끊긴 응답만 기록, 서버가 1초 넘게 멈추면 기록, 30분마다 상태 기록. DIAG=off 로 끌 수 있음
 const DIAG = process.env.DIAG !== 'off';
 const diag = { reqs: 0, logged: 0, maxLag: 0 };
+const QUIET_UA = /^brawl-(keepawake|selfcheck)/;
 function diagRequest(req, res) {
   if (!DIAG) return;
   const t0 = Date.now();
   diag.reqs++;
   const p = String(req.url || '').split('?')[0].slice(0, 60);
-  const ua = String(req.headers['user-agent'] || '').slice(0, 50);
+  const ua = String(req.headers['user-agent'] || '').slice(0, 60);
+  if (QUIET_UA.test(ua)) return;
   let done = false;
-  res.on('finish', () => { done = true; if (diag.logged++ < 120) console.log(`[요청] ${req.method} ${p} → ${res.statusCode} · ${Date.now() - t0}ms · ${ua}`); });
-  res.on('close', () => { if (!done && diag.logged++ < 120) console.log(`[요청] ${req.method} ${p} → 응답 끝나기 전에 끊김 · ${Date.now() - t0}ms · ${ua}`); });
+  const log = (what) => { if (diag.logged++ < 60) console.log(`[요청] ${req.method} ${p} → ${what} · ${Date.now() - t0}ms · ${ua}`); };
+  res.on('finish', () => {
+    done = true;
+    if (p === '/' || res.statusCode >= 500 || Date.now() - t0 > 2000) log(res.statusCode);
+  });
+  res.on('close', () => { if (!done) log('응답 끝나기 전에 끊김'); });
 }
 function startDiag() {
+  const base = process.env.RENDER_EXTERNAL_URL;   // Render가 넣어 주는 공개 주소
+  keepAwake(base);
   if (!DIAG) return;
   let last = Date.now();
   setInterval(() => {   // 서버가 멈췄는지: 0.5초마다 재서 1초 넘게 늦으면 기록
@@ -241,15 +271,15 @@ function startDiag() {
     if (lag > 1000) console.log(`[진단] 서버가 ${(lag / 1000).toFixed(1)}초 동안 멈춰 있었어요`);
   }, 500);
   setInterval(() => {
-    console.log(`[진단] 살아있음 · 1분간 요청 ${diag.reqs}건 · 방 ${rooms.size}개 · 접속 ${onlineCount()}명 · 최대 지연 ${diag.maxLag}ms · 메모리 ${Math.round(process.memoryUsage().rss / 1048576)}MB`);
+    console.log(`[상태] 살아있음 · 30분간 요청 ${diag.reqs}건 · 방 ${rooms.size}개 · 접속 ${onlineCount()}명 · 최대 지연 ${diag.maxLag}ms · 메모리 ${Math.round(process.memoryUsage().rss / 1048576)}MB`);
     diag.reqs = 0; diag.logged = 0; diag.maxLag = 0;
-  }, 60000);
-  // 인터넷을 거쳐 자기 공개 주소로 직접 접속해 보기 (RENDER_EXTERNAL_URL 은 Render가 넣어 주는 값)
-  const base = process.env.RENDER_EXTERNAL_URL;
-  if (base) for (const s of [15, 60, 180, 600]) setTimeout(() => selfCheck(base, s), s * 1000);
-  if (base) setTimeout(() => krCheck(base), 30000);
+  }, 30 * 60 * 1000);
+  setInterval(() => { diag.logged = 0; }, 60000);
+  if (base) setTimeout(() => selfCheck(base, 15), 15000);
+  // 확인용: 평소라면 잠들었을 시간(25분 뒤)에 한국에서 열리는지 한 번 점검
+  if (base && process.env.KR_CHECK !== 'off') setTimeout(() => krCheck(base), 25 * 60 * 1000);
 }
-// 한국 안에서 이 사이트가 열리는지: 공개 측정망(Globalping)의 한국 측정 장비로 DNS·페이지 접속을 해 보고 로그로 남김
+// 한국 안에서 이 사이트가 열리는지: 공개 측정망(Globalping)의 한국 측정 장비로 페이지 접속을 해 보고 로그로 남김
 function krCheck(base) {
   const host = new URL(base).hostname;
   const call = (method, url, body) => new Promise((resolve, reject) => {
@@ -296,12 +326,8 @@ function krCheck(base) {
   const page = (path, method) => ({ request: { path, method }, protocol: 'HTTPS' });
   (async () => {
     const steps = [
-      ['DNS', { type: 'dns', target: host, locations: [{ country: 'KR', limit: 5 }], measurementOptions: { query: { type: 'A' } } }],
-      ['첫 화면', { type: 'http', target: host, locations: [{ country: 'KR', limit: 8 }], measurementOptions: page('/', 'GET') }],
-      ['/health', { type: 'http', target: host, locations: [{ country: 'KR', limit: 4 }], measurementOptions: page('/health', 'GET') }],
-      ['비교: 일본에서 첫 화면', { type: 'http', target: host, locations: [{ country: 'JP', limit: 3 }], measurementOptions: page('/', 'GET') }],
-      ['비교: 한국에서 render.com', { type: 'http', target: 'render.com', locations: [{ country: 'KR', limit: 4 }], measurementOptions: page('/', 'HEAD') }],
-      ['비교: 한국에서 다른 Render 서비스', { type: 'http', target: 'lucky-chess.onrender.com', locations: [{ country: 'KR', limit: 4 }], measurementOptions: page('/health', 'GET') }],
+      ['첫 화면', { type: 'http', target: host, locations: [{ country: 'KR', limit: 6 }], measurementOptions: page('/', 'GET') }],
+      ['/health', { type: 'http', target: host, locations: [{ country: 'KR', limit: 3 }], measurementOptions: page('/health', 'GET') }],
     ];
     for (const [label, m] of steps) {
       try { await run(label, m); } catch (e) { console.log(`[진단] 한국 점검 ${label} 실패 · ${e.message}`); }
