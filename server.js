@@ -247,44 +247,66 @@ function startDiag() {
   // 인터넷을 거쳐 자기 공개 주소로 직접 접속해 보기 (RENDER_EXTERNAL_URL 은 Render가 넣어 주는 값)
   const base = process.env.RENDER_EXTERNAL_URL;
   if (base) for (const s of [15, 60, 180, 600]) setTimeout(() => selfCheck(base, s), s * 1000);
-  if (base) setTimeout(() => worldCheck(base), 30000);
+  if (base) setTimeout(() => krCheck(base), 30000);
 }
-// 바깥(여러 나라)에서 이 사이트가 열리는지: 공개 점검 서비스(check-host.net)에 부탁하고 결과를 로그로 남김
-function worldCheck(base) {
-  const getJson = (url) => new Promise((resolve, reject) => {
-    const rq = https.get(url, { headers: { Accept: 'application/json', 'user-agent': 'brawl-arena-diag' } }, (rs) => {
+// 한국 안에서 이 사이트가 열리는지: 공개 측정망(Globalping)의 한국 측정 장비로 DNS·페이지 접속을 해 보고 로그로 남김
+function krCheck(base) {
+  const host = new URL(base).hostname;
+  const call = (method, url, body) => new Promise((resolve, reject) => {
+    const data = body ? JSON.stringify(body) : null;
+    const rq = https.request(url, { method, headers: { 'content-type': 'application/json', 'user-agent': 'brawl-arena-diag', ...(data ? { 'content-length': Buffer.byteLength(data) } : {}) } }, (rs) => {
       let b = '';
       rs.setEncoding('utf8');
       rs.on('data', (c) => { b += c; });
-      rs.on('end', () => { try { resolve(JSON.parse(b)); } catch (e) { reject(new Error(`응답 ${rs.statusCode}: ${b.slice(0, 80)}`)); } });
+      rs.on('end', () => { try { resolve({ code: rs.statusCode, body: JSON.parse(b) }); } catch (e) { reject(new Error(`응답 ${rs.statusCode}: ${b.slice(0, 120)}`)); } });
     });
     rq.setTimeout(20000, () => rq.destroy(new Error('20초 안에 응답 없음')));
     rq.on('error', reject);
+    if (data) rq.write(data);
+    rq.end();
   });
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-  (async () => {
-    try {
-      const all = Object.entries((await getJson('https://check-host.net/nodes/hosts')).nodes || {});
-      const cc = (v) => String((v.location || [])[0] || '').toUpperCase();
-      const near = all.filter(([, v]) => ['KR', 'JP', 'HK', 'TW', 'SG', 'US'].includes(cc(v)));
-      const pick = (near.length ? near : all).slice(0, 12);
-      console.log(`[진단] 외부 점검 노드: ${pick.map(([k, v]) => `${k.split('.')[0]}(${cc(v)})`).join(', ')}`);
-      const q = pick.map(([k]) => 'node=' + encodeURIComponent(k)).join('&');
-      for (const p of ['/', '/client.js']) {
-        const start = await getJson(`https://check-host.net/check-http?host=${encodeURIComponent(base + p)}&${q}`);
-        for (let i = 0; i < 6; i++) {
-          await wait(10000);
-          const res = await getJson('https://check-host.net/check-result/' + start.request_id);
-          if (i === 5 || !Object.values(res).some((v) => v === null)) {
-            for (const [k, v] of Object.entries(res)) {
-              const loc = (all.find(([n]) => n === k) || [0, {}])[1];
-              console.log(`[진단] 외부 점검 ${p} · ${k.split('.')[0]}(${cc(loc)} ${(loc.location || [])[2] || ''}) → ${JSON.stringify(v)}`);
-            }
-            break;
-          }
-        }
+  const one = (s) => String(s || '').replace(/\s+/g, ' ').trim();
+  const run = async (label, m) => {
+    const c = await call('POST', 'https://api.globalping.io/v1/measurements', m);
+    if (c.code >= 300 || !c.body.id) { console.log(`[진단] 한국 점검 ${label} 시작 못 함 · ${c.code} ${one(JSON.stringify(c.body)).slice(0, 200)}`); return; }
+    let r = {};
+    for (let i = 0; i < 45; i++) {
+      await wait(2000);
+      r = (await call('GET', 'https://api.globalping.io/v1/measurements/' + c.body.id)).body;
+      if (r.status !== 'in-progress') break;
+    }
+    if (!(r.results || []).length) console.log(`[진단] 한국 점검 ${label} · 결과 없음 (${r.status})`);
+    for (const t of r.results || []) {
+      const p = t.probe || {}, x = t.result || {}, tm = x.timings || {};
+      const where = `${p.country} ${p.city} · ${p.network} (AS${p.asn})`;
+      let what;
+      if (m.type === 'http') {
+        what = x.status === 'finished'
+          ? `${x.statusCode} · 총 ${tm.total}ms (dns ${tm.dns} · 연결 ${tm.tcp} · 암호화 ${tm.tls} · 첫 바이트 ${tm.firstByte} · 받기 ${tm.download}) · IP ${x.resolvedAddress}`
+          : `${x.status} · ${one(x.rawOutput).slice(0, 160)}`;
+      } else if (m.type === 'dns') {
+        what = `${x.status} · ${(x.answers || []).map((a) => `${a.type} ${a.value}`).join(', ') || one(x.rawOutput).slice(0, 120)} · 리졸버 ${x.resolver}`;
+      } else {
+        what = `${x.status} · ${x.stats ? `손실 ${x.stats.loss}% · 평균 ${x.stats.avg}ms · IP ${x.resolvedAddress}` : one(x.rawOutput).slice(-140)}`;
       }
-    } catch (e) { console.log('[진단] 외부 점검 실패 · ' + e.message); }
+      console.log(`[진단] 한국 점검 ${label} · ${where} → ${what}`);
+    }
+  };
+  const page = (path, method) => ({ request: { path, method }, protocol: 'HTTPS' });
+  (async () => {
+    const steps = [
+      ['DNS', { type: 'dns', target: host, locations: [{ country: 'KR', limit: 5 }], measurementOptions: { query: { type: 'A' } } }],
+      ['첫 화면', { type: 'http', target: host, locations: [{ country: 'KR', limit: 8 }], measurementOptions: page('/', 'GET') }],
+      ['/health', { type: 'http', target: host, locations: [{ country: 'KR', limit: 4 }], measurementOptions: page('/health', 'GET') }],
+      ['비교: 일본에서 첫 화면', { type: 'http', target: host, locations: [{ country: 'JP', limit: 3 }], measurementOptions: page('/', 'GET') }],
+      ['비교: 한국에서 render.com', { type: 'http', target: 'render.com', locations: [{ country: 'KR', limit: 4 }], measurementOptions: page('/', 'HEAD') }],
+      ['비교: 한국에서 다른 Render 서비스', { type: 'http', target: 'lucky-chess.onrender.com', locations: [{ country: 'KR', limit: 4 }], measurementOptions: page('/health', 'GET') }],
+    ];
+    for (const [label, m] of steps) {
+      try { await run(label, m); } catch (e) { console.log(`[진단] 한국 점검 ${label} 실패 · ${e.message}`); }
+    }
+    console.log('[진단] 한국 점검 끝');
   })();
 }
 function selfCheck(base, s) {
