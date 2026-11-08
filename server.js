@@ -6,6 +6,7 @@
 // =====================================================================
 'use strict';
 const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const { handleUpgrade } = require('./ws');
@@ -216,9 +217,55 @@ async function api(req, res, urlPath) {
   }
 }
 
+// ---------- 진단 (사이트 접속 문제 조사용) ----------
+// 요청이 서버까지 실제로 오는지 · 응답이 끝나는지 · 서버가 멈추는지를 로그로 남김. 환경 변수 DIAG=off 로 끌 수 있음
+const DIAG = process.env.DIAG !== 'off';
+const diag = { reqs: 0, logged: 0, maxLag: 0 };
+function diagRequest(req, res) {
+  if (!DIAG) return;
+  const t0 = Date.now();
+  diag.reqs++;
+  const p = String(req.url || '').split('?')[0].slice(0, 60);
+  const ua = String(req.headers['user-agent'] || '').slice(0, 50);
+  let done = false;
+  res.on('finish', () => { done = true; if (diag.logged++ < 120) console.log(`[요청] ${req.method} ${p} → ${res.statusCode} · ${Date.now() - t0}ms · ${ua}`); });
+  res.on('close', () => { if (!done && diag.logged++ < 120) console.log(`[요청] ${req.method} ${p} → 응답 끝나기 전에 끊김 · ${Date.now() - t0}ms · ${ua}`); });
+}
+function startDiag() {
+  if (!DIAG) return;
+  let last = Date.now();
+  setInterval(() => {   // 서버가 멈췄는지: 0.5초마다 재서 1초 넘게 늦으면 기록
+    const now = Date.now(), lag = now - last - 500;
+    last = now;
+    if (lag > diag.maxLag) diag.maxLag = lag;
+    if (lag > 1000) console.log(`[진단] 서버가 ${(lag / 1000).toFixed(1)}초 동안 멈춰 있었어요`);
+  }, 500);
+  setInterval(() => {
+    console.log(`[진단] 살아있음 · 1분간 요청 ${diag.reqs}건 · 방 ${rooms.size}개 · 접속 ${onlineCount()}명 · 최대 지연 ${diag.maxLag}ms · 메모리 ${Math.round(process.memoryUsage().rss / 1048576)}MB`);
+    diag.reqs = 0; diag.logged = 0; diag.maxLag = 0;
+  }, 60000);
+  // 인터넷을 거쳐 자기 공개 주소로 직접 접속해 보기 (RENDER_EXTERNAL_URL 은 Render가 넣어 주는 값)
+  const base = process.env.RENDER_EXTERNAL_URL;
+  if (base) for (const s of [15, 60, 180, 600]) setTimeout(() => selfCheck(base, s), s * 1000);
+}
+function selfCheck(base, s) {
+  const lib = base.startsWith('https') ? https : http;
+  for (const p of ['/health', '/', '/client.js']) {
+    const t0 = Date.now();
+    const rq = lib.get(base + p, { headers: { 'user-agent': 'brawl-selfcheck' } }, (rs) => {
+      let n = 0;
+      rs.on('data', (c) => { n += c.length; });
+      rs.on('end', () => console.log(`[진단] 자체 접속(${s}초) ${p} → ${rs.statusCode} · ${n}바이트 · ${Date.now() - t0}ms`));
+    });
+    rq.setTimeout(30000, () => rq.destroy(new Error('30초 안에 응답 없음')));
+    rq.on('error', (e) => console.log(`[진단] 자체 접속(${s}초) ${p} 실패 · ${e.message} · ${Date.now() - t0}ms`));
+  }
+}
+
 // ---------- 웹사이트 ----------
 let simJs = null;   // /sim.js (game.js를 브라우저용으로 감싼 것)
 const server = http.createServer((req, res) => {
+  diagRequest(req, res);
   const urlPath = decodeURIComponent(req.url.split('?')[0]);
   if (urlPath === '/health') { res.writeHead(200); return res.end('ok'); }
   // 스킬 상세 창의 영상: 브라우저에서 진짜 게임 규칙(game.js)을 그대로 돌려 보여줌
@@ -587,9 +634,16 @@ server.on('upgrade', (req, sock) => {
   });
 });
 
+// 이상한 요청(잘린 요청 등)이 오면 기록만 하고 연결을 닫음
+server.on('clientError', (err, socket) => {
+  if (DIAG) console.log(`[진단] 잘못된 요청 · ${err.code || err.message}`);
+  if (socket.writable) socket.end('HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n'); else socket.destroy();
+});
+
 accounts.init().then(() => {
   server.listen(PORT, () => {
     console.log(`난투 아레나 서버 실행 중!  http://localhost:${PORT}`);
     console.log(`계정 저장 위치: ${accounts.storage()}`);
+    startDiag();
   });
 });
