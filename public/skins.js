@@ -109,8 +109,21 @@
     puffer:      { skill: 'venom', name: '복어', desc: '독이 쌓인 상대가 복어처럼 가시 돋친 공으로 부풀어 보임 (독이 많을수록 크게)', color: '#f0d26a' },
     thornvine:   { skill: 'whip', name: '가시덩굴', desc: '채찍이 잎과 가시가 달린 초록 덩굴이 됨', color: '#3f8a2e' },
   };
-  const PRICE = 100;
-  const api = { SKINS, PRICE };
+  // ---------- 등급 ----------
+  //  일반(파랑): 각 스킬의 기본 모습 (무료) · 레어(보라): 보통 스킨 · 에픽(빨강): 소리까지 바뀌는 스킨 · 전설(노랑): 한정판
+  //  새 스킨이 소리도 바꾸면 EPIC 에 이름을 넣어 주세요. 스킨에 grade 를 직접 적으면 그게 우선이에요.
+  const GRADES = {
+    common: { name: '일반', color: '#4aa8ff', price: 0 },
+    rare:   { name: '레어', color: '#b06cff', price: 100 },
+    epic:   { name: '에픽', color: '#ff4a5a', price: 150 },
+    legend: { name: '전설', color: '#ffd23f', price: 200 },
+  };
+  const EPIC = ['bluefire', 'blackfire', 'supernova', 'blackhole', 'banana', 'notes', 'camera', 'potlid', 'cat', 'chain', 'mosquito', 'mjolnir'];
+  for (const [id, s] of Object.entries(SKINS)) if (!s.grade) s.grade = s.limited ? 'legend' : EPIC.includes(id) ? 'epic' : 'rare';
+  const gradeOf = (id) => GRADES[id && SKINS[id] ? SKINS[id].grade : 'common'];
+  const priceOf = (id) => gradeOf(id).price;
+  const PRICE = GRADES.rare.price;   // 예전 코드 호환용 (레어 가격)
+  const api = { SKINS, PRICE, GRADES, EPIC, gradeOf, priceOf };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.BRAWL_SKINS = api;
 })(this);

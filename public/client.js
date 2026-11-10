@@ -118,6 +118,10 @@ function slotsOf(p) {
 // 그 슬롯 스킬의 남은 쿨타임
 // 스킨 (보이는 것만 바뀜)
 const SKIN_INFO = window.BRAWL_SKINS;
+// 스킨 등급 표시: 일반(파랑) · 레어(보라) · 에픽(빨강) · 전설(노랑)
+const skinPriceOf = (id) => SKIN_INFO.priceOf(id);
+function gradeTag(id) { const g = SKIN_INFO.gradeOf(id); const s = document.createElement('span'); s.className = 'grade-tag'; s.textContent = g.name; s.style.color = g.color; s.style.borderColor = g.color; return s; }
+function gradeEdge(card, id) { card.style.borderLeft = `5px solid ${SKIN_INFO.gradeOf(id).color}`; }
 const skinOn = (p, id) => !!(p && p.sn && p.sn.includes(id));
 const fxOf = (p) => { for (const id of (p && p.sn) || []) if (SKIN_INFO.SKINS[id] && SKIN_INFO.SKINS[id].fx) return SKIN_INFO.SKINS[id].fx; return null; };
 // 공격 이펙트 색 (스킨) — 무지개는 시간에 따라 색이 돎
@@ -307,20 +311,22 @@ function renderSkins() {
   const list = Object.entries(SKIN_INFO.SKINS).filter(([id, s]) => s.skill === skill && (!s.limited || (p && p.skins && p.skins.includes(id)) || evSale(id)));
   $('skinTitle').textContent = `${SKILLS[skill].name} 스킨`;
   $('skinGems').textContent = p ? `보석 ${p.gems}` : '';
-  $('skinSub').textContent = '스킨은 보이는 모습만 바뀌고 능력은 그대로예요. 기본 스킨은 모두 가지고 있어요. 카드를 누르면 영상으로 볼 수 있어요.';
+  $('skinSub').textContent = '스킨은 보이는 모습만 바뀌고 능력은 그대로예요. 등급: 일반(기본 모습·무료) · 레어 100 · 에픽(소리까지 바뀜) 150 · 전설(한정판) 200보석. 카드를 누르면 영상으로 볼 수 있어요.';
+  list.sort((a, b) => skinPriceOf(a[0]) - skinPriceOf(b[0]));
   const box = $('skinList'); box.textContent = '';
   const equipped = p && p.skinSel ? p.skinSel[skill] || null : null;
   const card = (id, name, desc, color, owned) => {
     const c = document.createElement('div'); c.className = 'skin-card' + (equipped === id ? ' on' : '');
     const sw = document.createElement('div'); sw.className = 'skin-sw'; sw.style.background = color;
     const t = document.createElement('div'); t.className = 'skin-txt';
-    const b = document.createElement('b'); b.textContent = name; const sm = document.createElement('small'); sm.textContent = desc; t.append(b, sm);
+    const b = document.createElement('b'); b.append(gradeTag(id), name); const sm = document.createElement('small'); sm.textContent = desc; t.append(b, sm);
+    gradeEdge(c, id);
     const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'skin-act';
-    if (!p) { btn.textContent = id ? `보석 ${SKIN_INFO.PRICE}` : '기본'; btn.disabled = true; }
+    if (!p) { btn.textContent = id ? `보석 ${skinPriceOf(id)}` : '기본'; btn.disabled = true; }
     else if (equipped === id) { btn.textContent = '장착 중'; btn.disabled = true; btn.classList.add('ghost'); }
     else if (owned) { btn.textContent = '장착'; btn.onclick = () => skinAction('/api/skin/equip', { skill, skin: id }); }
     else if (id && SKIN_INFO.SKINS[id].limited) { const sale = evSale(id); btn.textContent = `한정판 · 보석 ${sale.price}`; btn.disabled = p.gems < sale.price; btn.onclick = () => eventBuy(id); }
-    else { btn.textContent = `구매 · 보석 ${SKIN_INFO.PRICE}`; btn.disabled = p.gems < SKIN_INFO.PRICE; btn.onclick = () => skinAction('/api/skin/buy', { skin: id }); }
+    else { const pr = skinPriceOf(id); btn.textContent = `구매 · 보석 ${pr}`; btn.disabled = p.gems < pr; btn.onclick = () => skinAction('/api/skin/buy', { skin: id }); }
     c.append(sw, t, btn); box.append(c);
     // 카드를 누르면 스킨 영상 (버튼은 그대로)
     c.dataset.info = '1'; c.title = '눌러서 영상 보기';
@@ -677,12 +683,13 @@ async function loadShop() {
   $('shopDot').hidden = !(account.profile && shopData && !shopData.dailyDone);
   if (!$('shopModal').hidden) renderShop();
 }
-function shopCard(box, sw, name, desc, priceHtml, owned, onBuy, extra, onInfo) {
+function shopCard(box, sw, name, desc, priceHtml, owned, onBuy, extra, onInfo, skinId) {
   const p = account.profile;
   const c = document.createElement('div'); c.className = 'skin-card';
+  if (skinId !== undefined) gradeEdge(c, skinId);
   const s = document.createElement('div'); s.className = 'skin-sw'; s.style.background = sw;
   const t = document.createElement('div'); t.className = 'skin-txt';
-  const b = document.createElement('b'); b.textContent = name; const sm = document.createElement('small'); sm.textContent = desc; t.append(b, sm);
+  const b = document.createElement('b'); if (skinId !== undefined) b.append(gradeTag(skinId)); b.append(name); const sm = document.createElement('small'); sm.textContent = desc; t.append(b, sm);
   if (extra) t.append(extra);
   const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'skin-act';
   if (owned) { btn.textContent = '보유 중'; btn.disabled = true; btn.classList.add('ghost'); }
@@ -706,7 +713,7 @@ function renderShop() {
     for (const it of e.skins) {
       const sk = SKIN_INFO.SKINS[it.id]; if (!sk) continue;
       const tag = document.createElement('span'); tag.className = 'ltd-tag'; tag.textContent = '한정판';
-      shopCard(evBox, sk.color, `${sk.name} (${SKILLS[validSkill(sk.skill)].name} 스킨)`, sk.desc, `구매 · 보석 ${it.price}`, it.owned, () => shopBuy('event', it.id, sk.name, it.price), tag, () => openDetail({ skill: validSkill(sk.skill), skin: it.id }));
+      shopCard(evBox, sk.color, `${sk.name} (${SKILLS[validSkill(sk.skill)].name} 스킨)`, sk.desc, `구매 · 보석 ${it.price}`, it.owned, () => shopBuy('event', it.id, sk.name, it.price), tag, () => openDetail({ skill: validSkill(sk.skill), skin: it.id }), it.id);
     }
   }
   const db = $('shopDaily');
@@ -724,7 +731,7 @@ function renderShop() {
   const ss = $('shopSkins'); ss.textContent = '';
   for (const it of d.skins) {
     const sk = SKIN_INFO.SKINS[it.id]; if (!sk) continue;
-    shopCard(ss, sk.color, `${sk.name} (${SKILLS[validSkill(sk.skill)].name} 스킨)`, sk.desc, `<span class="old-price">${it.normal}</span>보석 ${it.price}`, it.owned, () => shopBuy('skin', it.id, sk.name, it.price), null, () => openDetail({ skill: validSkill(sk.skill), skin: it.id }));
+    shopCard(ss, sk.color, `${sk.name} (${SKILLS[validSkill(sk.skill)].name} 스킨)`, sk.desc, `<span class="old-price">${it.normal}</span>보석 ${it.price}`, it.owned, () => shopBuy('skin', it.id, sk.name, it.price), null, () => openDetail({ skill: validSkill(sk.skill), skin: it.id }), it.id);
   }
   const sl = $('shopSkills'); sl.textContent = '';
   for (const it of d.skills) {
@@ -4801,7 +4808,9 @@ function renderDetail(restart) {
   const { skill, skin } = det, sk = SKILLS[skill], sd = skin && SKIN_INFO.SKINS[skin];
   $('detTitle').textContent = sd ? sd.name : sk.name;
   $('detTitle').style.color = sd ? sd.color : SKILL_COLOR[skill];
-  $('detTag').textContent = sd ? `${sk.name} 스킨` : sk.cd;
+  const gd = sd ? SKIN_INFO.gradeOf(skin) : null;
+  $('detTag').textContent = sd ? `${gd.name} · ${sk.name} 스킨` : sk.cd;
+  $('detTag').style.color = gd ? gd.color : '';
   $('detDesc').textContent = sd ? `${sd.desc} — 보이는 모습만 바뀌고 능력은 그대로예요.` : sk.desc;
   const ul = $('detMore'); ul.textContent = '';
   const li = (label, text) => { if (!text) return; const e = document.createElement('li'); if (label) { const b = document.createElement('b'); b.textContent = label + ' '; e.append(b); } e.append(text); ul.append(e); };
@@ -4830,10 +4839,10 @@ function detActions() {
       return;
     }
     else {
-      btn.textContent = `구매 · 보석 ${SKIN_INFO.PRICE}`; btn.disabled = p.gems < SKIN_INFO.PRICE;
+      const pr = skinPriceOf(skin); btn.textContent = `구매 · 보석 ${pr}`; btn.disabled = p.gems < pr;
       btn.onclick = async () => { await skinAction('/api/skin/buy', { skin }); msg.textContent = $('skinMsg').textContent; detActions(); };
     }
-    if (!msg.textContent) msg.textContent = p && !owned && p.gems < SKIN_INFO.PRICE ? `보석이 ${SKIN_INFO.PRICE - p.gems}개 모자라요.` : '';
+    if (!msg.textContent) msg.textContent = p && !owned && p.gems < skinPriceOf(skin) ? `보석이 ${skinPriceOf(skin) - p.gems}개 모자라요.` : '';
     return;
   }
   const owned = (p ? p.owned : BASE_SKILLS).includes(skill);

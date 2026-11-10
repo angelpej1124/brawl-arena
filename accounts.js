@@ -390,7 +390,8 @@ function chessRanking(limit = 10) {
 }
 
 // ---------- 스킨 ----------
-const { SKINS, PRICE: SKIN_PRICE } = require('./public/skins.js');
+const { SKINS, priceOf: skinPrice } = require('./public/skins.js');
+const saleOf = (id) => Math.round(skinPrice(id) * SHOP.SKIN_SALE);   // 오늘의 상점 할인가
 const { PATCH } = require('./public/patch.js');
 // 패치 내역: 봤다고 표시 / 보상 받기 (패치마다 한 번)
 // 이 계정이 받을 수 있는 패치 보상 (버그를 고친 뒤에 가입한 계정은 그 보상 없음)
@@ -463,11 +464,11 @@ function shopInfo(key) {
   const nextReset = Date.parse(t.day + 'T00:00:00+09:00') + 86400000;
   return {
     day: t.day, nextReset, daily: SHOP.DAILY, dailyDone: !!a && a.dailyAt === t.day,
-    skins: t.skins.map((id) => ({ id, price: SHOP.SKIN_PRICE, normal: SKIN_PRICE, owned: hasSkin(a, id) })),
+    skins: t.skins.map((id) => ({ id, price: saleOf(id), normal: skinPrice(id), owned: hasSkin(a, id) })),
     skills: t.skills.map((id) => ({ id, price: SHOP.SKILL_PRICE, owned: hasSkill(a, id) })),
     events: activeEvents(t.day).map((e) => ({
       id: e.id, name: e.name, desc: e.desc, ends: Date.parse(e.until + 'T00:00:00+09:00') + 86400000,
-      skins: e.skins.filter((id) => SKINS[id]).map((id) => ({ id, price: e.price, owned: hasSkin(a, id) })),
+      skins: e.skins.filter((id) => SKINS[id]).map((id) => ({ id, price: skinPrice(id), owned: hasSkin(a, id) })),
     })),
     packages: activePackages(t.day).map((p) => ({
       id: p.id, name: p.name, desc: p.desc, price: p.price, skills: p.skills || [], skins: p.skins || [],
@@ -493,7 +494,7 @@ function shopBuy(key, kind, id) {
   if (kind === 'skin') {
     if (!t.skins.includes(id)) throw new Error('오늘 상점에 없는 스킨이에요. (상점이 바뀌었을 수 있어요)');
     if (hasSkin(a, id)) throw new Error('이미 가진 스킨이에요.');
-    pay(SHOP.SKIN_PRICE); a.skins.push(id); a.skinSel[SKINS[id].skill] = id;
+    pay(saleOf(id)); a.skins.push(id); a.skinSel[SKINS[id].skill] = id;
   } else if (kind === 'skill') {
     if (!t.skills.includes(id)) throw new Error('오늘 상점에 없는 스킬이에요. (상점이 바뀌었을 수 있어요)');
     if (hasSkill(a, id)) throw new Error('이미 가진 스킬이에요.');
@@ -503,7 +504,7 @@ function shopBuy(key, kind, id) {
     const ev = activeEvents().find((e) => e.skins.includes(id));
     if (!ev || !SKINS[id]) throw new Error('지금은 살 수 없는 한정판 스킨이에요.');
     if (hasSkin(a, id)) throw new Error('이미 가진 스킨이에요.');
-    pay(ev.price); a.skins.push(id); a.skinSel[SKINS[id].skill] = id;
+    pay(skinPrice(id)); a.skins.push(id); a.skinSel[SKINS[id].skill] = id;
   } else if (kind === 'pkg') {
     const p = activePackages().find((x) => x.id === id);
     if (!p) throw new Error('지금 팔지 않는 패키지예요.');
@@ -523,8 +524,9 @@ function buySkin(key, id) {
   if (!sk) throw new Error('없는 스킨이에요.');
   if (sk.limited) throw new Error('한정판 스킨은 이벤트 기간에 상점에서만 살 수 있어요.');
   if (hasSkin(a, id)) throw new Error('이미 가진 스킨이에요.');
-  if (a.gems < SKIN_PRICE) throw new Error(`보석이 모자라요. 스킨은 ${SKIN_PRICE}개예요.`);
-  a.gems -= SKIN_PRICE; a.skins.push(id);
+  const price = skinPrice(id);
+  if (a.gems < price) throw new Error(`보석이 모자라요. 이 스킨은 ${price}개예요.`);
+  a.gems -= price; a.skins.push(id);
   a.skinSel[sk.skill] = id;                 // 사면 바로 장착
   save();
   return { profile: publicProfile(a) };

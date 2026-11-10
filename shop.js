@@ -10,16 +10,17 @@
 // =====================================================================
 const SHOP = {
   DAILY: 30,          // 일일 보상 보석
-  SKIN_PRICE: 70,     // 오늘의 스킨 가격 (원래 100)
+  SKIN_SALE: 0.7,     // 오늘의 스킨은 등급 가격의 70% (레어 100→70 · 에픽 150→105)
   SKILL_PRICE: 100,   // 오늘의 스킬 가격
   SKINS_PER_DAY: 3,
   SKILLS_PER_DAY: 2,
   // 한정판 이벤트: 상점 맨 위에 따로 (from 00:00 ~ until 23:59, 한국 시간). 그 전엔 안 보이고, 끝나면 다시는 못 삼
+  // 한정판 가격은 전설 등급 가격 (public/skins.js GRADES.legend = 200)
   EVENTS: [
     { id: 'halloween-2026', name: '🎃 할로윈 한정판', desc: '이번 주에만 살 수 있는 한정판 스킨! 기간이 끝나면 다시는 못 사요',
-      skins: ['pumpkin', 'vampire', 'soul'], price: 150, from: '2026-11-02', until: '2026-11-08' },
+      skins: ['pumpkin', 'vampire', 'soul'], from: '2026-11-02', until: '2026-11-08' },
     { id: 'pepero-2026', name: '🍫 빼빼로 데이 한정판', desc: '빼빼로 데이 주간에만 살 수 있는 한정판 스킨! 기간이 끝나면 다시는 못 사요',
-      skins: ['pepero_sword', 'pepero_dope'], price: 150, from: '2026-11-09', until: '2026-11-15' },
+      skins: ['pepero_sword', 'pepero_dope'], from: '2026-11-09', until: '2026-11-15' },
   ],
   PACKAGES: [
     {
