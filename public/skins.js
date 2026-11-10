@@ -110,12 +110,13 @@
     thornvine:   { skill: 'whip', name: '가시덩굴', desc: '채찍이 잎과 가시가 달린 초록 덩굴이 됨', color: '#3f8a2e' },
   };
   // ---------- 등급 ----------
-  //  일반(파랑): 각 스킬의 기본 모습 (무료) · 레어(보라): 보통 스킨 · 에픽(빨강): 소리까지 바뀌는 스킨 · 전설(노랑): 한정판
+  //  일반(파랑): 각 스킬의 기본 모습 (무료) · 에픽(보라): 보통 스킨 · 레어(빨강): 소리까지 바뀌는 스킨 · 전설(노랑): 한정판
+  //  (코드 안 이름 rare/epic 은 그대로 두고, 화면에 보이는 이름만 바꿈)
   //  새 스킨이 소리도 바꾸면 EPIC 에 이름을 넣어 주세요. 스킨에 grade 를 직접 적으면 그게 우선이에요.
   const GRADES = {
     common: { name: '일반', color: '#4aa8ff', price: 0 },
-    rare:   { name: '레어', color: '#b06cff', price: 100 },
-    epic:   { name: '에픽', color: '#ff4a5a', price: 150 },
+    rare:   { name: '에픽', color: '#b06cff', price: 100 },   // 보통 스킨 (이름은 '에픽')
+    epic:   { name: '레어', color: '#ff4a5a', price: 150 },   // 소리까지 바뀌는 스킨 (이름은 '레어')
     legend: { name: '전설', color: '#ffd23f', price: 200 },
   };
   const EPIC = ['bluefire', 'blackfire', 'supernova', 'blackhole', 'banana', 'notes', 'camera', 'potlid', 'cat', 'chain', 'mosquito', 'mjolnir'];

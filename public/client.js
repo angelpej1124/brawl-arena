@@ -118,7 +118,7 @@ function slotsOf(p) {
 // 그 슬롯 스킬의 남은 쿨타임
 // 스킨 (보이는 것만 바뀜)
 const SKIN_INFO = window.BRAWL_SKINS;
-// 스킨 등급 표시: 일반(파랑) · 레어(보라) · 에픽(빨강) · 전설(노랑)
+// 스킨 등급 표시: 일반(파랑) · 에픽(보라) · 레어(빨강) · 전설(노랑)
 const skinPriceOf = (id) => SKIN_INFO.priceOf(id);
 function gradeTag(id) { const g = SKIN_INFO.gradeOf(id); const s = document.createElement('span'); s.className = 'grade-tag'; s.textContent = g.name; s.style.color = g.color; s.style.borderColor = g.color; return s; }
 function gradeEdge(card, id) { card.style.borderLeft = `5px solid ${SKIN_INFO.gradeOf(id).color}`; }
@@ -311,7 +311,7 @@ function renderSkins() {
   const list = Object.entries(SKIN_INFO.SKINS).filter(([id, s]) => s.skill === skill && (!s.limited || (p && p.skins && p.skins.includes(id)) || evSale(id)));
   $('skinTitle').textContent = `${SKILLS[skill].name} 스킨`;
   $('skinGems').textContent = p ? `보석 ${p.gems}` : '';
-  $('skinSub').textContent = '스킨은 보이는 모습만 바뀌고 능력은 그대로예요. 등급: 일반(기본 모습·무료) · 레어 100 · 에픽(소리까지 바뀜) 150 · 전설(한정판) 200보석. 카드를 누르면 영상으로 볼 수 있어요.';
+  $('skinSub').textContent = '스킨은 보이는 모습만 바뀌고 능력은 그대로예요. 등급: 일반(기본 모습·무료) · 에픽 100 · 레어(소리까지 바뀜) 150 · 전설(한정판) 200보석. 카드를 누르면 영상으로 볼 수 있어요.';
   list.sort((a, b) => skinPriceOf(a[0]) - skinPriceOf(b[0]));
   const box = $('skinList'); box.textContent = '';
   const equipped = p && p.skinSel ? p.skinSel[skill] || null : null;
