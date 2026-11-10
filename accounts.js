@@ -139,7 +139,7 @@ const GEMS = {
   ONECARD_PLAY: 20,
 };
 const GACHA = {
-  COST: 150,          // 뽑기 1회 가격
+  COST: 200,          // 뽑기 1회 가격
   DUP_REFUND: 40,     // 이미 가진 스킬이 나오면 돌려주는 보석
   TEN: 10,           // 10회 뽑기
   BUY: 1000,         // 원하는 스킬 바로 사기

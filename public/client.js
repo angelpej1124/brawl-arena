@@ -294,7 +294,7 @@ function renderAccount() {
 }
 
 // ---------------- 스킬 뽑기 ----------------
-const GACHA_COST = 150, SKILL_BUY = 1000;
+const GACHA_COST = 200, SKILL_BUY = 1000;
 const BASE_SKILLS = ['slow', 'blink'];
 // ---------------- 스킨 창 ----------------
 function renderSkins() {
