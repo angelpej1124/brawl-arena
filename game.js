@@ -115,7 +115,7 @@ const SKILLS = {
   // 장벽: 바라보는 쪽 ahead 앞에 높이 h 벽. 걸어오는 상대·상대 투사체를 막음 (세게 맞아 날아가는 상대는 통과)
   wall:     { name: '장벽', cd: 11, time: 4, w: 26, h: 170, ahead: 80 },
   // 화산: 발밑 땅이 time초 동안 용암 지대 (폭 w). 위에 선 상대는 tick초마다 피해 dmg + 위로 튐
-  volcano:  { name: '화산', cd: 12, time: 3, w: 280, tick: 0.5, dmg: 4, pop: 560 },
+  volcano:  { name: '화산', cd: 12, time: 4.5, w: 400, tick: 0.5, dmg: 4, pop: 560 },
   // 축소: 가장 가까운 상대를 time초 동안 작게 — 크기·사거리↓, 주는 넉백↓, 받는 넉백↑
   shrink:   { name: '축소', cd: 14, range: 450, time: 5, size: 0.6, reachMul: 0.7, kbOut: 0.75, kbIn: 1.25 },
 };
