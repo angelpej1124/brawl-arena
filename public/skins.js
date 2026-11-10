@@ -97,6 +97,17 @@
     choco:       { skill: 'flood', name: '초코', desc: '물 대신 달콤한 초콜릿 바다가 차오름 (보이는 것만 바뀜)', color: '#6b3a1f' },
     hearts:      { skill: 'starlight', name: '하트', desc: '떨어지는 별 대신 분홍 하트가 떨어지고, 땅에 닿으면 작은 하트들이 퐁퐁 튐', color: '#ff6aa0' },
     gold:        { skill: 'rock', name: '골드', desc: '바위 대신 번쩍이는 금덩어리 몸', color: '#ffc928' },
+    cat:         { skill: 'ambush', name: '고양이', desc: '순간이동한 자리마다 고양이 발자국이 찍히고 "야옹!". 암습 중엔 머리에 고양이 귀', color: '#f2b05e' },
+    bubble:      { skill: 'barrier', name: '비눗방울', desc: '결계가 무지갯빛 비눗방울이 되고, 끝날 때 퐁 터짐', color: '#bfe8ff' },
+    cottoncandy: { skill: 'cloud', name: '솜사탕', desc: '구름 발판이 분홍·하늘색 솜사탕이 됨', color: '#ffb3dc' },
+    voodoo:      { skill: 'curse', name: '부두 인형', desc: '저주받은 상대 머리 위에 바늘이 꽂힌 부두 인형이 따라다님', color: '#c89a6a' },
+    pizza:       { skill: 'disc', name: '피자', desc: '원반 대신 페퍼로니 피자가 날아가고, 돌아올 땐 치즈가 쭉 늘어남', color: '#ffc04a' },
+    mjolnir:     { skill: 'hammer', name: '묠니르', desc: '번개를 두른 은빛 망치. 충격파마다 번개가 내리침', color: '#9fb6d8' },
+    chain:       { skill: 'hook', name: '쇠사슬', desc: '낚싯줄 대신 끝에 낫이 달린 쇠사슬. 걸린 상대는 사슬에 감기고 자물쇠가 채워짐', color: '#8a8f99' },
+    mosquito:    { skill: 'leech', name: '모기', desc: '흡혈할 때 모기가 날아가 빨아 옴, 앵앵 소리. 흡혈 Q 중엔 모기들이 주위를 맴돎', color: '#5a4a3a' },
+    scorpion:    { skill: 'venom', name: '전갈', desc: '등 뒤에 전갈 꼬리가 달리고, 때릴 때 꼬리 끝 독침이 앞으로 찌름', color: '#c0782a' },
+    puffer:      { skill: 'venom', name: '복어', desc: '독이 쌓인 상대가 복어처럼 가시 돋친 공으로 부풀어 보임 (독이 많을수록 크게)', color: '#f0d26a' },
+    thornvine:   { skill: 'whip', name: '가시덩굴', desc: '채찍이 잎과 가시가 달린 초록 덩굴이 됨', color: '#3f8a2e' },
   };
   const PRICE = 100;
   const api = { SKINS, PRICE };
