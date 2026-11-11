@@ -329,6 +329,11 @@
     background: var(--accent); color: #2a1a00; box-shadow: 0 3px 0 var(--accent-deep); touch-action: manipulation; }
   .rp-btn.on { background: var(--ok); color: #0b2a16; box-shadow: 0 3px 0 #2c8a50; }
   .rp-btn:disabled { opacity: .5; cursor: not-allowed; }
+  .rp-btns { display: flex; gap: 8px; }
+  .rp-btns .rp-btn { flex: 1; }
+  .rp-spec { background: #3a3560; color: #e8e4ff; box-shadow: 0 3px 0 #22203e; }
+  .rp-spec.on { background: #7a6cc8; color: #fff; box-shadow: 0 3px 0 #4f44a0; }
+  .chips.locked .chip { opacity: .45; pointer-events: none; }
   #roomPanel.folded #rpBody { display: none; }
   .skin-open { margin-top: 8px; border-color: #c77dff; color: #e2c8ff; }
   .adm-warn { border-color: #ff6b6b; color: #ffb3b3; }
@@ -593,7 +598,7 @@
     <div class="rp-row" id="kickRow" hidden><span class="rp-lbl" id="kickLbl">추방</span><div class="botlist" id="kickList" role="group" aria-labelledby="kickLbl"></div></div>
     <div class="rp-row" id="botRow" hidden><span class="rp-lbl" id="botLbl">봇</span><div class="botlist" id="botList" role="group" aria-labelledby="botLbl"></div></div>
   </div>
-  <button id="readyBtn" class="rp-btn" type="button">준비</button>
+  <div class="rp-btns"><button id="readyBtn" class="rp-btn" type="button">준비</button><button id="specBtn" class="rp-btn rp-spec" type="button">관전</button></div>
 </div>
 <div id="rotate" hidden>가로로 돌리면 더 크게 보여요</div>
 

@@ -143,6 +143,7 @@ const validSkill = (s) => (Object.prototype.hasOwnProperty.call(SKILLS, s) ? s :
 const $ = (id) => document.getElementById(id);
 const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 let isHost = false;   // 내가 방장인지 (서버가 알려줌)
+let spectating = false;   // 관전 중인지 (서버가 알려줌)
 let hostLive = null;  // 지금 방장의 id
 
 const account = { token: null, profile: null, skill: 'slow' };
@@ -3880,7 +3881,7 @@ function smallText(text, y) {
 function drawPhase(state, players, dt) {
   const ph = state.ph;
   if (ph === 'waiting') {
-    smallText(isHost ? '모두 준비되면 위의 "게임 시작"을 눌러요 · 그동안 연습할 수 있어요' : '준비를 누르고 방장(♛)이 시작하길 기다려요 · 그동안 연습할 수 있어요', 330);
+    smallText('모두 준비하면 자동으로 시작해요 · 그동안 연습할 수 있어요 · 관전도 할 수 있어요', 330);
   } else if (ph === 'countdown') {
     bigText(String(state.tm), 300, 140, '#ffcf3f');
   } else if (ph === 'ended') {
@@ -4339,9 +4340,9 @@ let myReady = false;
   }
   $('readyBtn').addEventListener('click', (e) => {
     e.currentTarget.blur();
-    if (isHost) send({ t: 'start' });
-    else { myReady = !myReady; send({ t: 'ready', on: myReady }); }
+    myReady = !myReady; send({ t: 'ready', on: myReady });
   });
+  $('specBtn').addEventListener('click', (e) => { e.currentTarget.blur(); send({ t: 'spec', on: !spectating }); });
   // 모드: 팀 · 더블을 각각 눌러서 켜고 끔
   $('modeTgls').querySelectorAll('button').forEach((b) => b.addEventListener('click', (e) => {
     e.currentTarget.blur();
@@ -4458,12 +4459,13 @@ function layoutRoomPanel() {
 }
 addEventListener('resize', layoutRoomPanel);
 function updateRoomPanel(m) {
-  const show = inGame && m.ph === 'waiting';
+  const show = inGame && (m.ph === 'waiting' || m.ph === 'countdown');   // 카운트다운 중에도 준비 취소는 할 수 있게
   $('roomPanel').hidden = !show;
   if (show) layoutRoomPanel();
   if (!show) { myReady = false; return; }
+  spectating = !!(m.sp && m.sp.includes(myId));
   const me = m.p.find((p) => p.id === myId);
-  if (!me) return;
+  if (!me) { updateReadyButtons(m, null); return; }   // 관전 중: 준비 칸 없이 버튼만
   if (me.sk !== account.skill) selectSkill(me.sk, true);
   myReady = !!me.rd;
   const taken = new Set(m.p.filter((p) => p.id !== myId).map((p) => p.c));
@@ -4474,6 +4476,7 @@ function updateRoomPanel(m) {
   const key = [me.c, me.sk, me.sk2, me.rd, host, JSON.stringify(me.rs || 0), ready, need, m.p.length, [...taken].join(), (prof && prof.owned.join()) || '',
     prof ? (prof.skins || []).join() + JSON.stringify(prof.skinSel || {}) : '', m.p.filter((p) => p.b).map((p) => p.id + p.sk + (p.sk2 || '') + JSON.stringify(p.rs || 0) + (p.bd ?? '')).join(),
     md.join(), m.p.map((p) => p.id + ':' + p.tm + ':' + p.n).join(), m.pk || '', m.host || ''].join('|');
+  updateReadyButtons(m, me);   // 잠금 시간은 매번 갱신해야 해서 키 검사 전에
   if (key === panelKey) return;
   panelKey = key;
   document.querySelectorAll('.sw').forEach((b) => {
@@ -4572,22 +4575,23 @@ function updateRoomPanel(m) {
     if (md[1]) pill.append(mkSel(bot.sk2, 'skill2', bot.sk, !!(bot.rs && bot.rs[1])));
     bl.append(pill);
   }
-  const btn = $('readyBtn');
-  if (host) {
-    const teamsOk = !md[0] || new Set(m.p.map((p) => p.tm)).size >= 2;
-    const canStart = m.p.length >= 2 && ready === need && teamsOk;
-    btn.textContent = '게임 시작';
-    btn.classList.remove('on');
-    btn.disabled = !canStart;
-    $('rpStatus').textContent = m.p.length < 2 ? '방장 · 2명 이상 필요 (봇 추가 가능)'
-      : !teamsOk ? '방장 · 팀을 2개 이상으로 나눠 주세요'
-      : need === 0 ? '방장 · 바로 시작할 수 있어요' : `방장 · 준비 ${ready}/${need}명`;
-  } else {
-    btn.disabled = false;
-    btn.textContent = me.rd ? '준비 완료 (취소하려면 누르기)' : '준비';
-    btn.classList.toggle('on', !!me.rd);
-    $('rpStatus').textContent = `준비 ${ready}/${need}명 · 방장이 시작하면 게임이 시작돼요`;
-  }
+}
+// 준비 · 관전 버튼: 준비는 다시 누르면 취소, 판이 끝난 뒤엔 잠깐 잠김. 관전 중엔 준비 못 함. 모두 준비하면 자동으로 시작
+function updateReadyButtons(m, me) {
+  const [ready, need] = m.rdy || [0, 0];
+  const lk = m.lk || 0, rb = $('readyBtn'), sb = $('specBtn');
+  const iReady = !!(me && me.rd);
+  sb.textContent = spectating ? '참가' : '관전';
+  sb.classList.toggle('on', spectating);
+  rb.disabled = spectating || lk > 0;
+  rb.classList.toggle('on', iReady);
+  rb.textContent = spectating ? '관전 중' : lk > 0 ? `잠시만요 (${lk}초)` : iReady ? '준비 취소' : '준비';
+  document.querySelectorAll('#skillChips, #skillChips2').forEach((el) => el.classList.toggle('locked', iReady));
+  $('rpStatus').textContent = m.p.length < 2 ? '2명 이상 있어야 시작해요 (봇 추가 가능)'
+    : need === 0 ? '사람이 없어요 · 봇끼리 대전해요 (보석은 안 줘요)'
+    : spectating ? `관전 중 · 준비 ${ready}/${need}명 · 참가를 누르면 다음 판부터 같이 해요`
+    : iReady ? `준비 완료 · ${ready}/${need}명 · 모두 준비하면 자동으로 시작해요`
+    : `준비 ${ready}/${need}명 · 모두 준비하면 자동으로 시작해요`;
 }
 
 // ---------------- 메인 루프 ----------------

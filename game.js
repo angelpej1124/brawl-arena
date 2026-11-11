@@ -5,7 +5,7 @@
 'use strict';
 const CONFIG = {
   TICK_RATE: 60, SEND_EVERY: 2, MAX_PLAYERS: 6, STOCKS: 3,
-  COUNTDOWN: 3, RESULT_TIME: 5, RESPAWN_INVINCIBLE: 2,
+  COUNTDOWN: 3, RESULT_TIME: 5, READY_LOCK: 3, RESPAWN_INVINCIBLE: 2,
   GRAVITY: 2300, MAX_FALL: 1300, RUN_SPEED: 400, GROUND_ACCEL: 4200, AIR_ACCEL: 1800, ITEM_EVERY: { S: 7, M: 10, L: 12 }, ITEM_LIFE: 18, ITEM_MAX: 3, ICE_ACCEL: 420, ICE_FRICTION: 110, SNOW_ACCEL: 1500, SNOW_FRICTION: 260,
   JUMP_SPEED: 860, DOUBLE_JUMP_SPEED: 760, EXTRA_JUMPS: 1, PLAYER_W: 40, PLAYER_H: 60,
 };
@@ -271,7 +271,7 @@ class Sim {
     this.teamMode = false;   // 팀 모드 (같은 팀끼리는 공격·스킬이 안 통함)
     this.doubleMode = false; // 더블 모드 (스킬 2개)
     this.winTeam = 0;
-    this.tickCount = 0; this.time = 0; this.evSeq = 0; this.recent = [];
+    this.tickCount = 0; this.time = 0; this.evSeq = 0; this.recent = []; this.readyLockT = 0;   // readyLockT: 판이 끝난 뒤 준비를 못 하는 남은 시간
     this.onEvent = () => {};
   }
   list() { return [...this.players.values()]; }
@@ -335,8 +335,13 @@ class Sim {
   // ---------------- 대기실: 준비 · 색 · 스킬 ----------------
   setReady(id, on) {
     const p = this.players.get(id);
-    if (!p || this.phase !== 'waiting') return;
+    if (!p) return null;
+    if (on) {
+      if (this.phase !== 'waiting') return null;
+      if (this.readyLockT > 0) return `잠깐만요, ${Math.ceil(this.readyLockT)}초 뒤에 준비할 수 있어요.`;
+    } else if (this.phase !== 'waiting' && this.phase !== 'countdown') return null;   // 준비 취소는 카운트다운 중에도 됨
     p.ready = !!on;
+    return null;
   }
   setColor(id, hex) {
     const p = this.players.get(id);
@@ -351,6 +356,7 @@ class Sim {
     const p = this.players.get(id);
     if (!p) return '없는 플레이어예요.';
     if (this.phase !== 'waiting') return '스킬은 게임 시작 전에만 바꿀 수 있어요.';
+    if (p.ready && !p.bot) return '준비 중에는 능력을 바꿀 수 없어요. 준비를 취소하고 바꿔 주세요.';
     if (p.parHost) this.endParasite(p, true);
     skill = validSkill(skill);
     if (p.skill2 && p.skill2 !== skill && conflicts(skill, p.skill2)) return '검사·궁수·닌자·방패·촉수·샷건은 공격 방식이 바뀌는 스킬이라 같이 쓸 수 없어요. (촉수와 비행도 불가)';
@@ -367,6 +373,7 @@ class Sim {
     const p = this.players.get(id);
     if (!p) return '없는 플레이어예요.';
     if (this.phase !== 'waiting') return '스킬은 게임 시작 전에만 바꿀 수 있어요.';
+    if (p.ready && !p.bot) return '준비 중에는 능력을 바꿀 수 없어요. 준비를 취소하고 바꿔 주세요.';
     if (!this.doubleMode) return '더블 모드에서만 두 번째 스킬을 고를 수 있어요.';
     skill = validSkill(skill);
     if (skill === p.skill) return '첫 번째 스킬과 다른 스킬을 골라 주세요.';
@@ -394,6 +401,7 @@ class Sim {
     const p = this.players.get(id);
     if (!p) return '없는 플레이어예요.';
     if (this.phase !== 'waiting') return '스킬은 게임 시작 전에만 바꿀 수 있어요.';
+    if (p.ready && !p.bot) return '준비 중에는 능력을 바꿀 수 없어요. 준비를 취소하고 바꿔 주세요.';
     if (slot === 2 && !this.doubleMode) return '더블 모드에서만 두 번째 스킬을 고를 수 있어요.';
     p.randPool = pool || null;
     if (slot === 2) { const k2 = this.pickSkill(p, p.skill); const e = this.setSkill2(id, k2); if (e) return e; p.randS2 = true; }
@@ -431,14 +439,20 @@ class Sim {
     }
     return null;
   }
-  // 방장이 시작 가능한지: 2명 이상(봇 포함), 방장 빼고 사람은 모두 준비
-  startStatus(hostId) {
-    const humans = this.list().filter((p) => !p.bot && p.id !== hostId);
+  // 자동 시작 조건: 2명 이상(봇·더미 포함), 사람은 모두 준비 (봇은 항상 준비), 팀·더블 조건
+  // 사람이 한 명도 없으면 봇끼리 대전 (보석은 안 줌)
+  canStart() {
+    const all = this.list();
+    if (all.length < 2) return false;
+    if (!all.every((p) => p.bot || p.ready)) return false;
+    const teamsOk = !this.teamMode || new Set(all.map((p) => p.team)).size >= 2;
+    const doubleOk = !this.doubleMode || all.every((p) => p.skill2);
+    return teamsOk && doubleOk;
+  }
+  startStatus() {
+    const humans = this.list().filter((p) => !p.bot);
     const ready = humans.filter((p) => p.ready).length;
-    const teams = new Set(this.list().map((p) => p.team)).size;
-    const teamsOk = !this.teamMode || teams >= 2;
-    const doubleOk = !this.doubleMode || this.list().every((p) => p.skill2);
-    return { ok: this.phase === 'waiting' && this.players.size >= 2 && ready === humans.length && teamsOk && doubleOk, ready, need: humans.length, count: this.players.size, teamsOk, doubleOk };
+    return { ok: this.phase === 'waiting' && this.canStart(), ready, need: humans.length, count: this.players.size };
   }
   removePlayer(id) {
     const p = this.players.get(id);
@@ -452,12 +466,11 @@ class Sim {
     if (this.phase === 'playing') this.checkWinner();
     if (this.phase === 'countdown' && this.players.size < 2) this.phase = 'waiting';
   }
-  // 방장이 '게임 시작'을 누르면 호출
+  // 조건이 맞으면 카운트다운 후 시작 (방장 버튼 없음)
   checkStart() {
-    if (this.players.size >= 2) {
-      this.phase = 'countdown'; this.timer = CONFIG.COUNTDOWN;
-      this.pickMap();
-    }
+    if (this.phase !== 'waiting' || !this.canStart()) return;
+    this.phase = 'countdown'; this.timer = CONFIG.COUNTDOWN;
+    this.pickMap();
   }
   // ---------------- 맵 고르기: 방장이 항상 정함 (사람 수와 상관없이, 투표 없음) ----------------
   // 방장이 고른 맵이 다음 판 맵 (계속 그 맵). 안 골랐거나 '랜덤'이면 직전 맵 빼고 무작위 (랜덤이면 판마다 새로)
@@ -692,16 +705,18 @@ class Sim {
     this.tickCount++;
     this.time += dt;
     if (this.phase === 'waiting') {
-      // 방장이 시작할 때까지 대기 (연습은 가능)
+      // 판이 끝난 뒤엔 잠깐 준비를 못 함 (readyLockT), 그다음 모두 준비하면 자동으로 시작 (사람이 없으면 봇끼리)
+      if (this.readyLockT > 0) this.readyLockT = Math.max(0, this.readyLockT - dt);
+      else this.checkStart();
     } else if (this.phase === 'countdown') {
       this.timer -= dt;
-      if (this.players.size < 2) this.phase = 'waiting';
+      if (!this.canStart()) this.phase = 'waiting';   // 준비를 취소하거나 나가면 카운트다운 취소
       else if (this.timer <= 0) this.startRound();
     } else if (this.phase === 'ended') {
       this.timer -= dt;
       if (this.timer <= 0) {
         this.list().forEach((p) => { p.inMatch = false; p.ready = !!p.bot; });
-        this.phase = 'waiting';
+        this.phase = 'waiting'; this.readyLockT = CONFIG.READY_LOCK;
       }
     }
     for (const s of this.smokes) s.t -= dt;
@@ -3067,7 +3082,7 @@ class Sim {
       mt: this.marks.some((m) => m.target === p) ? 1 : undefined, rp: p.bindT > 0 ? (skinOn(this.players.get(p.bindBy), 'chain') ? 2 : 1) : undefined, oi: p.grounded && p.onIce && Math.abs(p.vx) > 60 ? 1 : undefined, lu: p.leechT > 0 ? 1 : undefined, ia: p.itemDmgT > 0 ? 1 : undefined, ig2: p.itemDefT > 0 ? 1 : undefined, cu: p.curseT > 0 ? (skinOn(this.players.get(p.curseBy), 'voodoo') ? 2 : 1) : undefined, gd: p.guardT > 0 ? 1 : undefined, th: p.thornT > 0 ? 1 : undefined, shk: p.shrinkT > 0 ? 1 : undefined,
     });
     return {
-      ph: this.phase, tm: Math.ceil(this.timer), w: this.winner, wi: this.winnerId, wt: this.winTeam,
+      ph: this.phase, tm: Math.ceil(this.timer), w: this.winner, wi: this.winnerId, wt: this.winTeam, lk: this.readyLockT > 0 ? Math.ceil(this.readyLockT) : undefined,
       md: [this.teamMode ? 1 : 0, this.doubleMode ? 1 : 0, this.itemMode ? 1 : 0], s: this.tickCount, mp: this.stage.id,
       pk: this.phase === 'waiting' ? (this.picked || 'random') : undefined,   // 방장이 고른 맵 (대기실에 있는 모두에게 표시)
       ev: this.recent.slice(-10),

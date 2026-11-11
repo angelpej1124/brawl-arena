@@ -424,7 +424,8 @@ class GameRoom {
     this.sim.tick(1 / CONFIG.TICK_RATE);
     if (++this.tickN % CONFIG.SEND_EVERY === 0) {
       const ss = this.sim.startStatus(this.hostId);
-      const snap = { t: 's', host: this.hostId, rdy: [ss.ready, ss.need], ...this.sim.snapshot() };
+      const specs = [...this.clients].filter(([, c]) => c.spec).map(([cid]) => cid);
+      const snap = { t: 's', host: this.hostId, rdy: [ss.ready, ss.need], ...this.sim.snapshot(), ...(specs.length ? { sp: specs } : {}) };
       // 데이터 줄이기: ① 이벤트는 새로 생긴 것만 (예전엔 최근 10개를 매번 다시 보냄)
       //               ② 사람·분신 정보에서 0·false·빈 값은 빼고 보냄 (화면에선 없으면 0으로 봄)
       snap.ev = snap.ev.filter((e) => e.i > this.evSent);
@@ -475,7 +476,7 @@ class GameRoom {
       const bot = this.sim.list().reverse().find((p) => p.bot);
       if (bot) this.sim.removePlayer(bot.id);
     }
-    this.clients.set(id, { socket, accountKey, name });
+    this.clients.set(id, { socket, accountKey, name, spec: false, skill });
     const p = this.sim.addPlayer(id, name, false, skill);
     if (p) { p.skins = accounts.skinsOf(accountKey); p.mob = mob; }   // mob: 모바일(터치)
     if (!this.hostId) this.hostId = id;
@@ -526,6 +527,27 @@ class GameRoom {
       const bot = this.sim.list().reverse().find((p) => p.bot && !!p.dummy === !!dummy);
       if (bot) this.sim.removePlayer(bot.id);
     }
+  }
+  // 관전: 대기 중에만 바꿀 수 있음. 관전 → 참가하면 봇 한 명이 빠지고 그 자리에 들어감
+  setSpectate(id, on) {
+    const c = this.clients.get(id);
+    if (!c) return null;
+    if (this.sim.phase !== 'waiting') return '대기 중일 때만 관전과 참가를 바꿀 수 있어요.';
+    if (on === !!c.spec) return null;
+    if (on) {
+      c.spec = true;
+      this.sim.removePlayer(id);
+    } else {
+      // 봇 한 명을 빼고 그 자리에 들어감 (봇이 없어도 자리가 있으면 들어감)
+      const bot = this.sim.list().reverse().find((p) => p.bot && !p.dummy);
+      if (bot) this.sim.removePlayer(bot.id);
+      const p = this.sim.addPlayer(id, c.name, false, validSkill(c.skill));
+      if (!p) return '자리가 없어요. 봇이나 다른 사람이 나갈 때까지 기다려 주세요.';
+      c.spec = false;
+      p.skins = accounts.skinsOf(c.accountKey); p.mob = false;
+      if (this.sim.doubleMode) this.giveSkill2(id);
+    }
+    return null;
   }
   summary() {
     const host = this.clients.get(this.hostId);
@@ -642,16 +664,11 @@ server.on('upgrade', (req, sock) => {
       } else if (m.t === 'bot' && room) {
         room.bot(id, !!m.add, !!m.dummy);
       } else if (m.t === 'ready' && room) {
-        room.sim.setReady(id, !!m.on);
-      } else if (m.t === 'start' && room) {
-        if (id !== room.hostId) return notice('게임은 방장만 시작할 수 있어요.');
-        const st = room.sim.startStatus(id);
-        if (room.sim.phase !== 'waiting') return;
-        if (st.count < 2) return notice('2명 이상 있어야 해요. 봇을 추가하거나 친구를 기다려 주세요.');
-        if (!st.teamsOk) return notice('팀 모드는 2팀 이상이어야 해요. 팀을 나눠 주세요.');
-        if (!st.doubleOk) return notice('더블 모드: 두 번째 스킬이 없는 사람이 있어요. (게스트는 둔화·점멸 두 개를 같이 써요)');
-        if (!st.ok) return notice(`아직 준비 안 한 사람이 있어요 (${st.ready}/${st.need})`);
-        room.sim.checkStart();
+        const err = room.sim.setReady(id, !!m.on);
+        if (err) notice(err);
+      } else if (m.t === 'spec' && room) {
+        const err = room.setSpectate(id, !!m.on);
+        if (err) notice(err);
       } else if (m.t === 'color' && room) {
         const err = room.sim.setColor(id, String(m.color || ''));
         if (err) notice(err);
@@ -670,6 +687,7 @@ server.on('upgrade', (req, sock) => {
         const err = room.sim.setSkill(id, skill);
         if (err) return notice(err);
         if (c.accountKey) accounts.setSkill(c.accountKey, skill);
+        c.skill = skill;   // 관전했다가 다시 들어올 때 쓸 스킬
       } else if (m.t === 'kick' && room) {
         // 방장이 플레이어를 내보냄 (영구 추방 아님: 다시 들어올 수 있음)
         if (id !== room.hostId) return notice('추방은 방장만 할 수 있어요.');
