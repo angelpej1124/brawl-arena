@@ -1888,6 +1888,44 @@ function drawStage() {
     ctx.fillStyle = th.platHi; ctx.fillRect(p.x + 8, p.y + 2, p.w - 16, 3);
   }
   drawIce();
+  drawMapParts();
+}
+// 맵 전용 기믹: 무너지는 발판(금 간 돌, 흔들리다 무너지면 윤곽만) · 움직이는 발판(레일 따라 이동) · 바람 구역(흐르는 줄무늬)
+function drawMapParts() {
+  const t = performance.now();
+  const cr = latest && latest.cr, mvs = latest && latest.mvs;   // mv는 투표 정보라 따로 씀
+  (STAGE.crumble || []).forEach((c, i) => {
+    const [st, tm] = (cr && cr[i]) || [0, 0];
+    if (st === 2) { ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 2; ctx.setLineDash([6, 6]); ctx.strokeRect(c.x, c.y, c.w, 14); ctx.setLineDash([]); return; }
+    const x = c.x + (st === 1 ? Math.sin(t / 22 + i) * (2 + (1 - tm) * 3) : 0);
+    ctx.fillStyle = 'rgba(0,0,0,0.25)'; roundRect(x + 4, c.y + 6, c.w, 14, 7); ctx.fill();
+    ctx.fillStyle = st === 1 ? '#e08a5a' : '#c8956a'; roundRect(x, c.y, c.w, 14, 7); ctx.fill();
+    ctx.strokeStyle = 'rgba(70,35,15,0.6)'; ctx.lineWidth = 1.5; ctx.beginPath();
+    for (let k = 1; k < 4; k++) { const cx = x + c.w * k / 4; ctx.moveTo(cx, c.y + 1); ctx.lineTo(cx + 5, c.y + 13); }
+    ctx.stroke();
+  });
+  (STAGE.movers || []).forEach((m, i) => {
+    const p = mvs && mvs[i] ? { x: mvs[i][0], y: mvs[i][1] } : { x: m.x, y: m.y };
+    const bx = m.x2 !== undefined ? m.x2 : m.x, by = m.y2 !== undefined ? m.y2 : m.y;
+    ctx.strokeStyle = 'rgba(190,240,255,0.35)'; ctx.lineWidth = 3; ctx.setLineDash([8, 8]);
+    ctx.beginPath(); ctx.moveTo(m.x + m.w / 2, m.y + 7); ctx.lineTo(bx + m.w / 2, by + 7); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(0,0,0,0.25)'; roundRect(p.x + 4, p.y + 6, m.w, 14, 7); ctx.fill();
+    ctx.fillStyle = '#6fd3ff'; roundRect(p.x, p.y, m.w, 14, 7); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.fillRect(p.x + 8, p.y + 2, m.w - 16, 3);
+  });
+  for (const g of STAGE.gusts || []) {
+    ctx.fillStyle = 'rgba(200,240,255,0.07)'; ctx.fillRect(g.x, g.y, g.w, g.h);
+    const dirX = g.vx ? Math.sign(g.vx) : 0, rise = g.vy < 0 ? 1 : g.vy > 0 ? -1 : 0;
+    const n = Math.max(5, Math.floor(g.w * g.h / 7000)), len = 16;
+    ctx.strokeStyle = 'rgba(230,250,255,0.6)'; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.beginPath();
+    for (let k = 0; k < n; k++) {
+      const rx = ((k * 7919) % 1000) / 1000, ry = ((k * 104729) % 1000) / 1000;
+      const x = g.x + ((rx * g.w + (t / 1000) * (g.vx || 0) * 0.5) % g.w + g.w) % g.w;
+      const y = g.y + ((ry * g.h + (t / 1000) * (g.vy || 0) * -0.4) % g.h + g.h) % g.h;
+      ctx.moveTo(x, y); ctx.lineTo(x - dirX * len, y + rise * len);
+    }
+    ctx.stroke(); ctx.lineCap = 'butt';
+  }
 }
 // 얼음(미끄러운 곳): 하늘색 반투명 빙판 + 고드름 + 천천히 지나가는 반짝임
 function drawIce() {
@@ -4360,6 +4398,9 @@ function drawMapThumb(cv, map) {
   }
   for (const p of map.platforms) { c2.fillStyle = th.plat || '#fd3'; c2.fillRect(p.x * sx, p.y * sy - 1, p.w * sx, 3); }
   for (const t of map.tramps || []) { c2.fillStyle = '#ff3b4a'; c2.fillRect(t.x * sx, t.y * sy - 2, t.w * sx, 3); }
+  for (const c of map.crumble || []) { c2.fillStyle = '#c8956a'; c2.fillRect(c.x * sx, c.y * sy - 1, c.w * sx, 3); }
+  for (const m of map.movers || []) { c2.fillStyle = '#6fd3ff'; c2.fillRect(m.x * sx, m.y * sy - 1, m.w * sx, 3); c2.fillRect((m.x2 !== undefined ? m.x2 : m.x) * sx, (m.y2 !== undefined ? m.y2 : m.y) * sy - 1, m.w * sx, 3); }
+  for (const g of map.gusts || []) { c2.fillStyle = 'rgba(200,240,255,0.25)'; c2.fillRect(g.x * sx, g.y * sy, g.w * sx, g.h * sy); }
 }
 let voteKey = '';
 const SIZE_KO = { S: '소', M: '중', L: '대' };   // 맵 크기 등급

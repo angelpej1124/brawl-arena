@@ -8,6 +8,9 @@
 //   spawns    : 라운드 시작 위치 (발 위치)
 //   respawn   : 장외 후 다시 나타나는 위치
 //   theme     : 색깔
+//   crumble   : 무너지는 발판 [{ x, y, w }] — 밟으면 1초 뒤 무너지고 3초 뒤 다시 생김
+//   movers    : 움직이는 발판 [{ x, y, w, x2, y2, per, ph }] — (x,y)↔(x2,y2) 왕복, per초에 한 바퀴. 올라탄 사람은 같이 실림. 스폰 위치로 쓰지 않기
+//   gusts     : 바람 구역 [{ x, y, w, h, vx, vy }] — 안에 있으면 vx(px/초)만큼 밀리고, vy가 있으면 그 속도로 떠오름(음수=위)
 // =====================================================================
 (function (root) {
   const MAPS = [
@@ -339,10 +342,181 @@
       respawn: { x: 800, y: 130 },
       theme: { sky: ['#1a2238', '#4a5a80', '#e0e8f4'], hill: '#2a3450', grass: '#f8faff', grassHi: '#ffffff', dirt: '#8a96ac', plat: '#e4ecf8', platHi: '#ffffff', orb: 'rgba(255,255,255,', stars: false, snow: true },
     },
+    // ---------------- 무너지는 발판 · 움직이는 발판 · 바람 구역 (새 기믹) ----------------
+    {
+      id: 'crumblestairs', name: '무너지는 계단', width: 1600, height: 900,
+      // 가운데 돌계단이 밟으면 무너짐. 바닥은 튼튼해서 떨어져도 바닥으로 돌아옴
+      solids: [{ x: 150, y: 740, w: 1300, h: 60 }],
+      crumble: [{ x: 300, y: 620, w: 180 }, { x: 620, y: 520, w: 180 }, { x: 940, y: 620, w: 180 }],
+      platforms: [{ x: 330, y: 400, w: 170 }, { x: 1100, y: 400, w: 170 }, { x: 700, y: 250, w: 200 }],
+      spawns: [{ x: 230, y: 740 }, { x: 1370, y: 740 }, { x: 390, y: 620 }, { x: 1030, y: 620 }, { x: 710, y: 520 }, { x: 800, y: 250 }],
+      respawn: { x: 800, y: 120 },
+      theme: { sky: ['#2a3a4a', '#4f6a80', '#a8c0d0'], hill: '#33485a', grass: '#8fa3a8', grassHi: '#c8d6da', dirt: '#5a6470', plat: '#d4a373', platHi: '#f3d5b2', orb: 'rgba(255,240,220,', stars: false },
+    },
+    {
+      id: 'gustcanyon', name: '바람 협곡', width: 1600, height: 900,
+      // 두 절벽 사이 바람이 위·아래로 반대로 분다. 위쪽은 오른쪽, 아래쪽은 왼쪽으로 밀어냄
+      solids: [{ x: 120, y: 600, w: 380, h: 140 }, { x: 1100, y: 600, w: 380, h: 140 }, { x: 640, y: 800, w: 320, h: 60 }],
+      platforms: [{ x: 180, y: 420, w: 200 }, { x: 1220, y: 420, w: 200 }, { x: 700, y: 280, w: 200 }],
+      gusts: [{ x: 500, y: 150, w: 600, h: 250, vx: 300 }, { x: 500, y: 480, w: 600, h: 260, vx: -300 }],
+      spawns: [{ x: 240, y: 600 }, { x: 1360, y: 600 }, { x: 280, y: 420 }, { x: 1320, y: 420 }, { x: 800, y: 280 }, { x: 800, y: 800 }],
+      respawn: { x: 800, y: 120 },
+      theme: { sky: ['#1c2a38', '#3d6a8a', '#9ac8d8'], hill: '#2a4a60', grass: '#7aa88a', grassHi: '#b6d8c0', dirt: '#4a5c66', plat: '#b8d8e8', platHi: '#eef8ff', orb: 'rgba(220,245,255,', stars: false },
+    },
+    {
+      id: 'elevator', name: '수직 승강기', width: 1600, height: 900,
+      // 양쪽 승강기가 바닥과 위 발판 사이를 오르내림. 스폰은 고정 땅·발판에만
+      solids: [{ x: 150, y: 740, w: 1300, h: 60 }],
+      platforms: [{ x: 620, y: 440, w: 360 }, { x: 640, y: 200, w: 320 }],
+      movers: [{ x: 260, y: 640, w: 180, x2: 260, y2: 300, per: 9 }, { x: 1160, y: 640, w: 180, x2: 1160, y2: 300, per: 9, ph: 4.5 }],
+      spawns: [{ x: 240, y: 740 }, { x: 1360, y: 740 }, { x: 500, y: 740 }, { x: 1100, y: 740 }, { x: 800, y: 440 }, { x: 800, y: 200 }],
+      respawn: { x: 800, y: 120 },
+      theme: { sky: ['#101c3a', '#2a3f7a', '#6a84c8'], hill: '#1a2a58', grass: '#7a8ad8', grassHi: '#b0bcf0', dirt: '#3a4370', plat: '#9ab0ff', platHi: '#e0e8ff', orb: 'rgba(200,220,255,', stars: true },
+    },
+    {
+      id: 'crumblegust', name: '흩날리는 발판', width: 1600, height: 900,
+      // 무너지는 발판 위로 양쪽 바람이 가운데로 모임. 바람에 밀려 발판에서 떨어지기 쉬움
+      solids: [{ x: 150, y: 740, w: 1300, h: 60 }],
+      crumble: [{ x: 240, y: 610, w: 200 }, { x: 560, y: 540, w: 200 }, { x: 880, y: 610, w: 200 }, { x: 1200, y: 540, w: 200 }],
+      gusts: [{ x: 150, y: 380, w: 620, h: 220, vx: 260 }, { x: 830, y: 380, w: 620, h: 220, vx: -260 }],
+      platforms: [{ x: 400, y: 420, w: 160 }, { x: 1040, y: 420, w: 160 }],
+      spawns: [{ x: 250, y: 740 }, { x: 1350, y: 740 }, { x: 340, y: 610 }, { x: 1300, y: 540 }, { x: 460, y: 420 }, { x: 1120, y: 420 }],
+      respawn: { x: 800, y: 120 },
+      theme: { sky: ['#3a2a4a', '#7a5a8a', '#e0b8d8'], hill: '#4a3a5a', grass: '#b8a0c8', grassHi: '#e0d0ec', dirt: '#5a4a64', plat: '#e8c0e0', platHi: '#fff0fa', orb: 'rgba(255,220,250,', stars: false },
+    },
+    {
+      id: 'movingcrumble', name: '떠다니는 셔틀', width: 1600, height: 900,
+      // 두 셔틀이 공중을 가로질러 다니고, 아래에는 무너지는 발판. 셔틀을 타고 옮겨 다니기
+      solids: [{ x: 150, y: 740, w: 1300, h: 60 }],
+      crumble: [{ x: 560, y: 600, w: 160 }, { x: 880, y: 600, w: 160 }],
+      movers: [{ x: 160, y: 460, w: 180, x2: 1220, y2: 460, per: 14 }, { x: 1240, y: 300, w: 180, x2: 200, y2: 300, per: 14, ph: 7 }],
+      platforms: [{ x: 700, y: 250, w: 200 }],
+      spawns: [{ x: 250, y: 740 }, { x: 1350, y: 740 }, { x: 500, y: 740 }, { x: 640, y: 600 }, { x: 960, y: 600 }, { x: 800, y: 250 }],
+      respawn: { x: 800, y: 120 },
+      theme: { sky: ['#0e3a4a', '#2a7a8a', '#a8e0e0'], hill: '#1a5060', grass: '#66c0b0', grassHi: '#a8e8dc', dirt: '#3a6a6a', plat: '#90e0d0', platHi: '#e8fff8', orb: 'rgba(220,255,250,', stars: false },
+    },
+    {
+      id: 'windlift', name: '돌풍 리프트', width: 1600, height: 900,
+      // 가운데 위로 솟는 돌풍 기둥. 양쪽 승강기와 돌풍을 섞어 타고 올라감
+      solids: [{ x: 150, y: 740, w: 1300, h: 60 }],
+      platforms: [{ x: 620, y: 430, w: 360 }, { x: 660, y: 240, w: 280 }],
+      movers: [{ x: 340, y: 600, w: 170, x2: 340, y2: 300, per: 10 }, { x: 1090, y: 300, w: 170, x2: 1090, y2: 600, per: 10, ph: 5 }],
+      gusts: [{ x: 440, y: 200, w: 720, h: 540, vy: -380 }],
+      spawns: [{ x: 240, y: 740 }, { x: 1360, y: 740 }, { x: 380, y: 740 }, { x: 1220, y: 740 }, { x: 800, y: 430 }, { x: 800, y: 240 }],
+      respawn: { x: 800, y: 120 },
+      theme: { sky: ['#1a2a3a', '#3a5a7a', '#c0d8e8'], hill: '#2a3e54', grass: '#8ab4c8', grassHi: '#c4e0ee', dirt: '#4a6070', plat: '#a8d4e8', platHi: '#f0fbff', orb: 'rgba(230,250,255,', stars: true },
+    },
+    {
+      id: 'factory', name: '고장난 공장', width: 1600, height: 900,
+      // 무너지는 발판 + 셔틀 + 바람 3종. 왼쪽 기둥은 위로 띄우고 오른쪽은 왼쪽으로 밀어냄
+      solids: [{ x: 150, y: 760, w: 1300, h: 40 }],
+      crumble: [{ x: 260, y: 620, w: 180 }, { x: 1160, y: 620, w: 180 }, { x: 700, y: 480, w: 200 }],
+      movers: [{ x: 480, y: 540, w: 200, x2: 1000, y2: 540, per: 16 }],
+      platforms: [{ x: 620, y: 300, w: 200 }, { x: 900, y: 300, w: 200 }],
+      gusts: [{ x: 150, y: 250, w: 120, h: 510, vy: -260 }, { x: 1170, y: 250, w: 280, h: 510, vx: -200 }],
+      spawns: [{ x: 520, y: 760 }, { x: 1000, y: 760 }, { x: 350, y: 620 }, { x: 1250, y: 620 }, { x: 790, y: 480 }, { x: 720, y: 300 }, { x: 980, y: 300 }, { x: 600, y: 760 }],
+      respawn: { x: 800, y: 120 },
+      theme: { sky: ['#2a2a1a', '#6a5a2a', '#d8b860'], hill: '#3a3420', grass: '#9a8a50', grassHi: '#c8b878', dirt: '#4a4028', plat: '#c8a040', platHi: '#fff0b0', orb: 'rgba(255,230,160,', stars: false },
+    },
+    {
+      id: 'frostwind', name: '눈보라 빙판', width: 1600, height: 900,
+      // 얼음 바닥에 오른쪽으로 부는 바람. 위쪽 셔틀 발판도 얼음 위로 미끄러짐
+      solids: [{ x: 150, y: 740, w: 1300, h: 60, ice: true }],
+      platforms: [{ x: 300, y: 560, w: 200, ice: true }, { x: 1100, y: 560, w: 200, ice: true }, { x: 660, y: 430, w: 280 }],
+      movers: [{ x: 560, y: 300, w: 200, x2: 960, y2: 300, per: 10 }],
+      gusts: [{ x: 150, y: 470, w: 1300, h: 300, vx: 160 }],
+      spawns: [{ x: 300, y: 740 }, { x: 1300, y: 740 }, { x: 400, y: 560 }, { x: 1200, y: 560 }, { x: 800, y: 430 }, { x: 1000, y: 740 }],
+      respawn: { x: 800, y: 120 },
+      theme: { sky: ['#0a1a30', '#2a4a78', '#9cc8ec'], hill: '#1a3050', grass: '#eaf6ff', grassHi: '#ffffff', dirt: '#5a86a8', plat: '#c8ecff', platHi: '#ffffff', orb: 'rgba(220,245,255,', stars: true, snow: true },
+    },
+    // ---------------- 새 기믹 + 기존 기믹 (튕기는 · 비탈 · 얼음 · 트램펄린) ----------------
+    {
+      id: 'bouncyruins', name: '튀는 폐허', width: 1600, height: 900,
+      // 무너지는 돌다리와 트램펄린 바닥. 떨어져도 트램펄린이 다시 띄움
+      solids: [{ x: 150, y: 700, w: 360, h: 100 }, { x: 1090, y: 700, w: 360, h: 100 }],
+      tramps: [{ x: 510, y: 800, w: 580, power: 1800 }, { x: 200, y: 700, w: 90, power: 1300 }, { x: 1140, y: 700, w: 90, power: 1300 }],
+      crumble: [{ x: 500, y: 560, w: 180 }, { x: 920, y: 560, w: 180 }],
+      platforms: [{ x: 700, y: 440, w: 200 }, { x: 320, y: 430, w: 150 }, { x: 1130, y: 430, w: 150 }],
+      trunks: [{ x: 180, y: 300, w: 40, h: 400 }, { x: 1380, y: 300, w: 40, h: 400 }],
+      spawns: [{ x: 330, y: 700 }, { x: 1300, y: 700 }, { x: 590, y: 560 }, { x: 1010, y: 560 }, { x: 770, y: 440 }, { x: 395, y: 430 }],
+      respawn: { x: 800, y: 120 },
+      theme: { sky: ['#2a1a2a', '#6a3a4a', '#d8a078'], hill: '#4a2a34', grass: '#b08a6a', grassHi: '#dcb898', dirt: '#6a4a3a', plat: '#c89a6a', platHi: '#f4dcb8', orb: 'rgba(255,220,180,', stars: false },
+    },
+    {
+      id: 'slidelift', name: '비탈 리프트', width: 1600, height: 900,
+      // 양쪽 높은 땅에서 가운데로 내려가는 비탈. 가운데 위로 셔틀이 가로질러 감
+      solids: [{ x: 120, y: 560, w: 260, h: 240 }, { x: 1220, y: 560, w: 260, h: 240 }, { x: 700, y: 740, w: 200, h: 60 }],
+      slopes: [{ x1: 380, y1: 560, x2: 700, y2: 740 }, { x1: 900, y1: 740, x2: 1220, y2: 560 }],
+      movers: [{ x: 520, y: 440, w: 150, x2: 1000, y2: 440, per: 12 }],
+      platforms: [{ x: 340, y: 380, w: 150 }, { x: 1110, y: 380, w: 150 }, { x: 700, y: 260, w: 200 }],
+      spawns: [{ x: 250, y: 560 }, { x: 1350, y: 560 }, { x: 800, y: 740 }, { x: 410, y: 380 }, { x: 1185, y: 380 }, { x: 800, y: 260 }],
+      respawn: { x: 800, y: 120 },
+      theme: { sky: ['#1a2a40', '#3a6a8a', '#e8c890'], hill: '#2a4050', grass: '#9ac070', grassHi: '#c8e4a0', dirt: '#6a5a40', plat: '#d0b080', platHi: '#fff0d0', orb: 'rgba(255,240,200,', stars: false },
+    },
+    {
+      id: 'icetramp', name: '빙판 트램펄린', width: 1600, height: 900,
+      // 얼음 바닥 사이 구덩이엔 큰 트램펄린. 얼음 발판과 트램펄린을 번갈아 밟기
+      solids: [{ x: 150, y: 740, w: 420, h: 60, ice: true }, { x: 1030, y: 740, w: 420, h: 60, ice: true }],
+      tramps: [{ x: 570, y: 820, w: 460, power: 1900 }],
+      platforms: [{ x: 250, y: 560, w: 200, ice: true }, { x: 1150, y: 560, w: 200, ice: true }, { x: 640, y: 440, w: 320 }],
+      spawns: [{ x: 300, y: 740 }, { x: 1300, y: 740 }, { x: 350, y: 560 }, { x: 1250, y: 560 }, { x: 800, y: 440 }, { x: 700, y: 440 }],
+      respawn: { x: 800, y: 120 },
+      theme: { sky: ['#0a1e3a', '#2a5a8a', '#b0e0f8'], hill: '#1a3a5a', grass: '#e8f8ff', grassHi: '#ffffff', dirt: '#5a88a8', plat: '#c0ecff', platHi: '#ffffff', orb: 'rgba(220,245,255,', stars: true, snow: true },
+    },
+    {
+      id: 'slopepark', name: '경사 점프대', width: 1600, height: 900,
+      // 비탈을 타고 내려가 튕기는 트램펄린으로 뛰어올라 발판 위 싸움
+      solids: [{ x: 150, y: 700, w: 280, h: 100 }, { x: 1170, y: 700, w: 280, h: 100 }, { x: 620, y: 760, w: 360, h: 40 }],
+      slopes: [{ x1: 430, y1: 700, x2: 620, y2: 760 }, { x1: 980, y1: 760, x2: 1170, y2: 700 }],
+      tramps: [{ x: 200, y: 700, w: 110, power: 1500 }, { x: 1290, y: 700, w: 110, power: 1500 }],
+      platforms: [{ x: 480, y: 520, w: 180 }, { x: 940, y: 520, w: 180 }, { x: 700, y: 380, w: 200 }],
+      trunks: [{ x: 790, y: 200, w: 30, h: 300 }],
+      spawns: [{ x: 330, y: 700 }, { x: 1230, y: 700 }, { x: 800, y: 760 }, { x: 570, y: 520 }, { x: 1030, y: 520 }, { x: 800, y: 380 }],
+      respawn: { x: 800, y: 120 },
+      theme: { sky: ['#1a3a2a', '#3a7a5a', '#f0d890'], hill: '#2a5040', grass: '#90d060', grassHi: '#c4ee90', dirt: '#6a5a30', plat: '#f0c060', platHi: '#fff4c8', orb: 'rgba(255,240,180,', stars: false },
+    },
+    {
+      id: 'snowcrumble', name: '눈 무너지는 언덕', width: 1600, height: 900,
+      // 눈 덮인 언덕 가운데는 미끄러운 얼음 바닥, 가운데 공중 발판은 무너짐
+      solids: [{ x: 120, y: 600, w: 300, h: 160 }, { x: 1180, y: 600, w: 300, h: 160 }, { x: 560, y: 760, w: 480, h: 40, ice: true }],
+      slopes: [{ x1: 420, y1: 600, x2: 560, y2: 760 }, { x1: 1040, y1: 760, x2: 1180, y2: 600 }],
+      crumble: [{ x: 640, y: 600, w: 140 }, { x: 830, y: 600, w: 140 }],
+      platforms: [{ x: 200, y: 440, w: 200 }, { x: 1200, y: 440, w: 200 }, { x: 700, y: 420, w: 200 }],
+      spawns: [{ x: 270, y: 600 }, { x: 1330, y: 600 }, { x: 700, y: 760 }, { x: 700, y: 600 }, { x: 900, y: 600 }, { x: 800, y: 420 }],
+      respawn: { x: 800, y: 120 },
+      theme: { sky: ['#1a2238', '#4a5a80', '#e0e8f4'], hill: '#2a3450', grass: '#f8faff', grassHi: '#ffffff', dirt: '#8a96ac', plat: '#e4ecf8', platHi: '#ffffff', orb: 'rgba(255,255,255,', stars: false, snow: true },
+    },
+    {
+      id: 'icewheel', name: '얼음 풍차 언덕', width: 1600, height: 900,
+      // 얼음 땅 사이 구덩이엔 트램펄린과 위로 솟는 바람. 옆 바람에 밀리며 발판으로 올라감
+      solids: [{ x: 150, y: 720, w: 520, h: 80, ice: true }, { x: 930, y: 720, w: 520, h: 80, ice: true }],
+      tramps: [{ x: 670, y: 820, w: 260, power: 2000 }],
+      platforms: [{ x: 200, y: 520, w: 180 }, { x: 1220, y: 520, w: 180 }, { x: 680, y: 460, w: 240 }],
+      gusts: [{ x: 670, y: 150, w: 260, h: 570, vy: -350 }, { x: 150, y: 420, w: 500, h: 200, vx: 200 }],
+      spawns: [{ x: 300, y: 720 }, { x: 1300, y: 720 }, { x: 290, y: 520 }, { x: 1310, y: 520 }, { x: 800, y: 460 }, { x: 560, y: 720 }],
+      respawn: { x: 800, y: 120 },
+      theme: { sky: ['#0c1a34', '#2a5078', '#90c8e8'], hill: '#1c3a58', grass: '#dff4ff', grassHi: '#ffffff', dirt: '#4a7a9a', plat: '#b8e4ff', platHi: '#ffffff', orb: 'rgba(200,240,255,', stars: true, snow: true },
+    },
+    // ---------------- 기믹 대잔치 (새 기믹 + 기존 기믹 전부) ----------------
+    {
+      id: 'ultimate', name: '기믹 대잔치', width: 1600, height: 900,
+      // 무너지는 발판, 셔틀, 바람, 비탈, 얼음, 트램펄린이 다 모인 맵
+      solids: [{ x: 120, y: 740, w: 360, h: 60 }, { x: 1120, y: 740, w: 360, h: 60, ice: true }, { x: 620, y: 620, w: 360, h: 180 }],
+      slopes: [{ x1: 480, y1: 740, x2: 620, y2: 620 }, { x1: 980, y1: 620, x2: 1120, y2: 740 }],
+      tramps: [{ x: 700, y: 620, w: 80, power: 1500 }, { x: 880, y: 620, w: 80, power: 1500 }],
+      movers: [{ x: 200, y: 520, w: 160, x2: 520, y2: 520, per: 10 }, { x: 1240, y: 360, w: 160, x2: 1240, y2: 600, per: 9, ph: 2 }],
+      crumble: [{ x: 720, y: 420, w: 160 }, { x: 920, y: 420, w: 160 }],
+      platforms: [{ x: 700, y: 260, w: 200 }],
+      gusts: [{ x: 300, y: 200, w: 500, h: 300, vx: 220 }, { x: 1000, y: 150, w: 320, h: 440, vy: -300 }],
+      spawns: [{ x: 250, y: 740 }, { x: 1300, y: 740 }, { x: 800, y: 620 }, { x: 740, y: 420 }, { x: 1000, y: 420 }, { x: 800, y: 260 }],
+      respawn: { x: 800, y: 120 },
+      theme: { sky: ['#1a0e2e', '#4a2a6a', '#f08aa8'], hill: '#2e1a40', grass: '#c0a0e0', grassHi: '#e8d4ff', dirt: '#4a3a5a', plat: '#f8b0d0', platHi: '#fff0f8', orb: 'rgba(255,200,230,', stars: true },
+    },
   ];
   // 계산해 두는 값 (봇·분신이 땅 끝을 알기 위해)
   for (const m of MAPS) {
     m.width = m.width || 1280; m.height = m.height || 720; m.slopes = m.slopes || []; m.tramps = m.tramps || [];
+    m.crumble = m.crumble || []; m.movers = m.movers || []; m.gusts = m.gusts || [];
     m.zoom = 1280 / m.width;
     m.icy = [...m.solids, ...m.platforms, ...m.slopes].some((q) => q.ice);   // 얼음이 있는 맵: 얼음 아닌 땅도 살짝 미끄러움
     // 크기 등급: 실제 땅·발판이 펼쳐진 가로 폭으로 소(S) · 중(M) · 대(L). 맵에 size를 직접 적으면 그걸 씀

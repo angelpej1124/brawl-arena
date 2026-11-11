@@ -505,6 +505,7 @@ class Sim {
   // 맵을 바꾸고 모두 그 맵의 시작 위치로
   applyStage(map, newRound = true) {
     this.stage = map; this.water = null;
+    this.initStageParts();   // 무너지는 발판·움직이는 발판·바람: 판·맵이 바뀔 때마다 새로
     this.clearField();
     this.list().forEach((p, i) => {
       p.mapMid = this.stage.width / 2; p.hulkS = 1;
@@ -767,6 +768,7 @@ class Sim {
       else if (p.errMode === 4) p.input = { ...i, l: Math.random() < 0.5 ? 1 : 0, r: Math.random() < 0.5 ? 1 : 0, u: Math.random() < 0.06 ? 1 : 0, a: Math.random() < 0.05 ? 1 : 0 };
     }
     // 반전: 좌우 키가 반대로
+    this.updateStageParts(dt, list);
     for (const p of list) if (p.invT > 0) p.input = { ...p.input, l: p.input.r, r: p.input.l };
     for (const p of [...list, ...this.clones.values()]) if (p.alive && !p.inside) this.updateElements(p, dt);
     for (const p of list) {
@@ -1661,10 +1663,52 @@ class Sim {
     }
   }
   // 구름 발판은 쓴 사람(과 같은 팀)만 밟을 수 있음. p가 없으면(봇 지형 판단 등) 모든 구름
+  // ---------------- 맵 전용 기믹: 무너지는 발판 · 움직이는 발판 · 바람 구역 ----------------
+  //  crumble: [{x,y,w}]              밟으면 1초 뒤 무너짐 → 3초 뒤 다시 생김 (st: 0 멀쩡 · 1 흔들림 · 2 무너짐)
+  //  movers : [{x,y,w,x2,y2,per,ph}] (x,y)↔(x2,y2) 사이를 per초에 한 번 왕복. 위에 선 사람은 같이 실려 감
+  //  gusts  : [{x,y,w,h,vx,vy}]      안에 있으면 vx(px/초)만큼 밀리고, vy가 있으면 그 속도로 떠오름/가라앉음
+  initStageParts() {
+    this.partsOf = this.stage;
+    this.crumbles = (this.stage.crumble || []).map((c) => ({ x: c.x, y: c.y, w: c.w, st: 0, t: 0 }));
+    this.movers = (this.stage.movers || []).map((m) => ({ ...m, ax: m.x, ay: m.y, bx: m.x2 !== undefined ? m.x2 : m.x, by: m.y2 !== undefined ? m.y2 : m.y }));
+    this.gusts = this.stage.gusts || [];
+    this.dynPlats = [];
+  }
+  moverPos(m) {
+    const k = (1 - Math.cos(Math.PI * 2 * (this.time + (m.ph || 0)) / m.per)) / 2;   // 0→1→0, 끝에서 천천히 멈췄다 감
+    return { x: m.ax + (m.bx - m.ax) * k, y: m.ay + (m.by - m.ay) * k };
+  }
+  updateStageParts(dt, list) {
+    if (this.partsOf !== this.stage) this.initStageParts();
+    if (!this.crumbles.length && !this.movers.length && !this.gusts.length) return;
+    const everyone = [...list, ...this.clones.values()].filter((p) => p.alive && !p.inside && !(p.frozen > 0));
+    // 움직이는 발판: 새 위치로 옮기고, 올라타 있던 사람은 같이 실어 나름
+    for (const m of this.movers) {
+      const n = this.moverPos(m), dx = n.x - m.x, dy = n.y - m.y;
+      for (const p of everyone) if (p.grounded && Math.abs(p.y - m.y) < 3 && p.x > m.x - 2 && p.x < m.x + m.w + 2) { p.x += dx; p.y += dy; }
+      m.x = n.x; m.y = n.y;
+    }
+    // 무너지는 발판: 밟으면 흔들리다 무너지고, 잠시 뒤 다시 생김
+    this.dynPlats = [];
+    for (const c of this.crumbles) {
+      if (c.st === 0 && everyone.some((p) => p.grounded && Math.abs(p.y - c.y) < 3 && p.x > c.x && p.x < c.x + c.w)) { c.st = 1; c.t = 1; }
+      else if (c.st === 1) { c.t -= dt; if (c.t <= 0) { c.st = 2; c.t = 3; } }
+      else if (c.st === 2) { c.t -= dt; if (c.t <= 0) { c.st = 0; c.t = 0; } }
+      if (c.st < 2) this.dynPlats.push(c);
+    }
+    for (const m of this.movers) this.dynPlats.push(m);
+    // 바람 구역: 안에 있는 사람을 밀거나 띄움
+    for (const g of this.gusts) for (const p of everyone) {
+      if (p.x < g.x || p.x > g.x + g.w || p.y < g.y || p.y > g.y + g.h) continue;
+      if (g.vx) p.x += g.vx * dt;
+      if (g.vy !== undefined) p.vy = approach(p.vy, g.vy, 6000 * dt);   // 중력(같은 틱에 다시 더해짐)을 이기고 목표 속도에 빨리 도달하도록 크게
+    }
+  }
   platformsNow(p) {
-    if (!this.clouds.length) return this.stage.platforms;
+    const base = this.dynPlats && this.dynPlats.length ? this.stage.platforms.concat(this.dynPlats) : this.stage.platforms;
+    if (!this.clouds.length) return base;
     const mine = p ? this.clouds.filter((c) => !this.foe({ id: c.owner }, p)) : this.clouds;
-    return mine.length ? [...this.stage.platforms, ...mine] : this.stage.platforms;
+    return mine.length ? [...base, ...mine] : base;
   }
   parrying(o) { return !o.clone && o.parryT > 0 && o.alive && !o.inside; }
   parried(o, x, y) {
@@ -3063,6 +3107,8 @@ class Sim {
       gw: this.barriers.length ? this.barriers.map((b) => [r0(b.x || 0), r0(b.y || 0), b.r, b.owner, Math.round(b.t * 10) / 10]) : undefined,
       wl: this.walls.length ? this.walls.map((w) => [r0(w.x), r0(w.top), r0(w.bottom), w.owner, Math.round(w.t * 10) / 10]) : undefined,
       lv: this.lavas.length ? this.lavas.map((l) => [r0(l.x), r0(l.y), l.w, l.owner, Math.round(l.t * 10) / 10]) : undefined,
+      cr: this.crumbles && this.crumbles.length ? this.crumbles.map((c) => [c.st, Math.round(c.t * 10) / 10]) : undefined,
+      mvs: this.movers && this.movers.length ? this.movers.map((m) => [r0(m.x), r0(m.y)]) : undefined,
       pt: this.portals.map((o) => [r0(o.x), r0(o.y), o.owner, this.portals.some((q) => q.pair === o.pair && q !== o) ? 1 : 0]),
       po: this.potions.map((q) => [r0(q.x), r0(q.y), DOPE_KINDS.indexOf(q.kind), q.owner]),
       shw: this.shields.map((q) => ({ x: r0(q.x), y: r0(q.y), vx: q.ground ? 0 : r0(q.vx), vy: q.ground ? 0 : r0(q.vy), g: q.ground ? 1 : 0, o: q.owner, s: q.big !== 1 ? Math.round(q.big * 10) / 10 : undefined })),
