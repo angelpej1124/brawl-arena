@@ -273,7 +273,6 @@ class Sim {
     this.winTeam = 0;
     this.tickCount = 0; this.time = 0; this.evSeq = 0; this.recent = [];
     this.onEvent = () => {};
-    this.rollVote();
   }
   list() { return [...this.players.values()]; }
   // 주인 id (분신·터렛·총알은 주인을 따라감)
@@ -460,41 +459,17 @@ class Sim {
       this.pickMap();
     }
   }
-  // ---------------- 맵 투표 ----------------
-  // 대기실마다 랜덤 후보 3개 (직전 맵 제외). 사람만 투표, 시작할 때 가장 많이 받은 맵 (동률·무투표면 그중 랜덤)
-  rollVote() {
-    const pool = MAPS.filter((m) => m !== this.stage);
-    for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
-    this.mapVote = { cands: pool.slice(0, 3).map((m) => m.id), votes: {} };
-  }
-  vote(id, mapId) {
-    const p = this.players.get(id);
-    if (!p || p.bot || this.phase !== 'waiting' || !this.mapVote) return;
-    if (!this.mapVote.cands.includes(mapId)) return;
-    this.mapVote.votes[id] = mapId;
-  }
-  voteWinner() {
-    const v = this.mapVote; if (!v) return null;
-    const cnt = v.cands.map((c) => Object.entries(v.votes).filter(([pid, m]) => m === c && this.players.has(pid)).length);
-    const top = Math.max(...cnt), best = v.cands.filter((c, i) => cnt[i] === top);
-    return best[Math.floor(Math.random() * best.length)];
-  }
-  // 판마다 맵: 투표로 정함 (투표 정보가 없으면 직전 맵 빼고 랜덤)
+  // ---------------- 맵 고르기: 방장이 항상 정함 (사람 수와 상관없이, 투표 없음) ----------------
+  // 방장이 고른 맵이 다음 판 맵 (계속 그 맵). 안 골랐거나 '랜덤'이면 직전 맵 빼고 무작위 (랜덤이면 판마다 새로)
   pickMap() {
-    const won = this.voteWinner(), voted = won && MAPS.find((m) => m.id === won);
+    const picked = this.picked && this.picked !== 'random' && MAPS.find((m) => m.id === this.picked);
     const others = MAPS.filter((m) => m !== this.stage);
-    // 사람이 혼자면 방장이 고른 맵 (사람이 2명 이상이 되면 다시 투표로)
-    const solo = this.humanCount() === 1;
-    const picked = solo && this.picked && this.picked !== 'random' && MAPS.find((m) => m.id === this.picked);
-    const rnd = solo && this.picked === 'random';   // 방장이 '랜덤'을 고르면 투표 없이 매판 무작위
-    this.applyStage(picked || (!rnd && voted) || others[Math.floor(Math.random() * others.length)] || MAPS[0]);
-    if (voted && !picked && !rnd) this.ev({ k: 'voted', n: voted.name });
+    this.applyStage(picked || others[Math.floor(Math.random() * others.length)] || MAPS[0]);
   }
   humanCount() { let n = 0; for (const p of this.players.values()) if (!p.bot && !p.dummy) n++; return n; }
-  // 방장이 혼자일 때 맵 고르기: 대기실에서 바로 그 맵으로 바뀌고, 다음 판도 그 맵
+  // 방장이 맵을 고름: 대기 중이면 언제든 (바로 그 맵의 시작 위치로)
   pickHostMap(mapId) {
     if (this.phase !== 'waiting') return '대기 중일 때만 맵을 고를 수 있어요.';
-    if (this.humanCount() !== 1) return '봇·더미 말고 사람이 혼자일 때만 맵을 직접 고를 수 있어요.';
     if (mapId === 'random') { this.picked = 'random'; return null; }   // 랜덤: 지금 맵은 그대로, 시작할 때 무작위
     const map = MAPS.find((m) => m.id === mapId);
     if (!map) return '없는 맵이에요.';
@@ -726,7 +701,7 @@ class Sim {
       this.timer -= dt;
       if (this.timer <= 0) {
         this.list().forEach((p) => { p.inMatch = false; p.ready = !!p.bot; });
-        this.phase = 'waiting'; this.rollVote();   // 다음 판 맵 후보 새로
+        this.phase = 'waiting';
       }
     }
     for (const s of this.smokes) s.t -= dt;
@@ -3094,8 +3069,7 @@ class Sim {
     return {
       ph: this.phase, tm: Math.ceil(this.timer), w: this.winner, wi: this.winnerId, wt: this.winTeam,
       md: [this.teamMode ? 1 : 0, this.doubleMode ? 1 : 0, this.itemMode ? 1 : 0], s: this.tickCount, mp: this.stage.id,
-      pk: this.phase === 'waiting' && this.humanCount() === 1 ? (this.picked || this.stage.id) : undefined,
-      mv: this.phase === 'waiting' && this.mapVote ? [this.mapVote.cands, Object.fromEntries(Object.entries(this.mapVote.votes).filter(([pid]) => this.players.has(pid)).map(([pid, m]) => [pid, this.mapVote.cands.indexOf(m)]))] : 0,
+      pk: this.phase === 'waiting' ? (this.picked || 'random') : undefined,   // 방장이 고른 맵 (대기실에 있는 모두에게 표시)
       ev: this.recent.slice(-10),
       ar: this.arrows.map((a) => ({ x: r0(a.x), y: r0(a.y), vx: r0(a.vx), vy: r0(a.vy), h: a.homing ? 1 : 0, de: a.de ? 1 : undefined, lf: a.lf ? 1 : undefined, el: a.el || undefined, s: a.big !== 1 ? Math.round(a.big * 10) / 10 : undefined, ku: a.ku || undefined, sw: a.sw || undefined, vp: a.vp || undefined, sg: a.sg || undefined })),
       lg: this.logs.map((l) => ({ x: r0(l.x), y: r0(l.y), sn: l.sn, vp: l.vp, t: Math.round(l.t * 10) / 10, s: l.big !== 1 ? Math.round(l.big * 10) / 10 : undefined })),

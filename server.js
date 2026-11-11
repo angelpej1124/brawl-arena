@@ -678,8 +678,6 @@ server.on('upgrade', (req, sock) => {
         room.sim.ev({ k: 'kickout', n: tc.name });
         try { tc.socket.send(JSON.stringify({ t: 'kicked', msg: '방장이 방에서 내보냈어요. 다시 들어갈 수는 있어요.' })); tc.socket.close(); } catch (_) {}
         room.leave(tid);
-      } else if (m.t === 'vote' && room) {
-        room.sim.vote(id, String(m.map || ''));
       } else if (m.t === 'botdiff' && room) {
         if (id !== room.hostId) return notice('봇 난이도는 방장만 정할 수 있어요.');
         const err = room.sim.setBotDiff(String(m.id || ''), String(m.diff || ''));
@@ -702,7 +700,7 @@ server.on('upgrade', (req, sock) => {
         if (err) return notice(err);
         if (room.sim.doubleMode) for (const cid of room.clients.keys()) room.giveSkill2(cid);
       } else if (m.t === 'pickmap' && room) {
-        // 사람이 혼자(봇·더미 제외)일 때 방장이 맵을 직접 고름
+        // 맵은 항상 방장이 고름 (투표 없음)
         if (id !== room.hostId) return notice('맵은 방장만 고를 수 있어요.');
         const err = room.sim.pickHostMap(String(m.map || ''));
         if (err) return notice(err);

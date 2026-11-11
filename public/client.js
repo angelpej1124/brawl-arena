@@ -4404,14 +4404,14 @@ function drawMapThumb(cv, map) {
 }
 let voteKey = '';
 const SIZE_KO = { S: '소', M: '중', L: '대' };   // 맵 크기 등급
-const VOTE_LBL = '다음 맵 투표 <small>(눌러서 투표 · 시작할 때 가장 많은 표)</small>';
-const PICK_LBL = '맵 고르기 <small>(사람이 나 혼자일 때는 방장이 직접 골라요 · 누르면 바로 바뀜)</small>';
-// 혼자(봇·더미 제외)인 방장: 모든 맵 중에서 직접 고름
+const PICK_LBL = '맵 고르기 <small>(방장이 고르면 그 맵으로 계속 해요 · 누르면 바로 바뀜)</small>';
+const GUEST_LBL = '방장이 맵을 고르고 있어요 <small>(지금 고른 맵이 표시돼요)</small>';
+// 맵 고르기: 방장만 누를 수 있고, 나머지 사람은 방장이 고른 맵을 보기만 함
 function renderPick(m) {
   const row = $('voteRow'), box = $('voteCards');
   row.hidden = false;
   if (voteKey !== 'pick') {
-    voteKey = 'pick'; box.textContent = ''; box.classList.add('pick'); $('voteLbl').innerHTML = PICK_LBL;
+    voteKey = 'pick'; box.textContent = ''; box.classList.add('pick');
     box.setAttribute('aria-label', '맵 고르기');
     // 맨 앞: 랜덤 (시작할 때마다 무작위 맵)
     {
@@ -4436,42 +4436,18 @@ function renderPick(m) {
       box.append(b);
     }
   }
+  $('voteLbl').innerHTML = isHost ? PICK_LBL : GUEST_LBL;
+  box.setAttribute('aria-label', isHost ? '맵 고르기' : '방장이 고른 맵');
   box.querySelectorAll('.vote-card').forEach((b) => {
     const on = b.dataset.id === m.pk;
+    b.disabled = !isHost;
     b.classList.toggle('mine', on); b.setAttribute('aria-pressed', String(on));
     b.querySelector('small').textContent = on ? (b.dataset.id === 'random' ? '선택됨 · 판마다 무작위' : '선택됨') : '';
   });
 }
 function renderVote(m) {
-  if (m.pk && m.host === myId) return renderPick(m);
-  const mv = m.mv, row = $('voteRow');
-  row.hidden = !mv;
-  if (voteKey === 'pick') { voteKey = ''; $('voteCards').classList.remove('pick'); $('voteLbl').innerHTML = VOTE_LBL; $('voteCards').setAttribute('aria-label', '다음 맵 투표'); }
-  if (!mv) return;
-  const [cands, votes] = mv, mine = votes[myId];
-  const cnt = cands.map((c, i) => Object.values(votes).filter((v) => v === i).length);
-  const box = $('voteCards');
-  const k = cands.join();
-  if (k !== voteKey) {
-    voteKey = k; box.textContent = '';
-    cands.forEach((id, i) => {
-      const map = MAPS.find((x) => x.id === id); if (!map) return;
-      const b = document.createElement('button'); b.type = 'button'; b.className = 'vote-card'; b.dataset.i = i;
-      const cv = document.createElement('canvas'); cv.width = 160; cv.height = 90; drawMapThumb(cv, map);
-      const nm = document.createElement('b'); nm.textContent = map.name;
-      const sz = document.createElement('i'); sz.className = 'map-size s-' + map.size; sz.textContent = SIZE_KO[map.size] || ''; nm.prepend(sz);
-      const sm = document.createElement('small');
-      b.append(cv, nm, sm);
-      b.addEventListener('click', (e) => { e.currentTarget.blur(); send({ t: 'vote', map: id }); });
-      box.append(b);
-    });
-  }
-  box.querySelectorAll('.vote-card').forEach((b) => {
-    const i = Number(b.dataset.i);
-    b.classList.toggle('mine', mine === i);
-    b.setAttribute('aria-pressed', String(mine === i));
-    b.querySelector('small').textContent = `${cnt[i]}표${mine === i ? ' · 내 투표' : ''}`;
-  });
+  if (m.pk) return renderPick(m);   // 투표 없음: 대기실의 맵 칸은 항상 방장이 고르는 맵 고르기
+  $('voteRow').hidden = true; voteKey = '';
 }
 // 대기실 창은 항상 위 버튼줄 바로 아래부터 (버튼줄 높이가 바뀌어도 안 겹치게), 화면을 넘으면 창 안에서 스크롤
 function layoutRoomPanel() {
@@ -4497,7 +4473,7 @@ function updateRoomPanel(m) {
   const prof = account.profile;
   const key = [me.c, me.sk, me.sk2, me.rd, host, JSON.stringify(me.rs || 0), ready, need, m.p.length, [...taken].join(), (prof && prof.owned.join()) || '',
     prof ? (prof.skins || []).join() + JSON.stringify(prof.skinSel || {}) : '', m.p.filter((p) => p.b).map((p) => p.id + p.sk + (p.sk2 || '') + JSON.stringify(p.rs || 0) + (p.bd ?? '')).join(),
-    md.join(), m.p.map((p) => p.id + ':' + p.tm + ':' + p.n).join(), JSON.stringify(m.mv || 0), m.pk || '', m.host || ''].join('|');
+    md.join(), m.p.map((p) => p.id + ':' + p.tm + ':' + p.n).join(), m.pk || '', m.host || ''].join('|');
   if (key === panelKey) return;
   panelKey = key;
   document.querySelectorAll('.sw').forEach((b) => {
