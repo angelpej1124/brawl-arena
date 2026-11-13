@@ -33,6 +33,11 @@ const SHOP = {
       skills: ['sword', 'archer', 'ninja', 'shield'], skins: [], price: 300,
       from: '2026-10-26', until: '2026-11-01',   // 다음 주 월요일 0시(한국)에 자동으로 바뀜 — 그 전엔 상점에 안 보임
     },
+    {
+      id: 'summon-2026w47', name: '소환 패키지', desc: '소환해서 싸우는 스킬 3종: 분신 · 터렛 · 지뢰',
+      skills: ['clone', 'turret', 'mine'], skins: [], price: 200,
+      from: '2026-11-16', until: '2026-11-22',   // 한정판 이벤트가 끝난 뒤 다음 주 패키지
+    },
   ],
 };
 module.exports = SHOP;
