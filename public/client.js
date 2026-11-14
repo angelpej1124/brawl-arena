@@ -198,6 +198,7 @@ $('authForm').addEventListener('submit', async (e) => {
     const r = await api(authTab === 'signup' ? '/api/signup' : '/api/login', { nick, pw });
     loginWith(r.token, r.profile);
     authMsg('');
+    if (r.profile.mustChangePw) await forcePwChange();
   } catch (err) {
     authMsg(err.message);
   } finally {
@@ -565,6 +566,24 @@ $('bugSend').addEventListener('click', async () => {
 setInterval(() => { if (!$('adminCard').hidden && !$('lobby').hidden) adminRooms(); }, 10000);
 let admTimer = null;
 $('admQ').addEventListener('input', () => { clearTimeout(admTimer); admTimer = setTimeout(adminSearch, 300); });
+// 관리자가 준 임시 비밀번호로 들어왔으면 새 비밀번호를 정할 때까지 계속 물어봄
+async function forcePwChange() {
+  for (;;) {
+    const pw = prompt('임시 비밀번호로 들어왔어요. 새 비밀번호를 정해 주세요 (4~64자).');
+    if (pw === null) continue;
+    try { await api('/api/pw', { pw }); account.profile.mustChangePw = false; return; }
+    catch (e) { alert(e.message); }
+  }
+}
+$('admTempPw').addEventListener('click', async () => {
+  if (!adminSel) return;
+  if (!confirm(`${adminSel.nick} 계정의 임시 비밀번호를 만들까요? 지금 비밀번호와 로그인 상태는 바로 무효가 돼요.`)) return;
+  try {
+    const r = await api('/api/admin/temp-pw', { nick: adminSel.nick });
+    $('admMsg').style.color = 'var(--ok)';
+    $('admMsg').textContent = `${r.nick} 임시 비밀번호: ${r.tempPw} (이 화면에서만 보여요. 다음 로그인 때 본인이 바꿔요)`;
+  } catch (e) { $('admMsg').style.color = 'var(--danger)'; $('admMsg').textContent = e.message; }
+});
 $('admWarn').addEventListener('click', async () => {
   if (!adminSel) return;
   const on = !adminSel.nickWarn;
@@ -626,7 +645,7 @@ setInterval(() => { if (!$('lobby').hidden) loadRanking(); }, 15000);
   renderAccount();
   loadRanking();
   if (account.token) {
-    try { const r = await api('/api/me'); account.profile = r.profile; if (r.profile.skill) selectSkill(r.profile.skill, true); }
+    try { const r = await api('/api/me'); account.profile = r.profile; if (r.profile.skill) selectSkill(r.profile.skill, true); if (r.profile.mustChangePw) await forcePwChange(); }
     catch (e) { if (e.status === 401) { account.token = null; try { localStorage.removeItem('brawl_token'); } catch (_) {} } }
     renderAccount();
   }

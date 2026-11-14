@@ -105,6 +105,12 @@ async function api(req, res, urlPath) {
       const b = await readBody(req);
       return sendJson(res, 200, accounts.buySkill(key, String(b.skill || '')));
     }
+    if (req.method === 'POST' && urlPath === '/api/pw') {
+      const key = accounts.fromToken(bearer(req));
+      if (!key) return sendJson(res, 401, { error: '로그인이 필요해요.' });
+      const b = await readBody(req);
+      return sendJson(res, 200, await accounts.changePw(key, b.pw));
+    }
     if (req.method === 'POST' && urlPath === '/api/nick') {
       const key = accounts.fromToken(bearer(req));
       if (!key) return sendJson(res, 401, { error: '로그인이 필요해요.' });
@@ -153,6 +159,12 @@ async function api(req, res, urlPath) {
           if (c.accountKey && accounts.nickOf(c.accountKey) === profile.nick) c.socket.send(JSON.stringify({ t: 'profile', profile }));
         }
         return sendJson(res, 200, { profile });
+      }
+      if (req.method === 'POST' && urlPath === '/api/admin/temp-pw') {
+        const b = await readBody(req);
+        const r = await accounts.adminTempPw(b.nick);
+        console.log(`[관리자] ${accounts.nickOf(key)} → ${r.nick}: 임시 비밀번호 발급`);   // 비밀번호는 기록하지 않음
+        return sendJson(res, 200, r);
       }
       if (req.method === 'POST' && urlPath === '/api/admin/user') {
         const b = await readBody(req);

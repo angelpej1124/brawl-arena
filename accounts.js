@@ -194,6 +194,7 @@ function publicProfile(a) {
     gems: a.gems, owned: skillsOf(a), admin: !!a.admin,
     skins: skinIdsOf(a), skinSel: { ...(a.skinSel || {}) },
     nickWarn: a.nickWarn || null,   // 닉네임 경고 (사유). 있으면 닉네임을 바꿔야 게임 가능
+    mustChangePw: !!a.mustChangePw,   // 관리자가 임시 비밀번호를 줬으면 로그인 후 바꿔야 함
     patchSeen: a.patchSeen || null,   // 마지막으로 본 패치 내역
     patchClaimed: patchRewardsFor(a).every((r) => (a.patchClaimed || []).includes(r.id)),   // 받을 수 있는 보상을 다 받았는지
     patchLeft: patchRewardsFor(a).filter((r) => !(a.patchClaimed || []).includes(r.id)).reduce((n, r) => n + r.gems, 0),   // 아직 안 받은 보석
@@ -612,6 +613,36 @@ function adminUpdate(targetNick, { gems, owned, skins }) {
   return publicProfile(a);
 }
 
+// ---------- 임시 비밀번호 (관리자가 발급, 다음 로그인 때 본인이 바꿈) ----------
+// 원문은 저장하지 않음: 임시 비밀번호도 해시로만 저장하고, 발급 직후 한 번만 관리자 화면에 보여 줌
+async function adminTempPw(targetNick) {
+  const key = keyOf(String(targetNick || ''));
+  const a = store.accounts[key];
+  if (!a) throw new Error('그런 닉네임의 계정이 없어요.');
+  const tempPw = crypto.randomBytes(9).toString('base64url');   // 12자
+  const salt = crypto.randomBytes(16);
+  const hash = await scrypt(tempPw, salt);
+  a.salt = salt.toString('hex');
+  a.hash = hash.toString('hex');
+  a.mustChangePw = true;
+  // 기존 로그인은 모두 끊음
+  for (const [tk, s] of Object.entries(store.sessions)) if (s.key === key) delete store.sessions[tk];
+  save();
+  return { nick: a.nick, tempPw };
+}
+// 본인이 새 비밀번호를 정함 (임시 비밀번호를 바꾼 뒤 플래그 해제)
+async function changePw(key, pw) {
+  const a = store.accounts[key];
+  if (!a) throw new Error('로그인이 필요해요.');
+  if (typeof pw !== 'string' || pw.length < 4 || pw.length > 64) throw new Error('비밀번호는 4~64자로 써 주세요.');
+  const salt = crypto.randomBytes(16);
+  const hash = await scrypt(pw, salt);
+  a.salt = salt.toString('hex');
+  a.hash = hash.toString('hex');
+  delete a.mustChangePw;
+  save();
+  return { ok: true, profile: publicProfile(a) };
+}
 // ---------- 닉네임 경고 ----------
 function adminWarn(targetNick, on, reason) {
   const a = store.accounts[keyOf(targetNick)];
@@ -684,7 +715,7 @@ function adminReportSet(id, { done, del }) {
   return { ok: true };
 }
 module.exports = {
-  addReport, adminReports, adminReportSet, isAdminKey: (k) => isAdmin(k),
+  adminTempPw, changePw, addReport, adminReports, adminReportSet, isAdminKey: (k) => isAdmin(k),
   onShutdown, onecardRecord, gemsOf, takeGems, giveGems, pokerStat, onecardRanking, pokerRanking,
   init, storage: () => storageName, signup, login, logout, fromToken, profileOf, nickOf, isTaken,
   keyOf, owns, ownedOf, chessRecord, chessBotRecord, chessRanking, setSkill, record, buySkin, equipSkin, skinsOf, adminWarn, changeNick, ranking, cleanNick, gacha, buySkill, shopInfo, shopDaily, shopBuy, todayShop, patchSeen, patchClaim, isAdmin, adminList, adminUpdate,
