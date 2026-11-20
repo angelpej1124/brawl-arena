@@ -38,6 +38,11 @@ const SHOP = {
       skills: ['clone', 'turret', 'mine'], skins: [], price: 200,
       from: '2026-11-16', until: '2026-11-22',   // 한정판 이벤트가 끝난 뒤 다음 주 패키지
     },
+    {
+      id: 'disaster-2026w48', name: '자연재해 패키지', desc: '자연재해를 일으키는 스킬 3종: 화산 · 지진 · 홍수',
+      skills: ['volcano', 'quake', 'flood'], skins: [], price: 200,
+      from: '2026-11-23', until: '2026-11-29',   // 소환 패키지 다음 주(월~일) 자동으로 바뀜
+    },
   ],
 };
 module.exports = SHOP;
