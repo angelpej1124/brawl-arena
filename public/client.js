@@ -4572,7 +4572,7 @@ function updateRoomPanel(m) {
   const bl = $('botList'); bl.textContent = '';
   if (host) for (const bot of bots) {
     const pill = document.createElement('div'); pill.className = 'bp';
-    const nm = document.createElement('span'); nm.textContent = bot.n.replace('봇 ', ''); pill.append(nm);
+    const nm = document.createElement('span'); nm.textContent = bot.n; pill.append(nm);
     const mkSel = (cur, field, other, rnd) => {
       const sel = document.createElement('select'); sel.setAttribute('aria-label', `${bot.n} ${field === 'skill' ? '스킬' : '스킬2'}`);
       const r = document.createElement('option'); r.value = 'random'; r.textContent = rnd ? `🎲 랜덤 (${SKILLS[validSkill(cur)].name})` : '🎲 랜덤'; if (rnd) r.selected = true; sel.append(r);

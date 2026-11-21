@@ -531,7 +531,7 @@ class GameRoom {
       const used = new Set(this.sim.list().map((p) => p.name));
       let name;
       if (dummy) { let i = 1; while (used.has('더미 ' + i)) i++; name = '더미 ' + i; }
-      else name = BOT_NAMES.find((n) => !used.has(n)) || '봇';
+      else { name = BOT_NAMES.find((n) => !used.has(n)); if (!name) { let i = 1; while (used.has('봇 ' + i)) i++; name = '봇 ' + i; } }
       const p = this.sim.addPlayer((dummy ? 'dum' : 'bot') + nextId++, name, true, dummy ? 'slow' : SKILL_IDS[Math.floor(Math.random() * SKILL_IDS.length)]);
       if (p && dummy) p.dummy = true;
     } else {
