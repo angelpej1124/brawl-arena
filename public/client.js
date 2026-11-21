@@ -4484,7 +4484,7 @@ function updateRoomPanel(m) {
   if (!show) { myReady = false; return; }
   spectating = !!(m.sp && m.sp.includes(myId));
   const me = m.p.find((p) => p.id === myId);
-  if (!me) { updateReadyButtons(m, null); return; }   // 관전 중: 준비 칸 없이 버튼만
+  if (!me) { updateReadyButtons(m, null); renderHostLists(m); return; }   // 관전 중: 준비 칸 없이 버튼만, 방장 목록(봇·추방)은 계속 갱신
   if (me.sk !== account.skill) selectSkill(me.sk, true);
   myReady = !!me.rd;
   const taken = new Set(m.p.filter((p) => p.id !== myId).map((p) => p.c));
@@ -4555,7 +4555,12 @@ function updateRoomPanel(m) {
     }
   }
   $('skinRow').hidden = !anySkin;
-  // 추방 (방장만): 다른 사람을 방에서 내보냄. 다시 들어올 수는 있음
+  renderHostLists(m);
+}
+// 추방·봇 목록 (방장만). 관전 중에도 보여야 해서 따로 그림
+function renderHostLists(m) {
+  const host = m.host === myId;
+  const md = m.md || [0, 0];
   const others = m.p.filter((p) => !p.b && p.id !== myId);
   $('kickRow').hidden = !host || !others.length;
   const kl = $('kickList'); kl.textContent = '';
